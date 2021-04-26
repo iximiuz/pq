@@ -17,6 +17,6 @@
 ```bash
 cargo test
 
-cargo run -- 'age{name="bob"}' -d '(\d+)\s(\w+)\s(\d+)' -t 0:YYYY -l 1:name -m 2:age
+echo '2002-01-01T05:40:41 bob 42' | cargo run -- 'age{name="bob"}' -d '([^\s]+)\s(\w+)\s(\d+)' -t '0:%Y-%m-%dT%H:%M:%S' -l 1:name -m 2:age
 ```
 

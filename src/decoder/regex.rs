@@ -1,6 +1,7 @@
 use std::collections::{HashMap, HashSet};
 use std::fmt;
 
+use chrono::prelude::*;
 use lazy_static::lazy_static;
 use regex;
 
@@ -172,13 +173,23 @@ impl RegexDecoder {
 impl Decoder for RegexDecoder {
     fn decode(&mut self, buf: &mut Vec<u8>) -> Result<Record> {
         let record_caps = self.re.captures(buf).ok_or("no match found")?;
-        let timestamp_str = record_caps
-            .get(self.timestamp_cap.pos)
-            .ok_or("timestamp capture is empty")?;
+
+        let timestamp = DateTime::parse_from_str(
+            &String::from_utf8(
+                record_caps
+                    .get(self.timestamp_cap.pos + 1)
+                    .ok_or("timestamp capture is empty")?
+                    .as_bytes()
+                    .to_vec(),
+            )
+            .map_err(|e| ("couldn't decode UTF-8 timestamp value", e))?,
+            &self.timestamp_cap.format,
+        )
+        .map_err(|e| ("couldn't parse timestamp of a record", e))?;
 
         let mut metrics = HashMap::new();
         for metric_cap in self.metric_caps.iter() {
-            if let Some(metric) = record_caps.get(metric_cap.pos) {
+            if let Some(metric) = record_caps.get(metric_cap.pos + 1) {
                 metrics.insert(
                     metric_cap.name.clone(),
                     String::from_utf8(metric.as_bytes().to_vec())
@@ -195,7 +206,7 @@ impl Decoder for RegexDecoder {
 
         let mut labels = HashMap::new();
         for label_cap in self.label_caps.iter() {
-            if let Some(label) = record_caps.get(label_cap.pos) {
+            if let Some(label) = record_caps.get(label_cap.pos + 1) {
                 labels.insert(
                     label_cap.name.clone(),
                     String::from_utf8(label.as_bytes().to_vec())
@@ -204,7 +215,7 @@ impl Decoder for RegexDecoder {
             }
         }
 
-        Ok(Record::new(0, labels, metrics))
+        Ok(Record::new(timestamp.timestamp_millis(), labels, metrics))
     }
 }
 

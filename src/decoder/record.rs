@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 
-type Timestamp = u64;
+type Timestamp = i64;
 
 #[derive(Debug)]
 pub struct Record {
