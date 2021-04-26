@@ -1,0 +1,13 @@
+[package]
+name = "pq"
+version = "0.1.0"
+authors = ["Ivan Velichko <iximiuz@gmail.com>"]
+edition = "2018"
+
+[dependencies]
+chrono = "0.4.19"
+lazy_static = "1.4.0"
+nom = "6"
+regex = "1.4.6"
+structopt = "0.3.21"
+
