@@ -4,14 +4,8 @@ use structopt::StructOpt;
 
 use pq::decoder::RegexDecoder;
 use pq::input::Input;
-// use pq::parser;
+use pq::parser;
 use pq::reader::LineReader;
-
-// pq -d '(\d+)\s(\w)\s(\d)' -t 1 -l name:2 -f age:3 'age{name="bob"}'
-// Implement:
-//   - read stdin line by line
-//   - apply regex and extract timestamp, metrics, and labels
-//   - print out parsed structs
 
 #[derive(Debug, StructOpt)]
 #[structopt(name = "pq", about = "pq command line arguments")]
@@ -44,6 +38,9 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         )?),
     );
 
+    let ast = parser::parse(&opt.query)?;
+    println!("AST={:?}", ast);
+
     loop {
         let record = match input.take_one()? {
             Some(r) => r,
@@ -52,6 +49,5 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         println!("{:?}", record);
     }
 
-    // let parsed = parser::take4(&opt.query)?;
     Ok(())
 }
