@@ -2,11 +2,11 @@
 
 use nom::{
     branch::alt,
-    bytes::complete::tag,
+    bytes::complete::{is_not, tag},
     character::complete::{alpha1, alphanumeric1, char},
     combinator::recognize,
     multi::many0,
-    sequence::pair,
+    sequence::{delimited, pair, tuple},
     IResult,
 };
 
@@ -45,8 +45,32 @@ fn label_match_list() {
     // label_match_list COMMA label_matcher | label_matcher
 }
 
-fn label_matcher() {
+#[derive(Debug, Eq, PartialEq)]
+struct LabelMatcher {
+    label: String,
+    match_op: MatchOp,
+    value: String,
+}
+
+fn label_matcher(input: &str) -> IResult<&str, LabelMatcher> {
     // IDENTIFIER match_op STRING
+    let (rest, (label, match_op, value)) =
+        tuple((label_identifier, match_op, string_literal))(input)?;
+    Ok((
+        rest,
+        LabelMatcher {
+            label,
+            match_op,
+            value,
+        },
+    ))
+}
+
+// FIXME: this is way too simplistic... Doesn't even handle escaped chars.
+// Use https://github.com/Geal/nom/blob/master/examples/string.rs
+fn string_literal(input: &str) -> IResult<&str, String> {
+    let (rest, m) = delimited(char('"'), is_not("\""), char('"'))(input)?;
+    Ok((rest, String::from(m)))
 }
 
 fn label_identifier(input: &str) -> IResult<&str, String> {
@@ -124,5 +148,32 @@ mod tests {
         assert_eq!(match_op("!=\"foo\""), Ok(("\"foo\"", MatchOp::neq)));
         assert_eq!(match_op("=~\"foo\""), Ok(("\"foo\"", MatchOp::eql_re)));
         assert_eq!(match_op("!~\"foo\""), Ok(("\"foo\"", MatchOp::neq_re)));
+    }
+
+    #[test]
+    fn test_label_matcher() {
+        assert_eq!(
+            label_matcher("foo=\"bar\""),
+            Ok((
+                "",
+                LabelMatcher {
+                    label: String::from("foo"),
+                    match_op: MatchOp::eql,
+                    value: String::from("bar")
+                }
+            ))
+        );
+
+        assert_eq!(
+            label_matcher("foo!~\"123 qux\""),
+            Ok((
+                "",
+                LabelMatcher {
+                    label: String::from("foo"),
+                    match_op: MatchOp::neq_re,
+                    value: String::from("123 qux")
+                }
+            ))
+        );
     }
 }
