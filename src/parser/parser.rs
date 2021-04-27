@@ -5,7 +5,7 @@ use nom::{
     bytes::complete::{is_not, tag},
     character::complete::{alpha1, alphanumeric1, char},
     combinator::recognize,
-    multi::many0,
+    multi::{many0, separated_list0},
     sequence::{delimited, pair, tuple},
     IResult,
 };
@@ -23,7 +23,6 @@ enum NodeKind {
 }
 
 pub fn parse(input: &str) -> Result<AST> {
-    // take(4u8)(input)
     Ok(AST {
         root: NodeKind::VectorSelector(42),
     })
@@ -41,8 +40,10 @@ fn label_matchers() {
     //   | LEFT_BRACE RIGHT_BRACE
 }
 
-fn label_match_list() {
+fn label_match_list(input: &str) -> IResult<&str, Vec<LabelMatcher>> {
     // label_match_list COMMA label_matcher | label_matcher
+    let (rest, matchers) = separated_list0(tag(","), label_matcher)(input)?;
+    Ok((rest, matchers))
 }
 
 #[derive(Debug, Eq, PartialEq)]
@@ -173,6 +174,52 @@ mod tests {
                     match_op: MatchOp::neq_re,
                     value: String::from("123 qux")
                 }
+            ))
+        );
+    }
+
+    #[test]
+    fn test_label_match_list() {
+        assert_eq!(
+            label_match_list("foo!~\"123 qux\""),
+            Ok((
+                "",
+                vec![LabelMatcher {
+                    label: String::from("foo"),
+                    match_op: MatchOp::neq_re,
+                    value: String::from("123 qux")
+                }]
+            ))
+        );
+
+        assert_eq!(
+            label_match_list("foo!~\"123 qux\","),
+            Ok((
+                ",",
+                vec![LabelMatcher {
+                    label: String::from("foo"),
+                    match_op: MatchOp::neq_re,
+                    value: String::from("123 qux")
+                }]
+            ))
+        );
+
+        assert_eq!(
+            label_match_list("foo!~\"123 qux\",bar=\"42\""),
+            Ok((
+                "",
+                vec![
+                    LabelMatcher {
+                        label: String::from("foo"),
+                        match_op: MatchOp::neq_re,
+                        value: String::from("123 qux")
+                    },
+                    LabelMatcher {
+                        label: String::from("bar"),
+                        match_op: MatchOp::eql,
+                        value: String::from("42")
+                    },
+                ]
             ))
         );
     }
