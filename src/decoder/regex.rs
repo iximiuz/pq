@@ -73,7 +73,7 @@ impl fmt::Display for NamedCaptureKind {
 fn parse_named_capture_str(capstr: &str, kind: NamedCaptureKind) -> Result<(usize, String)> {
     lazy_static! {
         static ref RE: regex::Regex =
-            regex::Regex::new(r"^([0-9]{1,3})(:[a-zA-Z][a-zA-Z0-9]{0,256})?$").unwrap();
+            regex::Regex::new(r"^([0-9]{1,3})(:[a-zA-Z_][a-zA-Z0-9_]{0,256})?$").unwrap();
     }
 
     let caps = RE
@@ -150,15 +150,17 @@ impl RegexDecoder {
             ));
         }
 
-        let mut unique = HashSet::new();
-        unique.insert(timestamp.pos);
+        let mut unique_positions = HashSet::new();
+        unique_positions.insert(timestamp.pos);
+
+        let mut unique_names = HashSet::new();
 
         let max_capture = re.captures_len();
 
-        for pos in labels
+        for (pos, name) in labels
             .iter()
-            .map(|cap| cap.pos)
-            .chain(metrics.iter().map(|cap| cap.pos))
+            .map(|cap| (cap.pos, &cap.name))
+            .chain(metrics.iter().map(|cap| (cap.pos, &cap.name)))
         {
             if pos > max_capture {
                 return Err(Error::from(format!(
@@ -166,8 +168,11 @@ impl RegexDecoder {
                     pos, max_capture
                 )));
             }
-            if !unique.insert(pos) {
+            if !unique_positions.insert(pos) {
                 return Err(Error::from(format!("ambiguous capture position {}", pos)));
+            }
+            if !unique_names.insert(name) {
+                return Err(Error::from(format!("ambiguous capture name {}", name)));
             }
         }
 
@@ -329,6 +334,18 @@ mod tests {
         let (pos, name) = parse_named_capture_str("000:FOO", NamedCaptureKind::Metric)?;
         assert_eq!(pos, 0);
         assert_eq!(name, "FOO");
+
+        let (pos, name) = parse_named_capture_str("2:_", NamedCaptureKind::Metric)?;
+        assert_eq!(pos, 2);
+        assert_eq!(name, "_");
+
+        let (pos, name) = parse_named_capture_str("3:__", NamedCaptureKind::Metric)?;
+        assert_eq!(pos, 3);
+        assert_eq!(name, "__");
+
+        let (pos, name) = parse_named_capture_str("4:_foo_", NamedCaptureKind::Metric)?;
+        assert_eq!(pos, 4);
+        assert_eq!(name, "_foo_");
 
         Ok(())
     }
