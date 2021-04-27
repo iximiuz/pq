@@ -7,7 +7,7 @@ use regex;
 
 use super::decoder::Decoder;
 use super::record::Record;
-use crate::error::Result;
+use crate::error::{Error, Result};
 
 struct CaptureTimestamp {
     pos: usize,
@@ -135,13 +135,19 @@ impl RegexDecoder {
         metrics: &[CaptureMetric],
     ) -> Result<()> {
         if re.captures_len() < 2 {
-            return Err("regex must have at least two captures (timestamp and metric)".into());
+            return Err(Error::new(
+                "regex must have at least two captures (timestamp and metric)",
+            ));
         }
         if re.captures_len() - 2 < labels.len() + metrics.len() {
-            return Err("too few regex captures or too many metrics/labels".into());
+            return Err(Error::new(
+                "too few regex captures or too many metrics/labels",
+            ));
         }
         if re.captures_len() - 2 > labels.len() + metrics.len() {
-            return Err("too many regex captures or too few metrics/labels".into());
+            return Err(Error::new(
+                "too many regex captures or too few metrics/labels",
+            ));
         }
 
         let mut unique = HashSet::new();
@@ -155,14 +161,13 @@ impl RegexDecoder {
             .chain(metrics.iter().map(|cap| cap.pos))
         {
             if pos > max_capture {
-                return Err(format!(
+                return Err(Error::from(format!(
                     "out of bound capture position {}; max allowed position is {}",
                     pos, max_capture
-                )
-                .into());
+                )));
             }
             if !unique.insert(pos) {
-                return Err(format!("ambiguous capture position {}", pos).into());
+                return Err(Error::from(format!("ambiguous capture position {}", pos)));
             }
         }
 
@@ -174,7 +179,7 @@ impl Decoder for RegexDecoder {
     fn decode(&mut self, buf: &mut Vec<u8>) -> Result<Record> {
         let record_caps = self.re.captures(buf).ok_or("no match found")?;
 
-        let timestamp = DateTime::parse_from_str(
+        let timestamp = parse_record_timestamp(
             &String::from_utf8(
                 record_caps
                     .get(self.timestamp_cap.pos + 1)
@@ -183,9 +188,8 @@ impl Decoder for RegexDecoder {
                     .to_vec(),
             )
             .map_err(|e| ("couldn't decode UTF-8 timestamp value", e))?,
-            &self.timestamp_cap.format,
-        )
-        .map_err(|e| ("couldn't parse timestamp of a record", e))?;
+            Some(&self.timestamp_cap.format),
+        )?;
 
         let mut metrics = HashMap::new();
         for metric_cap in self.metric_caps.iter() {
@@ -201,7 +205,7 @@ impl Decoder for RegexDecoder {
         }
 
         if metrics.len() == 0 {
-            return Err("no metric match found".into());
+            return Err(Error::new("no metric match found"));
         }
 
         let mut labels = HashMap::new();
@@ -217,6 +221,14 @@ impl Decoder for RegexDecoder {
 
         Ok(Record::new(timestamp.timestamp_millis(), labels, metrics))
     }
+}
+
+fn parse_record_timestamp(timestamp: &str, format: Option<&str>) -> Result<DateTime<Utc>> {
+    match format {
+        Some(f) => Utc.datetime_from_str(timestamp, f),
+        None => timestamp.parse::<DateTime<Utc>>(),
+    }
+    .map_err(|e| (Error::from(("couldn't parse timestamp of a record", e))))
 }
 
 #[cfg(test)]
