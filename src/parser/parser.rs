@@ -4,8 +4,8 @@ use nom::{
     branch::alt,
     bytes::complete::{is_not, tag},
     character::complete::{alpha1, alphanumeric1, char},
-    combinator::recognize,
-    multi::{many0, separated_list0},
+    combinator::{opt, recognize},
+    multi::{many0, many1, separated_list1},
     sequence::{delimited, pair, tuple},
     IResult,
 };
@@ -28,22 +28,61 @@ pub fn parse(input: &str) -> Result<AST> {
     })
 }
 
-struct VectorSelector {}
+struct VectorSelector {
+    metric: Option<String>,
+    labels: LabelMatchers,
+}
+
+impl VectorSelector {
+    fn new(metric: Option<String>, labels: LabelMatchers) -> Result<Self> {
+        if metric.is_none() && labels.is_match_all() {
+            return Err(Error::new(
+                "vector selector must contain at least one non-empty matcher",
+            ));
+        }
+
+        Ok(Self { metric, labels })
+    }
+}
 
 fn vector_selector(input: &str) -> IResult<&str, VectorSelector> {
     // metric_identifier label_matchers | metric_identifier | label_matchers
-    Ok((input, VectorSelector {}))
+    let (rest, matchers) = label_matchers(input)?;
+    Ok((input, VectorSelector::new(None, matchers).unwrap())) // TODO: handle unwrap
 }
 
-fn label_matchers() {
-    // LEFT_BRACE label_match_list RIGHT_BRACE | LEFT_BRACE label_match_list COMMA RIGHT_BRACE
+#[derive(Debug, Eq, PartialEq)]
+struct LabelMatchers {
+    matchers: Vec<LabelMatcher>,
+}
+
+impl LabelMatchers {
+    fn new(matchers: Vec<LabelMatcher>) -> Self {
+        Self { matchers }
+    }
+
+    fn is_match_all(&self) -> bool {
+        self.matchers.len() == 0 // TODO: || matchers.iter().all(|m| m.is_match_all())
+    }
+}
+
+fn label_matchers(input: &str) -> IResult<&str, LabelMatchers> {
+    // LEFT_BRACE label_match_list RIGHT_BRACE
+    //   | LEFT_BRACE label_match_list COMMA RIGHT_BRACE
     //   | LEFT_BRACE RIGHT_BRACE
+    let (rest, m) = alt((
+        delimited(tag("{"), many0(label_match_list), tag("}")),
+        delimited(tag("{"), many1(label_match_list), tag(",}")),
+    ))(input)?;
+    Ok((
+        rest,
+        LabelMatchers::new(m.into_iter().flatten().collect::<Vec<_>>()),
+    ))
 }
 
 fn label_match_list(input: &str) -> IResult<&str, Vec<LabelMatcher>> {
     // label_match_list COMMA label_matcher | label_matcher
-    let (rest, matchers) = separated_list0(tag(","), label_matcher)(input)?;
-    Ok((rest, matchers))
+    separated_list1(tag(","), label_matcher)(input)
 }
 
 #[derive(Debug, Eq, PartialEq)]
@@ -180,6 +219,7 @@ mod tests {
 
     #[test]
     fn test_label_match_list() {
+        // valid match lists
         assert_eq!(
             label_match_list("foo!~\"123 qux\""),
             Ok((
@@ -222,5 +262,68 @@ mod tests {
                 ]
             ))
         );
+
+        // invalid match lists
+        assert!(label_match_list("").is_err());
+        assert!(label_match_list(",").is_err());
+        assert!(label_match_list(",,").is_err());
+        assert!(label_match_list(", ,").is_err());
+    }
+
+    #[test]
+    fn test_label_matchers() {
+        // valid matchers
+        assert_eq!(label_matchers("{}"), Ok(("", LabelMatchers::new(vec![]))));
+        assert_eq!(
+            label_matchers("{} or"),
+            Ok((" or", LabelMatchers::new(vec![])))
+        );
+
+        assert_eq!(
+            label_matchers("{foo!~\"123 qux\"}"),
+            Ok((
+                "",
+                LabelMatchers::new(vec![LabelMatcher {
+                    label: String::from("foo"),
+                    match_op: MatchOp::neq_re,
+                    value: String::from("123 qux")
+                }])
+            ))
+        );
+
+        assert_eq!(
+            label_matchers("{foo!~\"123 qux\",}"),
+            Ok((
+                "",
+                LabelMatchers::new(vec![LabelMatcher {
+                    label: String::from("foo"),
+                    match_op: MatchOp::neq_re,
+                    value: String::from("123 qux")
+                }])
+            ))
+        );
+
+        assert_eq!(
+            label_matchers("{foo!~\"123 qux\",bar=\"42\"}"),
+            Ok((
+                "",
+                LabelMatchers::new(vec![
+                    LabelMatcher {
+                        label: String::from("foo"),
+                        match_op: MatchOp::neq_re,
+                        value: String::from("123 qux")
+                    },
+                    LabelMatcher {
+                        label: String::from("bar"),
+                        match_op: MatchOp::eql,
+                        value: String::from("42")
+                    },
+                ])
+            ))
+        );
+
+        // invalid matchers
+        assert!(label_matchers("{,}").is_err());
+        assert!(label_matchers("{foo!~\"123 qux\",,}").is_err());
     }
 }
