@@ -3,6 +3,7 @@ use std::io::{self, BufReader};
 use structopt::StructOpt;
 
 use pq::decoder::RegexDecoder;
+use pq::engine::Engine;
 use pq::input::Input;
 use pq::parser;
 use pq::reader::LineReader;
@@ -38,16 +39,11 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         )?),
     );
 
-    let ast = parser::parse(&opt.query)?;
-    println!("AST={:?}", ast);
+    let query_ast = parser::parse_query(&opt.query)?;
+    println!("query_ast={:?}", query_ast);
 
-    loop {
-        let record = match input.take_one()? {
-            Some(r) => r,
-            None => break,
-        };
-        println!("{:?}", record);
-    }
+    let engine = Engine::new();
+    engine.execute(&query_ast, &mut input);
 
     Ok(())
 }

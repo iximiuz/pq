@@ -17,6 +17,11 @@
 ```bash
 cargo test
 
-echo '2021-01-01T05:40:41 bob 42' | cargo run -- 'age{name="bob"}' -d '([^\s]+)\s(\w+)\s(\d+)' -t '0:%Y-%m-%dT%H:%M:%S' -l 1:name -m 2:age
+cat | cargo run -- '{name="bob"}' -d '([^\s]+)\s(\w+)\s(\d+)' -t '0:%Y-%m-%dT%H:%M:%S' -l 1:name -m 2:age <<EOF
+2021-01-01T05:40:41 bob 42
+2021-01-01T06:30:10 sarah 25
+2022-01-01T05:40:41 bob 42
+2022-01-01T06:30:10 sarah 26
+EOF
 ```
 

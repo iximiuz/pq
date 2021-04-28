@@ -1,69 +1,29 @@
-#![allow(warnings)]
+#![allow(warnings)] // TODO: remove me
 
 use nom::{
     branch::alt,
     bytes::complete::{is_not, tag},
     character::complete::{alpha1, alphanumeric1, char},
-    combinator::{opt, recognize},
+    combinator::recognize,
     multi::{many0, many1, separated_list1},
     sequence::{delimited, pair, tuple},
     IResult,
 };
 
+use super::ast::*;
 use crate::error::{Error, Result};
 
-#[derive(Debug)]
-pub struct AST {
-    root: NodeKind,
-}
-
-#[derive(Debug)]
-enum NodeKind {
-    VectorSelector(i32),
-}
-
-pub fn parse(input: &str) -> Result<AST> {
-    Ok(AST {
-        root: NodeKind::VectorSelector(42),
-    })
-}
-
-struct VectorSelector {
-    metric: Option<String>,
-    labels: LabelMatchers,
-}
-
-impl VectorSelector {
-    fn new(metric: Option<String>, labels: LabelMatchers) -> Result<Self> {
-        if metric.is_none() && labels.is_match_all() {
-            return Err(Error::new(
-                "vector selector must contain at least one non-empty matcher",
-            ));
-        }
-
-        Ok(Self { metric, labels })
-    }
+pub fn parse_query(input: &str) -> Result<AST> {
+    let (rest, m) =
+        vector_selector(input).map_err(|_| (Error::new("couldn't parse PromQL query")))?;
+    assert!(rest.len() == 0);
+    Ok(AST::new(NodeKind::VectorSelector(m)))
 }
 
 fn vector_selector(input: &str) -> IResult<&str, VectorSelector> {
     // metric_identifier label_matchers | metric_identifier | label_matchers
     let (rest, matchers) = label_matchers(input)?;
-    Ok((input, VectorSelector::new(None, matchers).unwrap())) // TODO: handle unwrap
-}
-
-#[derive(Debug, Eq, PartialEq)]
-struct LabelMatchers {
-    matchers: Vec<LabelMatcher>,
-}
-
-impl LabelMatchers {
-    fn new(matchers: Vec<LabelMatcher>) -> Self {
-        Self { matchers }
-    }
-
-    fn is_match_all(&self) -> bool {
-        self.matchers.len() == 0 // TODO: || matchers.iter().all(|m| m.is_match_all())
-    }
+    Ok((rest, VectorSelector::new(None, matchers).unwrap())) // TODO: handle unwrap
 }
 
 fn label_matchers(input: &str) -> IResult<&str, LabelMatchers> {
@@ -85,25 +45,11 @@ fn label_match_list(input: &str) -> IResult<&str, Vec<LabelMatcher>> {
     separated_list1(tag(","), label_matcher)(input)
 }
 
-#[derive(Debug, Eq, PartialEq)]
-struct LabelMatcher {
-    label: String,
-    match_op: MatchOp,
-    value: String,
-}
-
 fn label_matcher(input: &str) -> IResult<&str, LabelMatcher> {
     // IDENTIFIER match_op STRING
     let (rest, (label, match_op, value)) =
         tuple((label_identifier, match_op, string_literal))(input)?;
-    Ok((
-        rest,
-        LabelMatcher {
-            label,
-            match_op,
-            value,
-        },
-    ))
+    Ok((rest, LabelMatcher::new(label, match_op, value)))
 }
 
 // FIXME: this is way too simplistic... Doesn't even handle escaped chars.
@@ -131,21 +77,13 @@ fn metric_identifier(input: &str) -> IResult<&str, String> {
     Ok((rest, String::from(m)))
 }
 
-#[derive(Debug, Eq, PartialEq)]
-enum MatchOp {
-    eql,
-    neq,
-    eql_re,
-    neq_re,
-}
-
 fn match_op(input: &str) -> IResult<&str, MatchOp> {
     let (rest, m) = alt((tag("=~"), tag("!~"), tag("!="), tag("=")))(input)?;
     match m {
-        "=" => Ok((rest, MatchOp::eql)),
-        "!=" => Ok((rest, MatchOp::neq)),
-        "=~" => Ok((rest, MatchOp::eql_re)),
-        "!~" => Ok((rest, MatchOp::neq_re)),
+        "=" => Ok((rest, MatchOp::Eql)),
+        "!=" => Ok((rest, MatchOp::Neq)),
+        "=~" => Ok((rest, MatchOp::EqlRe)),
+        "!~" => Ok((rest, MatchOp::NeqRe)),
         _ => unreachable!(),
     }
 }
@@ -184,36 +122,22 @@ mod tests {
 
     #[test]
     fn test_match_op() {
-        assert_eq!(match_op("=\"foo\""), Ok(("\"foo\"", MatchOp::eql)));
-        assert_eq!(match_op("!=\"foo\""), Ok(("\"foo\"", MatchOp::neq)));
-        assert_eq!(match_op("=~\"foo\""), Ok(("\"foo\"", MatchOp::eql_re)));
-        assert_eq!(match_op("!~\"foo\""), Ok(("\"foo\"", MatchOp::neq_re)));
+        assert_eq!(match_op("=\"foo\""), Ok(("\"foo\"", MatchOp::Eql)));
+        assert_eq!(match_op("!=\"foo\""), Ok(("\"foo\"", MatchOp::Neq)));
+        assert_eq!(match_op("=~\"foo\""), Ok(("\"foo\"", MatchOp::EqlRe)));
+        assert_eq!(match_op("!~\"foo\""), Ok(("\"foo\"", MatchOp::NeqRe)));
     }
 
     #[test]
     fn test_label_matcher() {
         assert_eq!(
             label_matcher("foo=\"bar\""),
-            Ok((
-                "",
-                LabelMatcher {
-                    label: String::from("foo"),
-                    match_op: MatchOp::eql,
-                    value: String::from("bar")
-                }
-            ))
+            Ok(("", LabelMatcher::new("foo", MatchOp::Eql, "bar")))
         );
 
         assert_eq!(
             label_matcher("foo!~\"123 qux\""),
-            Ok((
-                "",
-                LabelMatcher {
-                    label: String::from("foo"),
-                    match_op: MatchOp::neq_re,
-                    value: String::from("123 qux")
-                }
-            ))
+            Ok(("", LabelMatcher::new("foo", MatchOp::NeqRe, "123 qux")))
         );
     }
 
@@ -224,11 +148,7 @@ mod tests {
             label_match_list("foo!~\"123 qux\""),
             Ok((
                 "",
-                vec![LabelMatcher {
-                    label: String::from("foo"),
-                    match_op: MatchOp::neq_re,
-                    value: String::from("123 qux")
-                }]
+                vec![LabelMatcher::new("foo", MatchOp::NeqRe, "123 qux")]
             ))
         );
 
@@ -236,11 +156,7 @@ mod tests {
             label_match_list("foo!~\"123 qux\","),
             Ok((
                 ",",
-                vec![LabelMatcher {
-                    label: String::from("foo"),
-                    match_op: MatchOp::neq_re,
-                    value: String::from("123 qux")
-                }]
+                vec![LabelMatcher::new("foo", MatchOp::NeqRe, "123 qux")]
             ))
         );
 
@@ -249,16 +165,8 @@ mod tests {
             Ok((
                 "",
                 vec![
-                    LabelMatcher {
-                        label: String::from("foo"),
-                        match_op: MatchOp::neq_re,
-                        value: String::from("123 qux")
-                    },
-                    LabelMatcher {
-                        label: String::from("bar"),
-                        match_op: MatchOp::eql,
-                        value: String::from("42")
-                    },
+                    LabelMatcher::new("foo", MatchOp::NeqRe, "123 qux"),
+                    LabelMatcher::new("bar", MatchOp::Eql, "42"),
                 ]
             ))
         );
@@ -283,11 +191,7 @@ mod tests {
             label_matchers("{foo!~\"123 qux\"}"),
             Ok((
                 "",
-                LabelMatchers::new(vec![LabelMatcher {
-                    label: String::from("foo"),
-                    match_op: MatchOp::neq_re,
-                    value: String::from("123 qux")
-                }])
+                LabelMatchers::new(vec![LabelMatcher::new("foo", MatchOp::NeqRe, "123 qux")])
             ))
         );
 
@@ -295,11 +199,7 @@ mod tests {
             label_matchers("{foo!~\"123 qux\",}"),
             Ok((
                 "",
-                LabelMatchers::new(vec![LabelMatcher {
-                    label: String::from("foo"),
-                    match_op: MatchOp::neq_re,
-                    value: String::from("123 qux")
-                }])
+                LabelMatchers::new(vec![LabelMatcher::new("foo", MatchOp::NeqRe, "123 qux")])
             ))
         );
 
@@ -308,16 +208,8 @@ mod tests {
             Ok((
                 "",
                 LabelMatchers::new(vec![
-                    LabelMatcher {
-                        label: String::from("foo"),
-                        match_op: MatchOp::neq_re,
-                        value: String::from("123 qux")
-                    },
-                    LabelMatcher {
-                        label: String::from("bar"),
-                        match_op: MatchOp::eql,
-                        value: String::from("42")
-                    },
+                    LabelMatcher::new("foo", MatchOp::NeqRe, "123 qux"),
+                    LabelMatcher::new("bar", MatchOp::Eql, "42"),
                 ])
             ))
         );

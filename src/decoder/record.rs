@@ -21,4 +21,8 @@ impl Record {
             metrics,
         }
     }
+
+    pub fn label(&self, name: &String) -> Option<&String> {
+        self.labels.get(name)
+    }
 }
