@@ -40,7 +40,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     );
 
     let query_ast = parser::parse_query(&opt.query)?;
-    println!("query_ast={:?}", query_ast);
+    // println!("query_ast={:?}", query_ast);
 
     let engine = Engine::new();
     engine.execute(&query_ast, &mut input);

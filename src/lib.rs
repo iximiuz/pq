@@ -1,5 +1,3 @@
-extern crate lazy_static;
-
 pub mod decoder;
 pub mod engine;
 pub mod error;
