@@ -5,17 +5,44 @@ use nom::{
     bytes::complete::{is_not, tag},
     character::complete::{alpha1, alphanumeric1, char},
     combinator::recognize,
+    error::{ErrorKind, ParseError},
     multi::{many0, many1, separated_list1},
     sequence::{delimited, pair, tuple},
-    IResult,
 };
 
 use super::ast::*;
 use crate::error::{Error, Result};
 
+#[derive(Debug, PartialEq)]
+struct MyError {
+    message: String,
+    // pos
+    // expected token
+    // name of the failed custom parser
+}
+
+impl<I> ParseError<I> for MyError {
+    fn from_error_kind(_input: I, _kind: ErrorKind) -> Self {
+        Self {
+            message: "from_error_kind".into(),
+        }
+    }
+
+    fn append(_input: I, _kind: ErrorKind, mut other: Self) -> Self {
+        other
+    }
+
+    fn from_char(_input: I, _c: char) -> Self {
+        Self {
+            message: "from_char".into(),
+        }
+    }
+}
+
+type IResult<I, O> = nom::IResult<I, O, MyError>;
+
 pub fn parse_query(input: &str) -> Result<AST> {
-    let (rest, m) =
-        vector_selector(input).map_err(|_| (Error::new("couldn't parse PromQL query")))?;
+    let (rest, m) = vector_selector(input).map_err(|e| ("couldn't parse PromQL query", e))?;
     assert!(rest.len() == 0);
     Ok(AST::new(NodeKind::VectorSelector(m)))
 }
@@ -33,7 +60,17 @@ fn label_matchers(input: &str) -> IResult<&str, LabelMatchers> {
     let (rest, m) = alt((
         delimited(tag("{"), many0(label_match_list), tag("}")),
         delimited(tag("{"), many1(label_match_list), tag(",}")),
-    ))(input)?;
+    ))(input)
+    .map_err(|e: nom::Err<MyError>| {
+        let e1 = match e {
+            nom::Err::Error(e) => e,
+            nom::Err::Failure(e) => e,
+            _ => unreachable!(),
+        };
+        nom::Err::Error(MyError {
+            message: format!("Unexpected {} in label matching", e1.message),
+        })
+    })?;
     Ok((
         rest,
         LabelMatchers::new(m.into_iter().flatten().collect::<Vec<_>>()),
@@ -55,7 +92,12 @@ fn label_matcher(input: &str) -> IResult<&str, LabelMatcher> {
 // FIXME: this is way too simplistic... Doesn't even handle escaped chars.
 // Use https://github.com/Geal/nom/blob/master/examples/string.rs
 fn string_literal(input: &str) -> IResult<&str, String> {
-    let (rest, m) = delimited(char('"'), is_not("\""), char('"'))(input)?;
+    let (rest, m) =
+        delimited(char('"'), is_not("\""), char('"'))(input).map_err(|_: nom::Err<MyError>| {
+            nom::Err::Error(MyError {
+                message: "Expected string".into(),
+            })
+        })?;
     Ok((rest, String::from(m)))
 }
 
@@ -64,7 +106,12 @@ fn label_identifier(input: &str) -> IResult<&str, String> {
     let (rest, m) = recognize(pair(
         alt((alpha1, tag("_"))),
         many0(alt((alphanumeric1, tag("_")))),
-    ))(input)?;
+    ))(input)
+    .map_err(|_: nom::Err<MyError>| {
+        nom::Err::Error(MyError {
+            message: "Expected label identifier".into(),
+        })
+    })?;
     Ok((rest, String::from(m)))
 }
 
