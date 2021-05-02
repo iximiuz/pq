@@ -4,21 +4,21 @@ use nom::{
     character::complete::{alpha1, alphanumeric1},
     combinator::recognize,
     multi::{many0, many1, separated_list1},
-    sequence::{delimited, pair, tuple},
+    sequence::{delimited, pair},
 };
 
 use super::ast::{LabelMatcher, LabelMatchers, MatchOp, VectorSelector};
 use super::error::MyError;
-use super::result::IResult;
+use super::result::{IResult, Span};
 use super::string::string_literal;
 
-pub fn vector_selector(input: &str) -> IResult<&str, VectorSelector> {
+pub fn vector_selector(input: Span) -> IResult<VectorSelector> {
     // metric_identifier label_matchers | metric_identifier | label_matchers
     let (rest, matchers) = label_matchers(input)?;
     Ok((rest, VectorSelector::new(None, matchers).unwrap())) // TODO: handle unwrap
 }
 
-fn label_matchers(input: &str) -> IResult<&str, LabelMatchers> {
+fn label_matchers(input: Span) -> IResult<LabelMatchers> {
     // LEFT_BRACE label_match_list RIGHT_BRACE
     //   | LEFT_BRACE label_match_list COMMA RIGHT_BRACE
     //   | LEFT_BRACE RIGHT_BRACE
@@ -42,30 +42,43 @@ fn label_matchers(input: &str) -> IResult<&str, LabelMatchers> {
     ))
 }
 
-fn label_match_list(input: &str) -> IResult<&str, Vec<LabelMatcher>> {
+fn label_match_list(input: Span) -> IResult<Vec<LabelMatcher>> {
     // label_match_list COMMA label_matcher | label_matcher
     separated_list1(tag(","), label_matcher)(input)
 }
 
-fn label_matcher(input: &str) -> IResult<&str, LabelMatcher> {
+fn label_matcher(input: Span) -> IResult<LabelMatcher> {
     // IDENTIFIER match_op STRING
-    let (rest, (label, match_op, value)) =
-        tuple((label_identifier, match_op, string_literal))(input)?;
-    Ok((rest, LabelMatcher::new(label, match_op, value)))
+
+    // Original version:
+    // let (rest, (label, match_op, value)) =
+    //    tuple((label_identifier, match_op, string_literal))(input)?;
+
+    let (rest, label) = label_identifier(input).map_err(|e| {
+        println!("{:#?}", e);
+        nom::Err::Error(MyError {
+            message: "label matching - expected identifier or \"}\"".into(),
+        })
+    })?;
+
+    let (rest, op) = match_op(rest)?;
+    let (rest, value) = string_literal(rest)?;
+
+    Ok((rest, LabelMatcher::new(label, op, value)))
 }
 
-fn label_identifier(input: &str) -> IResult<&str, String> {
+fn label_identifier(input: Span) -> IResult<String> {
     // [a-zA-Z_][a-zA-Z0-9_]*
     let (rest, m) = recognize(pair(
         alt((alpha1, tag("_"))),
         many0(alt((alphanumeric1, tag("_")))),
     ))(input)?;
-    Ok((rest, String::from(m)))
+    Ok((rest, String::from(*m.fragment())))
 }
 
-fn match_op(input: &str) -> IResult<&str, MatchOp> {
+fn match_op(input: Span) -> IResult<MatchOp> {
     let (rest, m) = alt((tag("=~"), tag("!~"), tag("!="), tag("=")))(input)?;
-    match m {
+    match *m.fragment() {
         "=" => Ok((rest, MatchOp::Eql)),
         "!=" => Ok((rest, MatchOp::Neq)),
         "=~" => Ok((rest, MatchOp::EqlRe)),
@@ -74,7 +87,7 @@ fn match_op(input: &str) -> IResult<&str, MatchOp> {
     }
 }
 
-// fn metric_identifier(input: &str) -> IResult<&str, String> {
+// fn metric_identifier(input: Span) -> IResult<String> {
 //     // [a-zA-Z_:][a-zA-Z0-9_:]*
 //     let (rest, m) = recognize(pair(
 //         alt((alpha1, tag("_"), tag(":"))),
@@ -168,7 +181,7 @@ mod tests {
     }
 
     #[test]
-    fn test_label_matcher() {
+    fn test_label_matcher_valid() {
         assert_eq!(
             label_matcher("foo=\"bar\""),
             Ok(("", LabelMatcher::new("foo", MatchOp::Eql, "bar")))
@@ -178,6 +191,13 @@ mod tests {
             label_matcher("foo!~\"123 qux\""),
             Ok(("", LabelMatcher::new("foo", MatchOp::NeqRe, "123 qux")))
         );
+    }
+
+    #[test]
+    fn test_label_matcher_invalid() {
+        let res = label_matcher("123");
+        println!("{:#?}", res);
+        assert!(!res.is_err());
     }
 
     #[test]

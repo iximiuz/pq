@@ -3,15 +3,14 @@ use nom::error::{ErrorKind, ParseError};
 #[derive(Debug, PartialEq)]
 pub struct MyError {
     pub message: String,
-    // pos
-    // expected token
-    // name of the failed custom parser
+    // pos: usize
+    // input: &str
 }
 
-impl<I> ParseError<I> for MyError {
-    fn from_error_kind(_input: I, _kind: ErrorKind) -> Self {
+impl<I: std::fmt::Display> ParseError<I> for MyError {
+    fn from_error_kind(input: I, kind: ErrorKind) -> Self {
         Self {
-            message: "from_error_kind".into(),
+            message: format!("from_error_kind input={} kind={:#?}", input, kind),
         }
     }
 
@@ -19,9 +18,9 @@ impl<I> ParseError<I> for MyError {
         other
     }
 
-    fn from_char(_input: I, _c: char) -> Self {
+    fn from_char(input: I, c: char) -> Self {
         Self {
-            message: "from_char".into(),
+            message: format!("from_char input={} char={}", input, c),
         }
     }
 }

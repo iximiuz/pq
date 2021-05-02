@@ -7,7 +7,8 @@ edition = "2018"
 [dependencies]
 chrono = "0.4.19"
 lazy_static = "1.4.0"
-nom = "6"
+nom = "6.1.2"
+nom_locate = "3.0.1"
 regex = "1.4.6"
 structopt = "0.3.21"
 
