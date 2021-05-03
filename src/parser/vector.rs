@@ -19,6 +19,8 @@ pub fn vector_selector(input: Span) -> IResult<VectorSelector> {
 }
 
 fn label_matchers(input: Span) -> IResult<LabelMatchers> {
+    println!("label_matchers({})", *input);
+
     // LEFT_BRACE label_match_list RIGHT_BRACE
     //   | LEFT_BRACE label_match_list COMMA RIGHT_BRACE
     //   | LEFT_BRACE RIGHT_BRACE
@@ -33,11 +35,17 @@ fn label_matchers(input: Span) -> IResult<LabelMatchers> {
 }
 
 fn label_match_list(input: Span) -> IResult<Vec<LabelMatcher>> {
+    println!("label_match_list({})", *input);
+
     // label_match_list COMMA label_matcher | label_matcher
-    separated_list1(tag(","), label_matcher)(input)
+    separated_list1(tag(","), label_matcher)(input).map_err(|e| {
+        println!("HERE {:#?}", e);
+        e
+    })
 }
 
 fn label_matcher(input: Span) -> IResult<LabelMatcher> {
+    println!("label_matcher({})", *input);
     // IDENTIFIER match_op STRING
 
     // Original version were producing very poor diagnostic messages:
@@ -113,85 +121,90 @@ fn match_op(input: Span) -> IResult<MatchOp> {
 mod tests {
     use super::*;
 
-    //     #[test]
-    //     fn test_label_matchers_valid() {
-    //         assert_eq!(label_matchers("{}"), Ok(("", LabelMatchers::new(vec![]))));
-    //         assert_eq!(
-    //             label_matchers("{} or"),
-    //             Ok((" or", LabelMatchers::new(vec![])))
-    //         );
-    //
-    //         assert_eq!(
-    //             label_matchers("{foo!~\"123 qux\"}"),
-    //             Ok((
-    //                 "",
-    //                 LabelMatchers::new(vec![LabelMatcher::new("foo", MatchOp::NeqRe, "123 qux")])
-    //             ))
-    //         );
-    //
-    //         assert_eq!(
-    //             label_matchers("{foo!~\"123 qux\",}"),
-    //             Ok((
-    //                 "",
-    //                 LabelMatchers::new(vec![LabelMatcher::new("foo", MatchOp::NeqRe, "123 qux")])
-    //             ))
-    //         );
-    //
-    //         assert_eq!(
-    //             label_matchers("{foo!~\"123 qux\",bar=\"42\"}"),
-    //             Ok((
-    //                 "",
-    //                 LabelMatchers::new(vec![
-    //                     LabelMatcher::new("foo", MatchOp::NeqRe, "123 qux"),
-    //                     LabelMatcher::new("bar", MatchOp::Eql, "42"),
-    //                 ])
-    //             ))
-    //         );
-    //     }
-    //
-    //     #[test]
-    //     fn test_label_matchers_invalid() {
-    //         assert!(label_matchers("{,}").is_err());
-    //         assert!(label_matchers("{foo!~\"123 qux\",,}").is_err());
-    //     }
-    //
-    //     #[test]
-    //     fn test_label_match_list_valid() {
-    //         assert_eq!(
-    //             label_match_list("foo!~\"123 qux\""),
-    //             Ok((
-    //                 "",
-    //                 vec![LabelMatcher::new("foo", MatchOp::NeqRe, "123 qux")]
-    //             ))
-    //         );
-    //
-    //         assert_eq!(
-    //             label_match_list("foo!~\"123 qux\","),
-    //             Ok((
-    //                 ",",
-    //                 vec![LabelMatcher::new("foo", MatchOp::NeqRe, "123 qux")]
-    //             ))
-    //         );
-    //
-    //         assert_eq!(
-    //             label_match_list("foo!~\"123 qux\",bar=\"42\""),
-    //             Ok((
-    //                 "",
-    //                 vec![
-    //                     LabelMatcher::new("foo", MatchOp::NeqRe, "123 qux"),
-    //                     LabelMatcher::new("bar", MatchOp::Eql, "42"),
-    //                 ]
-    //             ))
-    //         );
-    //     }
-    //
-    //     #[test]
-    //     fn test_label_match_list_invalid() {
-    //         assert!(label_match_list("").is_err());
-    //         assert!(label_match_list(",").is_err());
-    //         assert!(label_match_list(",,").is_err());
-    //         assert!(label_match_list(", ,").is_err());
-    //     }
+    #[test]
+    fn test_label_matchers_valid() -> std::result::Result<(), String> {
+        let tests = [
+            ("{}", vec![]),
+            ("{} or", vec![]),
+            (
+                r#"{foo!~"123 qux"}"#,
+                vec![("foo", MatchOp::NeqRe, "123 qux")],
+            ),
+            (
+                r#"{foo!~"123 qux",bar="42"}"#,
+                vec![
+                    ("foo", MatchOp::NeqRe, "123 qux"),
+                    ("bar", MatchOp::Eql, "42"),
+                ],
+            ),
+        ];
+
+        for (input, expected_matchers) in tests.iter() {
+            let (_, actual_matchers) =
+                label_matchers(Span::new(&input)).map_err(|e| ParseError::from(e))?;
+            assert_eq!(
+                actual_matchers,
+                LabelMatchers::new(
+                    expected_matchers
+                        .iter()
+                        .map(|(l, o, v)| LabelMatcher::new(*l, *o, *v))
+                        .collect()
+                )
+            );
+        }
+        Ok(())
+    }
+
+    #[test]
+    fn test_label_matchers_invalid() {
+        let err = label_matchers(Span::new(r#"{foo="bar",f12=}"#));
+        println!("{:#?}", err);
+        assert!(false);
+        // assert!(label_matchers("{,}").is_err());
+        // assert!(label_matchers("{foo!~\"123 qux\",,}").is_err());
+    }
+
+    #[test]
+    fn test_label_match_list_valid() -> std::result::Result<(), String> {
+        let tests = [
+            (
+                r#"foo!~"123 qux""#,
+                vec![("foo", MatchOp::NeqRe, "123 qux")],
+            ),
+            (
+                r#"foo!~"123 qux","#,
+                vec![("foo", MatchOp::NeqRe, "123 qux")],
+            ),
+            (
+                r#"foo!~"123 qux",bar="42""#,
+                vec![
+                    ("foo", MatchOp::NeqRe, "123 qux"),
+                    ("bar", MatchOp::Eql, "42"),
+                ],
+            ),
+        ];
+
+        for (input, expected_matchers) in tests.iter() {
+            let (_, actual_matchers) =
+                label_match_list(Span::new(&input)).map_err(|e| ParseError::from(e))?;
+
+            assert_eq!(actual_matchers.len(), expected_matchers.len());
+            for (matcher, (label, match_op, value)) in
+                actual_matchers.iter().zip(expected_matchers.iter())
+            {
+                assert_eq!(*matcher, LabelMatcher::new(*label, *match_op, *value),);
+            }
+        }
+        Ok(())
+    }
+
+    #[test]
+    fn test_label_match_list_invalid() {
+        assert!(label_match_list(Span::new("")).is_err());
+        assert!(label_match_list(Span::new(",")).is_err());
+        assert!(label_match_list(Span::new(",,")).is_err());
+        assert!(label_match_list(Span::new(", ,")).is_err());
+    }
 
     #[test]
     fn test_label_matcher_valid() -> std::result::Result<(), String> {
@@ -258,54 +271,58 @@ mod tests {
         }
     }
 
-    //     #[test]
-    //     fn test_label_identifier_valid() {
-    //         assert_eq!(label_identifier("l"), Ok(("", String::from("l"))));
-    //         assert_eq!(label_identifier("l123"), Ok(("", String::from("l123"))));
-    //         assert_eq!(label_identifier("_"), Ok(("", String::from("_"))));
-    //         assert_eq!(label_identifier("_1"), Ok(("", String::from("_1"))));
-    //         assert_eq!(label_identifier("label"), Ok(("", String::from("label"))));
-    //         assert_eq!(label_identifier("_label"), Ok(("", String::from("_label"))));
-    //         assert_eq!(
-    //             label_identifier("label_123"),
-    //             Ok(("", String::from("label_123")))
-    //         );
-    //         assert_eq!(
-    //             label_identifier("label_123_"),
-    //             Ok(("", String::from("label_123_")))
-    //         );
-    //         assert_eq!(
-    //             label_identifier("label_123_{}"),
-    //             Ok(("{}", String::from("label_123_")))
-    //         );
-    //     }
-    //
-    //     #[test]
-    //     fn test_label_identifier_invalid() {
-    //         assert!(label_identifier("1").is_err());
-    //         assert!(label_identifier("1_").is_err());
-    //         assert!(label_identifier("123label").is_err());
-    //     }
+    #[test]
+    fn test_label_identifier_valid() -> std::result::Result<(), String> {
+        let tests = [
+            ("l", "l"),
+            ("l123", "l123"),
+            ("_", "_"),
+            ("_1", "_1"),
+            ("label", "label"),
+            ("_label", "_label"),
+            ("label_123", "label_123"),
+            ("label_123_", "label_123_"),
+            ("label_123_ ", "label_123_"),
+            ("label_123_{}", "label_123_"),
+            ("label_123_ {}", "label_123_"),
+            ("label_123_ {}", "label_123_"),
+            ("label_123_ or", "label_123_"),
+            ("label_123_-", "label_123_"),
+        ];
 
-    // #[test]
-    // fn test_match_op_valid() {
-    //     assert_eq!(
-    //         match_op(Span::new("=\"foo\"")),
-    //         Ok(("\"foo\"", MatchOp::Eql))
-    //     );
-    //     assert_eq!(
-    //         match_op(Span::new("!=\"foo\"")),
-    //         Ok(("\"foo\"", MatchOp::Neq))
-    //     );
-    //     assert_eq!(
-    //         match_op(Span::new("=~\"foo\"")),
-    //         Ok(("\"foo\"", MatchOp::EqlRe))
-    //     );
-    //     assert_eq!(
-    //         match_op(Span::new("!~\"foo\"")),
-    //         Ok(("\"foo\"", MatchOp::NeqRe))
-    //     );
-    // }
+        for &(input, expected_label) in tests.iter() {
+            let (_, actual_label) =
+                label_identifier(Span::new(input)).map_err(|e| ParseError::from(e))?;
+            assert_eq!(expected_label, actual_label);
+        }
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_label_identifier_invalid() {
+        assert!(label_identifier(Span::new("1")).is_err());
+        assert!(label_identifier(Span::new("1_")).is_err());
+        assert!(label_identifier(Span::new("123label")).is_err());
+    }
+
+    #[test]
+    fn test_match_op_valid() -> std::result::Result<(), String> {
+        let tests = [
+            (r#"="foo""#, r#""foo""#, MatchOp::Eql),
+            (r#"!="foo""#, r#""foo""#, MatchOp::Neq),
+            (r#"=~"foo""#, r#""foo""#, MatchOp::EqlRe),
+            (r#"!~"foo""#, r#""foo""#, MatchOp::NeqRe),
+        ];
+
+        for &(input, expected_remainder, expected_match_op) in tests.iter() {
+            let (actual_remainder, actual_match_op) =
+                match_op(Span::new(input)).map_err(|e| ParseError::from(e))?;
+            assert_eq!(expected_match_op, actual_match_op);
+            assert_eq!(expected_remainder, *actual_remainder);
+        }
+        Ok(())
+    }
 
     #[test]
     fn test_match_op_invalid() {
