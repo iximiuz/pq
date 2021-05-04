@@ -50,6 +50,10 @@ impl<'a> LabelMatchers {
         Self { matchers }
     }
 
+    pub fn empty() -> Self {
+        Self { matchers: vec![] }
+    }
+
     pub fn is_match_all(&self) -> bool {
         self.matchers.len() == 0
     }

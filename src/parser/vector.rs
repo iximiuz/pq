@@ -3,8 +3,8 @@ use nom::{
     bytes::complete::tag,
     character::complete::{alpha1, alphanumeric1},
     combinator::recognize,
-    multi::{many0, many1, separated_list1},
-    sequence::{delimited, pair},
+    multi::{many0, separated_list1},
+    sequence::pair,
 };
 
 use super::ast::{LabelMatcher, LabelMatchers, MatchOp, VectorSelector};
@@ -20,26 +20,34 @@ pub fn vector_selector(input: Span) -> IResult<VectorSelector> {
 
 fn label_matchers(input: Span) -> IResult<LabelMatchers> {
     println!("label_matchers({})", *input);
-
     // LEFT_BRACE label_match_list RIGHT_BRACE
     //   | LEFT_BRACE label_match_list COMMA RIGHT_BRACE
     //   | LEFT_BRACE RIGHT_BRACE
-    let (rest, m) = alt((
-        delimited(tag("{"), many0(label_match_list), tag("}")),
-        delimited(tag("{"), many1(label_match_list), tag(",}")),
-    ))(input)?;
-    Ok((
-        rest,
-        LabelMatchers::new(m.into_iter().flatten().collect::<Vec<_>>()),
-    ))
+
+    let (rest, m) = alt((tag("{}"), tag("{")))(input)?;
+    if *m == "{}" {
+        return Ok((rest, LabelMatchers::empty()));
+    }
+
+    let (rest, matchers) = label_match_list(rest).map_err(|e| {
+        println!("label_matchs_error {:#?}", e);
+        e
+    })?;
+
+    println!("THERE THERE");
+    let (rest, _) = alt((tag(",}"), tag("}")))(rest)?;
+
+    Ok((rest, LabelMatchers::new(matchers)))
 }
 
+/// Parses a non-empty list of label matches separated by a comma.
+/// No trailing commas allowed.
 fn label_match_list(input: Span) -> IResult<Vec<LabelMatcher>> {
     println!("label_match_list({})", *input);
-
     // label_match_list COMMA label_matcher | label_matcher
+
     separated_list1(tag(","), label_matcher)(input).map_err(|e| {
-        println!("HERE {:#?}", e);
+        println!("--------------->>> label_match_list_error {:#?}", e);
         e
     })
 }
@@ -53,6 +61,7 @@ fn label_matcher(input: Span) -> IResult<LabelMatcher> {
     //    tuple((label_identifier, match_op, string_literal))(input)?;
 
     let (rest, label) = label_identifier(input).map_err(|_| {
+        println!("HERE 1");
         nom::Err::Error(ParseError::new(
             format!(
                 "unexpected {} in label matching, expected identifier or \"}}\"",
@@ -64,6 +73,7 @@ fn label_matcher(input: Span) -> IResult<LabelMatcher> {
     })?;
 
     let (rest, op) = match_op(rest).map_err(|_| {
+        println!("HERE 2");
         nom::Err::Error(ParseError::new(
             format!(
                 "unexpected {} in label matching, expected one of \"=\", \"!=\", \"=~\", \"!~\"",
@@ -75,6 +85,7 @@ fn label_matcher(input: Span) -> IResult<LabelMatcher> {
     })?;
 
     let (rest, value) = string_literal(rest).map_err(|_| {
+        println!("HERE 3");
         nom::Err::Error(ParseError::new(
             format!(
                 "unexpected {} in label matching, expected string label value",
