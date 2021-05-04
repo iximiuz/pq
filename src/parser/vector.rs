@@ -9,7 +9,7 @@ use nom::{
 
 use super::ast::{LabelMatcher, LabelMatchers, MatchOp, VectorSelector};
 use super::error::ParseError;
-use super::result::{unexpected, IResult, Span};
+use super::result::{unexpected, IResult, ParseResult, Span};
 use super::string::string_literal;
 
 pub fn vector_selector(input: Span) -> IResult<VectorSelector> {
@@ -29,12 +29,21 @@ fn label_matchers(input: Span) -> IResult<LabelMatchers> {
         return Ok((rest, LabelMatchers::empty()));
     }
 
-    let (rest, matchers) = label_match_list(rest).map_err(|e| {
-        println!("label_matchs_error {:#?}", e);
-        e
-    })?;
+    let (rest, matchers) = match label_match_list(rest)? {
+        (r, ParseResult::Success(m)) => (r, m),
+        (_, ParseResult::Partial(span, diag)) => {
+            return Err(nom::Err::Error(ParseError::new(
+                format!(
+                    "unexpected {} in label matching, expected {}",
+                    unexpected(*span),
+                    diag,
+                ),
+                span.location_line(),
+                span.location_offset(),
+            )));
+        }
+    };
 
-    println!("THERE THERE");
     let (rest, _) = alt((tag(",}"), tag("}")))(rest)?;
 
     Ok((rest, LabelMatchers::new(matchers)))
@@ -42,61 +51,62 @@ fn label_matchers(input: Span) -> IResult<LabelMatchers> {
 
 /// Parses a non-empty list of label matches separated by a comma.
 /// No trailing commas allowed.
-fn label_match_list(input: Span) -> IResult<Vec<LabelMatcher>> {
+fn label_match_list(input: Span) -> IResult<ParseResult<Vec<LabelMatcher>>> {
     println!("label_match_list({})", *input);
     // label_match_list COMMA label_matcher | label_matcher
 
-    separated_list1(tag(","), label_matcher)(input).map_err(|e| {
-        println!("--------------->>> label_match_list_error {:#?}", e);
-        e
-    })
+    let (rest, matches) = separated_list1(tag(","), label_matcher)(input)?;
+    let mut matchers = vec![];
+
+    for m in matches.into_iter() {
+        match m {
+            ParseResult::Success(m) => matchers.push(m),
+            ParseResult::Partial(span, diag) => {
+                return Ok((span, ParseResult::Partial(span, diag)))
+            }
+        };
+    }
+
+    Ok((rest, ParseResult::Success(matchers)))
 }
 
-fn label_matcher(input: Span) -> IResult<LabelMatcher> {
+/// label_matcher actually never returns IResult::Err.
+/// Instead of an error, a partial ParseResult::Partial is returned.
+fn label_matcher(input: Span) -> IResult<ParseResult<LabelMatcher>> {
     println!("label_matcher({})", *input);
     // IDENTIFIER match_op STRING
 
-    // Original version were producing very poor diagnostic messages:
-    // let (rest, (label, match_op, value)) =
-    //    tuple((label_identifier, match_op, string_literal))(input)?;
+    let (rest, label) = match label_identifier(input) {
+        Ok(v) => v,
+        Err(_) => {
+            println!("label_matcher_error - label");
+            return Ok((input, ParseResult::Partial(input, r#"identifier or "}""#)));
+        }
+    };
 
-    let (rest, label) = label_identifier(input).map_err(|_| {
-        println!("HERE 1");
-        nom::Err::Error(ParseError::new(
-            format!(
-                "unexpected {} in label matching, expected identifier or \"}}\"",
-                unexpected(*input),
-            ),
-            input.location_offset(),
-            input.location_line(),
-        ))
-    })?;
+    let (rest, op) = match match_op(rest) {
+        Ok(v) => v,
+        Err(_) => {
+            println!("label_matcher_error - op");
+            return Ok((
+                rest,
+                ParseResult::Partial(rest, r#"one of "=", "!=", "=~", "!~"""#),
+            ));
+        }
+    };
 
-    let (rest, op) = match_op(rest).map_err(|_| {
-        println!("HERE 2");
-        nom::Err::Error(ParseError::new(
-            format!(
-                "unexpected {} in label matching, expected one of \"=\", \"!=\", \"=~\", \"!~\"",
-                unexpected(*rest),
-            ),
-            rest.location_offset(),
-            rest.location_line(),
-        ))
-    })?;
+    let (rest, value) = match string_literal(rest) {
+        Ok(v) => v,
+        Err(_) => {
+            println!("label_matcher_error - value");
+            return Ok((rest, ParseResult::Partial(rest, "string label value")));
+        }
+    };
 
-    let (rest, value) = string_literal(rest).map_err(|_| {
-        println!("HERE 3");
-        nom::Err::Error(ParseError::new(
-            format!(
-                "unexpected {} in label matching, expected string label value",
-                unexpected(*rest),
-            ),
-            rest.location_offset(),
-            rest.location_line(),
-        ))
-    })?;
-
-    Ok((rest, LabelMatcher::new(label, op, value)))
+    Ok((
+        rest,
+        ParseResult::Success(LabelMatcher::new(label, op, value)),
+    ))
 }
 
 fn label_identifier(input: Span) -> IResult<String> {
@@ -196,8 +206,11 @@ mod tests {
         ];
 
         for (input, expected_matchers) in tests.iter() {
-            let (_, actual_matchers) =
-                label_match_list(Span::new(&input)).map_err(|e| ParseError::from(e))?;
+            let actual_matchers =
+                match label_match_list(Span::new(&input)).map_err(|e| ParseError::from(e))? {
+                    (_, ParseResult::Success(m)) => m,
+                    (_, ParseResult::Partial(_, _)) => panic!("oops"),
+                };
 
             assert_eq!(actual_matchers.len(), expected_matchers.len());
             for (matcher, (label, match_op, value)) in
@@ -229,7 +242,7 @@ mod tests {
                 label_matcher(Span::new(input))
                     .map_err(|e| ParseError::from(e))?
                     .1,
-                LabelMatcher::new(label, op, value)
+                ParseResult::Success(LabelMatcher::new(label, op, value))
             );
         }
         Ok(())
@@ -237,36 +250,36 @@ mod tests {
 
     #[test]
     fn test_label_matcher_invalid() {
-        let tests: &[(&str, &str, (usize, u32))] = &[
+        let tests: &[(&str, &str, (u32, usize))] = &[
             (
                 "",
                 r#"unexpected EOF in label matching, expected identifier or "}""#,
-                (0, 1),
+                (1, 0),
             ),
             (
                 "123",
                 r#"unexpected "123" in label matching, expected identifier or "}""#,
-                (0, 1),
+                (1, 0),
             ),
             (
                 "foo",
                 r#"unexpected EOF in label matching, expected one of "=", "!=", "=~", "!~""#,
-                (3, 1),
+                (1, 3),
             ),
             (
                 "foo!",
                 r#"unexpected "!" in label matching, expected one of "=", "!=", "=~", "!~""#,
-                (3, 1),
+                (1, 3),
             ),
             (
                 "foo!=",
                 r#"unexpected EOF in label matching, expected string label value"#,
-                (5, 1),
+                (1, 5),
             ),
             (
                 "foo!=123",
                 r#"unexpected "123" in label matching, expected string label value"#,
-                (5, 1),
+                (1, 5),
             ),
         ];
 

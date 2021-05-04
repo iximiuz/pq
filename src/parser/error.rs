@@ -3,16 +3,16 @@ use nom;
 #[derive(Debug, PartialEq)]
 pub struct ParseError {
     message: String,
-    offset: usize,
     line: u32,
+    offset: usize,
 }
 
 impl ParseError {
-    pub fn new(message: String, offset: usize, line: u32) -> Self {
+    pub fn new(message: String, line: u32, offset: usize) -> Self {
         Self {
             message,
-            offset,
             line,
+            offset,
         }
     }
 }

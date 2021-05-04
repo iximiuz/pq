@@ -8,6 +8,12 @@ pub type Span<'a> = LocatedSpan<&'a str>;
 
 pub type IResult<'a, O> = nom::IResult<Span<'a>, O, ParseError>;
 
+#[derive(PartialEq, Debug)]
+pub enum ParseResult<'a, T> {
+    Success(T),
+    Partial(Span<'a>, &'static str),
+}
+
 pub fn unexpected(found: &str) -> String {
     match found {
         "" => String::from("EOF"),
