@@ -6,17 +6,10 @@ use super::error::ParseError;
 
 pub type Span<'a> = LocatedSpan<&'a str>;
 
-pub type IResult<'a, O> = nom::IResult<Span<'a>, O, ParseError>;
+pub type IResult<'a, O> = nom::IResult<Span<'a>, O, ParseError<'a>>;
 
 #[derive(PartialEq, Debug)]
-pub enum ParseResult<'a, T> {
+pub enum ParseResult<T> {
     Success(T),
-    Partial(Span<'a>, &'static str),
-}
-
-pub fn unexpected(found: &str) -> String {
-    match found {
-        "" => String::from("EOF"),
-        v => format!("\"{}\"", v),
-    }
+    Partial(&'static str),
 }
