@@ -1,13 +1,14 @@
 use nom::{
     branch::alt,
     bytes::complete::tag,
-    character::complete::{alpha1, alphanumeric1},
+    character::complete::{alpha1, alphanumeric1, char},
     combinator::recognize,
     multi::{many0, separated_list1},
     sequence::pair,
 };
 
 use super::ast::{LabelMatcher, LabelMatchers, MatchOp, VectorSelector};
+use super::common::{maybe_lpadded, maybe_padded};
 use super::error::ParseError;
 use super::result::{IResult, ParseResult, Span};
 use super::string::string_literal;
@@ -25,12 +26,13 @@ fn label_matchers(input: Span) -> IResult<LabelMatchers> {
     //   | LEFT_BRACE label_match_list COMMA RIGHT_BRACE
     //   | LEFT_BRACE RIGHT_BRACE
 
-    let (rest, m) = alt((tag("{}"), tag("{")))(input)?;
-    if *m == "{}" {
-        return Ok((rest, LabelMatchers::empty()));
-    }
+    let (rest, _) = char('{')(input)?;
+    let (rest, _) = match maybe_lpadded(char('}'))(rest) {
+        Ok((rest, _)) => return Ok((rest, LabelMatchers::empty())),
+        Err(_) => (rest, '_'),
+    };
 
-    let (rest, matchers) = match label_match_list(rest) {
+    let (rest, matchers) = match maybe_lpadded(label_match_list)(rest) {
         Ok((r, ParseResult::Success(m))) => (r, m),
         Ok((r, ParseResult::Partial(diag))) => {
             return Err(nom::Err::Error(ParseError::new(
@@ -50,7 +52,13 @@ fn label_matchers(input: Span) -> IResult<LabelMatchers> {
         }
     };
 
-    let (rest, _) = alt((tag(",}"), tag("}")))(rest).map_err(|_: nom::Err<ParseError>| {
+    // Handling trailing comma.
+    let (rest, _) = match maybe_lpadded(char(','))(rest) {
+        Ok((rest, c)) => (rest, c),
+        Err(_) => (rest, '_'),
+    };
+
+    let (rest, _) = maybe_lpadded(char('}'))(rest).map_err(|_: nom::Err<ParseError>| {
         nom::Err::Error(ParseError::new(
             *rest,
             (rest.location_line(), rest.location_offset()),
@@ -67,7 +75,7 @@ fn label_matchers(input: Span) -> IResult<LabelMatchers> {
 fn label_match_list(input: Span) -> IResult<ParseResult<Vec<LabelMatcher>>> {
     // label_match_list COMMA label_matcher | label_matcher
 
-    let (rest, matches) = separated_list1(tag(","), label_matcher)(input)?;
+    let (rest, matches) = separated_list1(tag(","), maybe_padded(label_matcher))(input)?;
     let mut matchers = vec![];
 
     for m in matches.into_iter() {
@@ -87,7 +95,7 @@ fn label_matcher(input: Span) -> IResult<ParseResult<LabelMatcher>> {
 
     let (rest, label) = label_identifier(input)?;
 
-    let (rest, op) = match match_op(rest) {
+    let (rest, op) = match maybe_lpadded(match_op)(rest) {
         Ok(v) => v,
         Err(_) => {
             return Ok((
@@ -97,7 +105,7 @@ fn label_matcher(input: Span) -> IResult<ParseResult<LabelMatcher>> {
         }
     };
 
-    let (rest, value) = match string_literal(rest) {
+    let (rest, value) = match maybe_lpadded(string_literal)(rest) {
         Ok(v) => v,
         Err(_) => {
             return Ok((rest, ParseResult::Partial("label value as string literal")));
@@ -147,6 +155,9 @@ mod tests {
     fn test_label_matchers_valid() -> std::result::Result<(), String> {
         let tests = [
             ("{}", vec![]),
+            ("{ }", vec![]),
+            ("{   }", vec![]),
+            ("{   }  ", vec![]),
             ("{} or", vec![]),
             (
                 r#"{foo!~"123 qux"}"#,
@@ -158,6 +169,48 @@ mod tests {
                     ("foo", MatchOp::NeqRe, "123 qux"),
                     ("bar", MatchOp::Eql, "42"),
                 ],
+            ),
+            (r#"{ foo="bar"}"#, vec![("foo", MatchOp::Eql, "bar")]),
+            (r#"{  foo="bar"}"#, vec![("foo", MatchOp::Eql, "bar")]),
+            (r#"{foo="bar",}"#, vec![("foo", MatchOp::Eql, "bar")]),
+            (r#"{foo="bar" ,}"#, vec![("foo", MatchOp::Eql, "bar")]),
+            (r#"{foo="bar"  ,}"#, vec![("foo", MatchOp::Eql, "bar")]),
+            (r#"{foo="bar"  , }"#, vec![("foo", MatchOp::Eql, "bar")]),
+            (r#"{foo="bar"  ,  }"#, vec![("foo", MatchOp::Eql, "bar")]),
+            (
+                r#"{foo="bar",qux="123"}"#,
+                vec![("foo", MatchOp::Eql, "bar"), ("qux", MatchOp::Eql, "123")],
+            ),
+            (
+                r#"{foo="bar", qux="123"}"#,
+                vec![("foo", MatchOp::Eql, "bar"), ("qux", MatchOp::Eql, "123")],
+            ),
+            (
+                r#"{foo="bar" , qux="123"}"#,
+                vec![("foo", MatchOp::Eql, "bar"), ("qux", MatchOp::Eql, "123")],
+            ),
+            (
+                r#"{foo="bar", qux="123", abc="xyz"}"#,
+                vec![
+                    ("foo", MatchOp::Eql, "bar"),
+                    ("qux", MatchOp::Eql, "123"),
+                    ("abc", MatchOp::Eql, "xyz"),
+                ],
+            ),
+            (
+                r#"{foo="bar", qux="123" , abc="xyz"}"#,
+                vec![
+                    ("foo", MatchOp::Eql, "bar"),
+                    ("qux", MatchOp::Eql, "123"),
+                    ("abc", MatchOp::Eql, "xyz"),
+                ],
+            ),
+            (r#"{ foo ="bar"}"#, vec![("foo", MatchOp::Eql, "bar")]),
+            (r#"{ foo= "bar"}"#, vec![("foo", MatchOp::Eql, "bar")]),
+            (r#"{ foo = "bar"}"#, vec![("foo", MatchOp::Eql, "bar")]),
+            (
+                r#"{    foo   =    "bar",   qux    =   "123"    }"#,
+                vec![("foo", MatchOp::Eql, "bar"), ("qux", MatchOp::Eql, "123")],
             ),
         ];
 
@@ -197,8 +250,8 @@ mod tests {
             ),
             (
                 r#"{foo!~"123 qux",,}"#,
-                r#",,}"#,
-                (1, 15),
+                r#",}"#,
+                (1, 16),
                 "label matching",
                 r#"identifier or "}""#,
             ),
@@ -215,6 +268,13 @@ mod tests {
                 (1, 15),
                 "label matching",
                 "label value as string literal",
+            ),
+            (
+                r#"{foo="bar",baz=~"42",qux!}"#,
+                r#"!}"#,
+                (1, 24),
+                "label matching",
+                r#"one of "=", "!=", "=~", "!~""#,
             ),
         ];
 
