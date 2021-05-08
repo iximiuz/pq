@@ -18,13 +18,21 @@ pub enum NodeKind {
 
 #[derive(Debug, PartialEq)]
 pub struct VectorSelector {
-    metric: Option<String>,
+    metric: String,
     labels: LabelMatchers,
 }
 
 impl VectorSelector {
-    pub fn new(metric: Option<String>, labels: LabelMatchers) -> Result<Self> {
-        if metric.is_none() && labels.is_match_all() {
+    pub fn new<S>(metric: Option<S>, labels: LabelMatchers) -> Result<Self>
+    where
+        S: Into<String>,
+    {
+        let metric = match metric {
+            Some(m) => m.into(),
+            None => "".to_string(),
+        };
+
+        if metric == "" && labels.is_match_all() {
             return Err(Error::new(
                 "vector selector must contain at least one non-empty matcher",
             ));
@@ -109,4 +117,18 @@ pub enum MatchOp {
     Neq,
     EqlRe,
     NeqRe,
+}
+
+impl std::convert::TryFrom<&str> for MatchOp {
+    type Error = Error;
+
+    fn try_from(op: &str) -> Result<Self> {
+        match op {
+            "=" => Ok(MatchOp::Eql),
+            "!=" => Ok(MatchOp::Neq),
+            "=~" => Ok(MatchOp::EqlRe),
+            "!~" => Ok(MatchOp::NeqRe),
+            _ => Err(Error::new("Unexpected match op literal")),
+        }
+    }
 }

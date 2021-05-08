@@ -149,155 +149,68 @@ mod tests {
 
     #[test]
     fn test_vector_selector_valid() -> std::result::Result<(), String> {
+        #[rustfmt::skip]
         let tests = [
-            (
-                "foo{}",
-                VectorSelector::new(Some("foo".to_string()), LabelMatchers::empty())?,
-            ),
-            // ("foo{ }", vec![]),
-            // ("foo {   }", vec![]),
-            // ("foo   {   }  ", vec![]),
-            // ("foo{} or", vec![]),
-            // (
-            //     r#"{foo!~"123 qux"}"#,
-            //     vec![("foo", MatchOp::NeqRe, "123 qux")],
-            // ),
-            // (
-            //     r#"{foo!~"123 qux",bar="42"}"#,
-            //     vec![
-            //         ("foo", MatchOp::NeqRe, "123 qux"),
-            //         ("bar", MatchOp::Eql, "42"),
-            //     ],
-            // ),
-            // (r#"{ foo="bar"}"#, vec![("foo", MatchOp::Eql, "bar")]),
-            // (r#"{  foo="bar"}"#, vec![("foo", MatchOp::Eql, "bar")]),
-            // (r#"{foo="bar",}"#, vec![("foo", MatchOp::Eql, "bar")]),
-            // (r#"{foo="bar" ,}"#, vec![("foo", MatchOp::Eql, "bar")]),
-            // (r#"{foo="bar"  ,}"#, vec![("foo", MatchOp::Eql, "bar")]),
-            // (r#"{foo="bar"  , }"#, vec![("foo", MatchOp::Eql, "bar")]),
-            // (r#"{foo="bar"  ,  }"#, vec![("foo", MatchOp::Eql, "bar")]),
-            // (
-            //     r#"{foo="bar",qux="123"}"#,
-            //     vec![("foo", MatchOp::Eql, "bar"), ("qux", MatchOp::Eql, "123")],
-            // ),
-            // (
-            //     r#"{foo="bar", qux="123"}"#,
-            //     vec![("foo", MatchOp::Eql, "bar"), ("qux", MatchOp::Eql, "123")],
-            // ),
-            // (
-            //     r#"{foo="bar" , qux="123"}"#,
-            //     vec![("foo", MatchOp::Eql, "bar"), ("qux", MatchOp::Eql, "123")],
-            // ),
-            // (
-            //     r#"{foo="bar", qux="123", abc="xyz"}"#,
-            //     vec![
-            //         ("foo", MatchOp::Eql, "bar"),
-            //         ("qux", MatchOp::Eql, "123"),
-            //         ("abc", MatchOp::Eql, "xyz"),
-            //     ],
-            // ),
-            // (
-            //     r#"{foo="bar", qux="123" , abc="xyz"}"#,
-            //     vec![
-            //         ("foo", MatchOp::Eql, "bar"),
-            //         ("qux", MatchOp::Eql, "123"),
-            //         ("abc", MatchOp::Eql, "xyz"),
-            //     ],
-            // ),
-            // (r#"{ foo ="bar"}"#, vec![("foo", MatchOp::Eql, "bar")]),
-            // (r#"{ foo= "bar"}"#, vec![("foo", MatchOp::Eql, "bar")]),
-            // (r#"{ foo = "bar"}"#, vec![("foo", MatchOp::Eql, "bar")]),
-            // (
-            //     r#"{    foo   =    "bar",   qux    =   "123"    }"#,
-            //     vec![("foo", MatchOp::Eql, "bar"), ("qux", MatchOp::Eql, "123")],
-            // ),
+            (r#"foo"#, Some("foo"), vec![]),
+            (r#"foo or bar"#, Some("foo"), vec![]),
+            (r#"foo{}"#, Some("foo"), vec![]),
+            (r#"foo {}"#, Some("foo"), vec![]),
+            (r#"foo  {   }"#, Some("foo"), vec![]),
+            (r#"{__name__="foo"}"#, Some("foo"), vec![]),
+            (r#"{__name__!="foo"}"#, Some("foo"), vec![]),
+            (r#"{bar="123"}"#, None, vec![("bar", "=", "123")]),
+            (r#"{bar=~"123",bar!="12345"}"#, None, vec![("bar", "=~", "123"), ("bar", "!=", "12345")]),
         ];
 
-        for (input, expected_selector) in tests.iter() {
+        for (input, metric, labels) in &tests {
             let actual_selector =
-                match vector_selector(Span::new(&input)).map_err(|e| ParseError::from(e))? {
+                match vector_selector(Span::new(input)).map_err(|e| ParseError::from(e))? {
                     (_, ParseResult::Complete(s)) => s,
                     _ => unreachable!(),
                 };
-            assert_eq!(&actual_selector, expected_selector);
+            assert_eq!(
+                VectorSelector::new(*metric, _matchers(labels))?,
+                actual_selector
+            );
         }
         Ok(())
     }
 
     #[test]
     fn test_label_matchers_valid() -> std::result::Result<(), String> {
+        #[rustfmt::skip]
         let tests = [
-            ("{}", vec![]),
-            ("{ }", vec![]),
-            ("{   }", vec![]),
-            ("{   }  ", vec![]),
-            ("{} or", vec![]),
-            (
-                r#"{foo!~"123 qux"}"#,
-                vec![("foo", MatchOp::NeqRe, "123 qux")],
-            ),
-            (
-                r#"{foo!~"123 qux",bar="42"}"#,
-                vec![
-                    ("foo", MatchOp::NeqRe, "123 qux"),
-                    ("bar", MatchOp::Eql, "42"),
-                ],
-            ),
-            (r#"{ foo="bar"}"#, vec![("foo", MatchOp::Eql, "bar")]),
-            (r#"{  foo="bar"}"#, vec![("foo", MatchOp::Eql, "bar")]),
-            (r#"{foo="bar",}"#, vec![("foo", MatchOp::Eql, "bar")]),
-            (r#"{foo="bar" ,}"#, vec![("foo", MatchOp::Eql, "bar")]),
-            (r#"{foo="bar"  ,}"#, vec![("foo", MatchOp::Eql, "bar")]),
-            (r#"{foo="bar"  , }"#, vec![("foo", MatchOp::Eql, "bar")]),
-            (r#"{foo="bar"  ,  }"#, vec![("foo", MatchOp::Eql, "bar")]),
-            (
-                r#"{foo="bar",qux="123"}"#,
-                vec![("foo", MatchOp::Eql, "bar"), ("qux", MatchOp::Eql, "123")],
-            ),
-            (
-                r#"{foo="bar", qux="123"}"#,
-                vec![("foo", MatchOp::Eql, "bar"), ("qux", MatchOp::Eql, "123")],
-            ),
-            (
-                r#"{foo="bar" , qux="123"}"#,
-                vec![("foo", MatchOp::Eql, "bar"), ("qux", MatchOp::Eql, "123")],
-            ),
-            (
-                r#"{foo="bar", qux="123", abc="xyz"}"#,
-                vec![
-                    ("foo", MatchOp::Eql, "bar"),
-                    ("qux", MatchOp::Eql, "123"),
-                    ("abc", MatchOp::Eql, "xyz"),
-                ],
-            ),
-            (
-                r#"{foo="bar", qux="123" , abc="xyz"}"#,
-                vec![
-                    ("foo", MatchOp::Eql, "bar"),
-                    ("qux", MatchOp::Eql, "123"),
-                    ("abc", MatchOp::Eql, "xyz"),
-                ],
-            ),
-            (r#"{ foo ="bar"}"#, vec![("foo", MatchOp::Eql, "bar")]),
-            (r#"{ foo= "bar"}"#, vec![("foo", MatchOp::Eql, "bar")]),
-            (r#"{ foo = "bar"}"#, vec![("foo", MatchOp::Eql, "bar")]),
-            (
-                r#"{    foo   =    "bar",   qux    =   "123"    }"#,
-                vec![("foo", MatchOp::Eql, "bar"), ("qux", MatchOp::Eql, "123")],
-            ),
+            (r#"{}"#, vec![]),
+            (r#"{ }"#, vec![]),
+            (r#"{   }"#, vec![]),
+            (r#"{   }  "#, vec![]),
+            (r#"{} or"#, vec![]),
+            (r#"{foo!~"123 qux"}"#, vec![("foo", "!~", "123 qux")]),
+            (r#"{foo!~"123 qux",bar="42"}"#, vec![("foo", "!~", "123 qux"), ("bar", "=", "42")]),
+            (r#"{ foo="bar"}"#, vec![("foo", "=", "bar")]),
+            (r#"{  foo="bar"}"#, vec![("foo", "=", "bar")]),
+            (r#"{foo="bar",}"#, vec![("foo", "=", "bar")]),
+            (r#"{foo="bar" ,}"#, vec![("foo", "=", "bar")]),
+            (r#"{foo="bar"  ,}"#, vec![("foo", "=", "bar")]),
+            (r#"{foo="bar"  , }"#, vec![("foo", "=", "bar")]),
+            (r#"{foo="bar"  ,  }"#, vec![("foo", "=", "bar")]),
+            (r#"{foo="bar",qux="123"}"#, vec![("foo", "=", "bar"), ("qux", "=", "123")]),
+            (r#"{foo="bar", qux="123"}"#, vec![("foo", "=", "bar"), ("qux", "=", "123")]),
+            (r#"{foo="bar" , qux="123"}"#, vec![("foo", "=", "bar"), ("qux", "=", "123")]),
+            (r#"{foo="bar", qux="123", abc="xyz"}"#, vec![("foo", "=", "bar"), ("qux", "=", "123"), ("abc", "=", "xyz")]),
+            (r#"{foo="bar", qux="123" , abc="xyz"}"#, vec![("foo", "=", "bar"), ("qux", "=", "123"), ("abc", "=", "xyz")]),
+            (r#"{ foo ="bar"}"#, vec![("foo", "=", "bar")]),
+            (r#"{ foo= "bar"}"#, vec![("foo", "=", "bar")]),
+            (r#"{ foo = "bar"}"#, vec![("foo", "=", "bar")]),
+            (r#"{    foo   =    "bar",   qux    =   "123"    }"#, vec![("foo", "=", "bar"), ("qux", "=", "123")]),
         ];
 
-        for (input, expected_matchers) in tests.iter() {
+        for (input, expected_matchers) in &tests {
             let (_, actual_matchers) =
-                label_matchers(Span::new(&input)).map_err(|e| ParseError::from(e))?;
+                label_matchers(Span::new(input)).map_err(|e| ParseError::from(e))?;
             assert_eq!(
-                actual_matchers,
-                ParseResult::Complete(LabelMatchers::new(
-                    expected_matchers
-                        .iter()
-                        .map(|(l, o, v)| LabelMatcher::new(*l, *o, *v))
-                        .collect()
-                ))
+                ParseResult::Complete(_matchers(expected_matchers)),
+                actual_matchers
             );
         }
         Ok(())
@@ -305,32 +218,18 @@ mod tests {
 
     #[test]
     fn test_label_matchers_partial() -> std::result::Result<(), String> {
+        #[rustfmt::skip]
         let tests = [
-            ("{", "", (1, 1), r#"identifier or "}""#),
-            ("{123", "123", (1, 1), r#"identifier or "}""#),
-            ("{,}", ",}", (1, 1), r#"identifier or "}""#),
-            (
-                r#"{foo!~"123 qux",,}"#,
-                r#",}"#,
-                (1, 16),
-                r#"identifier or "}""#,
-            ),
-            ("{foo", "", (1, 4), r#"one of "=", "!=", "=~", "!~""#),
-            (
-                r#"{foo="bar",f12=}"#,
-                r#"}"#,
-                (1, 15),
-                "label value as string literal",
-            ),
-            (
-                r#"{foo="bar",baz=~"42",qux!}"#,
-                r#"!}"#,
-                (1, 24),
-                r#"one of "=", "!=", "=~", "!~""#,
-            ),
+            (r#"{"#, "", (1, 1), r#"identifier or "}""#),
+            (r#"{123"#, "123", (1, 1), r#"identifier or "}""#),
+            (r#"{,}"#, ",}", (1, 1), r#"identifier or "}""#),
+            (r#"{foo!~"123 qux",,}"#, r#",}"#, (1, 16), r#"identifier or "}""#),
+            (r#"{foo"#, "", (1, 4), r#"one of "=", "!=", "=~", "!~""#),
+            (r#"{foo="bar",f12=}"#, r#"}"#, (1, 15), "label value as string literal"),
+            (r#"{foo="bar",baz=~"42",qux!}"#, r#"!}"#, (1, 24), r#"one of "=", "!=", "=~", "!~""#),
         ];
 
-        for &(input, unexpected, error_pos, expected) in tests.iter() {
+        for &(input, unexpected, error_pos, expected) in &tests {
             let (rest, matchers) =
                 label_matchers(Span::new(input)).map_err(|e| ParseError::from(e))?;
             assert_eq!(matchers, ParseResult::Partial("label matching", expected));
@@ -342,25 +241,14 @@ mod tests {
 
     #[test]
     fn test_label_match_list_valid() -> std::result::Result<(), String> {
+        #[rustfmt::skip]
         let tests = [
-            (
-                r#"foo!~"123 qux""#,
-                vec![("foo", MatchOp::NeqRe, "123 qux")],
-            ),
-            (
-                r#"foo!~"123 qux","#,
-                vec![("foo", MatchOp::NeqRe, "123 qux")],
-            ),
-            (
-                r#"foo!~"123 qux",bar="42""#,
-                vec![
-                    ("foo", MatchOp::NeqRe, "123 qux"),
-                    ("bar", MatchOp::Eql, "42"),
-                ],
-            ),
+            (r#"foo!~"123 qux""#, vec![("foo", "!~", "123 qux")]),
+            (r#"foo!~"123 qux","#, vec![("foo", "!~", "123 qux")]),
+            (r#"foo!~"123 qux",bar="42""#, vec![("foo", "!~", "123 qux"), ("bar", "=", "42")]),
         ];
 
-        for (input, expected_matchers) in tests.iter() {
+        for (input, expected_matchers) in &tests {
             let actual_matchers =
                 match label_match_list(Span::new(&input)).map_err(|e| ParseError::from(e))? {
                     (_, ParseResult::Complete(m)) => m,
@@ -368,10 +256,8 @@ mod tests {
                 };
 
             assert_eq!(actual_matchers.len(), expected_matchers.len());
-            for (matcher, (label, match_op, value)) in
-                actual_matchers.iter().zip(expected_matchers.iter())
-            {
-                assert_eq!(*matcher, LabelMatcher::new(*label, *match_op, *value),);
+            for (actual, expected) in actual_matchers.iter().zip(expected_matchers.iter()) {
+                assert_eq!(&_matcher(*expected), actual);
             }
         }
         Ok(())
@@ -387,44 +273,37 @@ mod tests {
 
     #[test]
     fn test_label_matcher_valid() -> std::result::Result<(), String> {
+        #[rustfmt::skip]
         let tests = [
-            (r#"foo="bar""#, ("foo", MatchOp::Eql, "bar")),
-            (r#"foo!~"123 qux""#, ("foo", MatchOp::NeqRe, "123 qux")),
+            (r#"foo="bar""#, ("foo", "=", "bar")),
+            (r#"foo!~"123 qux""#, ("foo", "!~", "123 qux")),
         ];
 
-        for &(input, (label, op, value)) in tests.iter() {
-            assert_eq!(
-                label_matcher(Span::new(input))
-                    .map_err(|e| ParseError::from(e))?
-                    .1,
-                ParseResult::Complete(LabelMatcher::new(label, op, value))
-            );
+        for &(input, expected) in &tests {
+            let (_, actual) = label_matcher(Span::new(input)).map_err(|e| ParseError::from(e))?;
+            assert_eq!(ParseResult::Complete(_matcher(expected)), actual);
         }
         Ok(())
     }
 
     #[test]
     fn test_label_matcher_partial() {
-        let tests: &[(&str, &str, &str, (u32, usize))] = &[
+        #[rustfmt::skip]
+        let tests = [
             ("foo!", "!", r#"one of "=", "!=", "=~", "!~""#, (1, 3)),
             ("foo!=", "", r#"label value as string literal"#, (1, 5)),
             ("foo!= ", " ", r#"label value as string literal"#, (1, 5)),
             ("foo!=,", ",", r#"label value as string literal"#, (1, 5)),
-            (
-                "foo!=123",
-                "123",
-                r#"label value as string literal"#,
-                (1, 5),
-            ),
+            ("foo!=123", "123", r#"label value as string literal"#, (1, 5)),
         ];
 
-        for &(input, output, expected, error_pos) in tests.iter() {
+        for &(input, output, expected, error_pos) in &tests {
             match label_matcher(Span::new(input)) {
                 Ok((span, ParseResult::Partial(wherein, exp))) => {
                     assert_eq!(*span, output);
                     assert_eq!((span.location_line(), span.location_offset()), error_pos);
-                    assert_eq!(exp, expected);
-                    assert_eq!(wherein, "label matching");
+                    assert_eq!(expected, exp);
+                    assert_eq!("label matching", wherein);
                 }
                 Ok(res) => panic!("ParseResult::Partial expected but found {:#?}", res),
                 Err(err) => panic!("ParseResult::Partial expected but found {:#?}", err),
@@ -437,7 +316,7 @@ mod tests {
         // We don't care about actual error, just the fact that it errored.
         let tests = ["", ",", "123", "1foo="];
 
-        for input in tests.iter() {
+        for input in &tests {
             let res = label_matcher(Span::new(input));
             assert!(res.is_err(), "Error expected but found {:#?}", res);
         }
@@ -445,6 +324,7 @@ mod tests {
 
     #[test]
     fn test_label_identifier_valid() -> std::result::Result<(), String> {
+        #[rustfmt::skip]
         let tests = [
             ("l", "l"),
             ("l123", "l123"),
@@ -462,7 +342,7 @@ mod tests {
             ("label_123_-", "label_123_"),
         ];
 
-        for &(input, expected_label) in tests.iter() {
+        for &(input, expected_label) in &tests {
             let (_, actual_label) =
                 label_identifier(Span::new(input)).map_err(|e| ParseError::from(e))?;
             assert_eq!(expected_label, actual_label);
@@ -480,6 +360,7 @@ mod tests {
 
     #[test]
     fn test_match_op_valid() -> std::result::Result<(), String> {
+        #[rustfmt::skip]
         let tests = [
             (r#"="foo""#, r#""foo""#, MatchOp::Eql),
             (r#"!="foo""#, r#""foo""#, MatchOp::Neq),
@@ -487,7 +368,7 @@ mod tests {
             (r#"!~"foo""#, r#""foo""#, MatchOp::NeqRe),
         ];
 
-        for &(input, expected_remainder, expected_match_op) in tests.iter() {
+        for &(input, expected_remainder, expected_match_op) in &tests {
             let (actual_remainder, actual_match_op) =
                 match_op(Span::new(input)).map_err(|e| ParseError::from(e))?;
             assert_eq!(expected_match_op, actual_match_op);
@@ -501,5 +382,14 @@ mod tests {
         assert!(match_op(Span::new("a\"foo\"")).is_err());
         assert!(match_op(Span::new("!\"foo\"")).is_err());
         assert!(match_op(Span::new("~\"foo\"")).is_err());
+    }
+
+    fn _matcher((label, op, value): (&str, &str, &str)) -> LabelMatcher {
+        use std::convert::TryFrom;
+        LabelMatcher::new(label, MatchOp::try_from(op).unwrap(), value)
+    }
+
+    fn _matchers(matchers: &[(&str, &str, &str)]) -> LabelMatchers {
+        LabelMatchers::new(matchers.iter().map(|&t| _matcher(t)).collect())
     }
 }
