@@ -16,7 +16,7 @@ pub enum NodeKind {
     VectorSelector(VectorSelector),
 }
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq)]
 pub struct VectorSelector {
     metric: Option<String>,
     labels: LabelMatchers,

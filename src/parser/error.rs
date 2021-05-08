@@ -6,7 +6,7 @@ use crate::error;
 pub struct ParseError<'a> {
     unexpected: &'a str,
     position: (u32, usize),
-    where_in: &'static str,
+    wherein: &'static str,
     expected: &'static str,
 }
 
@@ -14,13 +14,13 @@ impl<'a> ParseError<'a> {
     pub fn new(
         unexpected: &'a str,
         position: (u32, usize),
-        where_in: &'static str,
+        wherein: &'static str,
         expected: &'static str,
     ) -> Self {
         Self {
             unexpected,
             position,
-            where_in,
+            wherein,
             expected,
         }
     }
@@ -55,7 +55,7 @@ impl<'a> From<ParseError<'a>> for String {
             err.line(),
             err.offset(),
             unexpected(err.unexpected),
-            err.where_in,
+            err.wherein,
             err.expected,
         )
     }

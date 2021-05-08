@@ -10,6 +10,7 @@ pub type IResult<'a, O> = nom::IResult<Span<'a>, O, ParseError<'a>>;
 
 #[derive(PartialEq, Debug)]
 pub enum ParseResult<T> {
-    Success(T),
-    Partial(&'static str),
+    Complete(T),
+    // (wherein, expected)
+    Partial(&'static str, &'static str),
 }
