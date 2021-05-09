@@ -1,5 +1,6 @@
 pub mod ast;
 mod common;
+mod expr;
 mod parser;
 mod result;
 mod string;

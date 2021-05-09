@@ -1,10 +1,10 @@
-use super::ast::*;
+use super::ast::AST;
+use super::expr::expr;
 use super::result::{ParseError, ParseResult, Span};
-use super::vector::*;
 use crate::error::{Error, Result};
 
 pub fn parse_query(input: &str) -> Result<AST> {
-    let (rest, m) = match vector_selector(Span::new(input)) {
+    let (rest, ex) = match expr(Span::new(input)) {
         Ok((r, ParseResult::Complete(m))) => (r, m),
         Ok(res) => return Err(Error::from(err_msg_partial_result(res))),
         Err(nom::Err::Error(e)) => return Err(Error::from(err_msg_parse_error(e))),
@@ -12,7 +12,7 @@ pub fn parse_query(input: &str) -> Result<AST> {
         Err(nom::Err::Incomplete(_)) => unreachable!(),
     };
     assert!(rest.len() == 0);
-    Ok(AST::new(NodeKind::VectorSelector(m)))
+    Ok(AST::new(ex))
 }
 
 fn err_msg_partial_result<T>((input, partial): (Span, ParseResult<T>)) -> String {

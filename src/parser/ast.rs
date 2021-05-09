@@ -3,17 +3,18 @@ use crate::labels::LabelMatcher;
 
 #[derive(Debug)]
 pub struct AST {
-    pub root: NodeKind,
+    pub root: Expr,
 }
 
 impl AST {
-    pub fn new(root: NodeKind) -> Self {
+    pub fn new(root: Expr) -> Self {
         Self { root }
     }
 }
 
-#[derive(Debug)]
-pub enum NodeKind {
+#[derive(Debug, PartialEq)]
+pub enum Expr {
+    UnaryExpr(UnaryOp, Box<Expr>),
     VectorSelector(VectorSelector),
 }
 
@@ -52,4 +53,10 @@ impl VectorSelector {
     pub fn matchers(&self) -> &Vec<LabelMatcher> {
         &self.matchers
     }
+}
+
+#[derive(Debug, PartialEq)]
+pub enum UnaryOp {
+    Add,
+    Sub,
 }

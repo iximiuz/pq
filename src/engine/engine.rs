@@ -10,7 +10,7 @@ impl Engine {
 
     pub fn execute(&self, query: &AST, input: &mut Input) {
         match query.root {
-            NodeKind::VectorSelector(ref selector) => loop {
+            Expr::VectorSelector(ref selector) => loop {
                 let record = match input.take_one().unwrap() {
                     Some(r) => r,
                     None => return,
@@ -28,6 +28,7 @@ impl Engine {
                     println!("{:?}", record);
                 }
             },
+            Expr::UnaryExpr(_, _) => unimplemented!(),
         }
     }
 }
