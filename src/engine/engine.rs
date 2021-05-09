@@ -16,16 +16,19 @@ impl Engine {
                     None => return,
                 };
 
-                let matched = selector
-                    .matchers()
-                    .iter()
-                    .all(|m| match record.label(m.label()) {
-                        Some(v) => m.matches(v),
-                        None => false,
-                    });
+                for metric in record.metrics() {
+                    let matched =
+                        selector
+                            .matchers()
+                            .iter()
+                            .all(|m| match metric.label(m.label()) {
+                                Some(v) => m.matches(v),
+                                None => false,
+                            });
 
-                if matched {
-                    println!("{:?}", record);
+                    if matched {
+                        println!("{:?}", record);
+                    }
                 }
             },
             Expr::UnaryExpr(_, _) => unimplemented!(),

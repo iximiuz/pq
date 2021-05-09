@@ -6,7 +6,7 @@ type Timestamp = i64;
 pub struct Record {
     timestamp: Timestamp,
     labels: HashMap<String, String>,
-    metrics: HashMap<String, f64>,
+    metrics: Vec<Metric>,
 }
 
 impl Record {
@@ -15,6 +15,14 @@ impl Record {
         labels: HashMap<String, String>,
         metrics: HashMap<String, f64>,
     ) -> Self {
+        let metrics = metrics
+            .into_iter()
+            .map(|m| Metric {
+                name: m.0,
+                value: m.1,
+                labels: labels.clone(),
+            })
+            .collect();
         Self {
             timestamp,
             labels,
@@ -22,7 +30,23 @@ impl Record {
         }
     }
 
-    pub fn label(&self, name: &String) -> Option<&String> {
-        self.labels.get(name)
+    pub fn metrics(&self) -> &Vec<Metric> {
+        &self.metrics
+    }
+}
+
+#[derive(Debug)]
+pub struct Metric {
+    name: String,
+    value: f64,
+    labels: HashMap<String, String>,
+}
+
+impl Metric {
+    pub fn label(&self, name: &str) -> Option<&String> {
+        match name {
+            "__name__" => Some(&self.name),
+            _ => self.labels.get(name),
+        }
     }
 }
