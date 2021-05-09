@@ -1,3 +1,5 @@
+use std::convert::TryFrom;
+
 use nom::{
     branch::alt,
     bytes::complete::tag,
@@ -7,10 +9,11 @@ use nom::{
     sequence::pair,
 };
 
-use super::ast::{LabelMatcher, LabelMatchers, MatchOp, VectorSelector};
+use super::ast::VectorSelector;
 use super::common::{maybe_lpadded, maybe_padded};
 use super::result::{IResult, ParseError, ParseResult, Span};
 use super::string::string_literal;
+use crate::labels::{LabelMatcher, MatchOp};
 
 pub fn vector_selector(input: Span) -> IResult<ParseResult<VectorSelector>> {
     //   metric_identifier label_matchers
@@ -25,7 +28,7 @@ pub fn vector_selector(input: Span) -> IResult<ParseResult<VectorSelector>> {
     let (rest, matchers) = match maybe_lpadded(label_matchers)(rest) {
         Ok((r, ParseResult::Partial(w, e))) => return Ok((r, ParseResult::Partial(w, e))),
         Ok((r, ParseResult::Complete(m))) => (r, m),
-        Err(nom::Err::Error(_)) if metric.is_some() => (rest, LabelMatchers::empty()),
+        Err(nom::Err::Error(_)) if metric.is_some() => (rest, vec![]),
         Err(e) => return Err(e),
     };
 
@@ -34,7 +37,7 @@ pub fn vector_selector(input: Span) -> IResult<ParseResult<VectorSelector>> {
     Ok((rest, ParseResult::Complete(selector)))
 }
 
-fn label_matchers(input: Span) -> IResult<ParseResult<LabelMatchers>> {
+fn label_matchers(input: Span) -> IResult<ParseResult<Vec<LabelMatcher>>> {
     //   LEFT_BRACE label_match_list RIGHT_BRACE
     // | LEFT_BRACE label_match_list COMMA RIGHT_BRACE
     // | LEFT_BRACE RIGHT_BRACE
@@ -44,7 +47,8 @@ fn label_matchers(input: Span) -> IResult<ParseResult<LabelMatchers>> {
     let (rest, matchers) = match maybe_lpadded(label_match_list)(rest) {
         Ok((r, ParseResult::Partial(w, e))) => return Ok((r, ParseResult::Partial(w, e))),
         Ok((r, ParseResult::Complete(m))) => (r, m),
-        Err(_) => (rest, vec![]),
+        Err(nom::Err::Error(_)) => (rest, vec![]),
+        Err(e) => return Err(e),
     };
 
     // Chop off a possible trailing comma, but only matchers list is not empty.
@@ -54,7 +58,7 @@ fn label_matchers(input: Span) -> IResult<ParseResult<LabelMatchers>> {
     };
 
     Ok(match maybe_lpadded(char('}'))(rest) {
-        Ok((r, _)) => (r, ParseResult::Complete(LabelMatchers::new(matchers))),
+        Ok((r, _)) => (r, ParseResult::Complete(matchers)),
         Err(_) => (
             rest,
             ParseResult::Partial("label matching", r#"identifier or "}""#),
@@ -69,8 +73,8 @@ fn label_match_list(input: Span) -> IResult<ParseResult<Vec<LabelMatcher>>> {
     // | label_matcher
 
     let (rest, matches) = separated_list1(tag(","), maybe_padded(label_matcher))(input)?;
-    let mut matchers = vec![];
 
+    let mut matchers = vec![];
     for m in matches.into_iter() {
         match m {
             ParseResult::Complete(m) => matchers.push(m),
@@ -106,10 +110,10 @@ fn label_matcher(input: Span) -> IResult<ParseResult<LabelMatcher>> {
         }
     };
 
-    Ok((
-        rest,
-        ParseResult::Complete(LabelMatcher::new(label, op, value)),
-    ))
+    let matcher = LabelMatcher::new(label, op, value)
+        .map_err(|e| nom::Err::Failure(ParseError::new(e.to_string(), input)))?;
+
+    Ok((rest, ParseResult::Complete(matcher)))
 }
 
 fn label_identifier(input: Span) -> IResult<String> {
@@ -123,13 +127,10 @@ fn label_identifier(input: Span) -> IResult<String> {
 
 fn match_op(input: Span) -> IResult<MatchOp> {
     let (rest, m) = alt((tag("=~"), tag("!~"), tag("!="), tag("=")))(input)?;
-    match *m.fragment() {
-        "=" => Ok((rest, MatchOp::Eql)),
-        "!=" => Ok((rest, MatchOp::Neq)),
-        "=~" => Ok((rest, MatchOp::EqlRe)),
-        "!~" => Ok((rest, MatchOp::NeqRe)),
-        _ => unreachable!(),
-    }
+    Ok((
+        rest,
+        MatchOp::try_from(*m.fragment()).expect("unreachable!"),
+    ))
 }
 
 fn metric_identifier(input: Span) -> IResult<String> {
@@ -155,8 +156,8 @@ mod tests {
             (r#"foo {}"#, Some("foo"), vec![]),
             (r#"foo  {   }"#, Some("foo"), vec![]),
             (r#"{__name__="foo"}"#, None, vec![("__name__", "=", "foo")]),
-            (r#"{__name__!="foo"}"#, None, vec![("__name__", "!=", "foo")]),
-            (r#"{__name__!="foo",__name__!="bar"}"#, None, vec![("__name__", "!=", "foo"), ("__name__", "!=", "bar")]),
+            (r#"{__name__=~"foo"}"#, None, vec![("__name__", "=~", "foo")]),
+            (r#"{__name__=~"foo",__name__=~"bar"}"#, None, vec![("__name__", "=~", "foo"), ("__name__", "=~", "bar")]),
             (r#"foo{name=~"bar"}"#, Some("foo"), vec![("name", "=~", "bar")]),
         ];
 
@@ -183,8 +184,12 @@ mod tests {
         #[rustfmt::skip]
         let tests = [
             (r#"{}"#, "vector selector must contain at least one non-empty matcher", (1, 0)),
-            (r#"foo{__name__="foo"}"#, "vector selector must contain at least one non-empty matcher", (1, 0)),
-            (r#"foo{__name__="bar"}"#, "vector selector must contain at least one non-empty matcher", (1, 0)),
+            (r#"{foo=""}"#, "vector selector must contain at least one non-empty matcher", (1, 0)),
+            (r#"{foo=~".*"}"#, "vector selector must contain at least one non-empty matcher", (1, 0)),
+            (r#"{foo!~".+"}"#, "vector selector must contain at least one non-empty matcher", (1, 0)),
+            (r#"{foo!="bar"}"#, "vector selector must contain at least one non-empty matcher", (1, 0)),
+            (r#"foo{__name__="foo"}"#, "potentially ambiguous metric name match", (1, 0)),
+            (r#"foo{__name__="bar"}"#, "potentially ambiguous metric name match", (1, 0)),
         ];
 
         for &(input, err_msg, err_pos) in &tests {
@@ -200,7 +205,6 @@ mod tests {
                 Err(nom::Err::Failure(e)) => e,
                 _ => unreachable!(),
             };
-            println!("{:#?}", err);
             assert_eq!(err_msg, err.message());
             assert_eq!(err_pos, (err.line(), err.offset()));
         }
@@ -268,6 +272,26 @@ mod tests {
     }
 
     #[test]
+    fn test_label_matchers_invalid() -> std::result::Result<(), ParseError<'static>> {
+        #[rustfmt::skip]
+        let tests = [
+            (r#"{foo=~"*"}"#, (1, 1), "regex parse error:\n    ^(?:*)$\n        ^\nerror: repetition operator missing expression"),
+        ];
+
+        for &(input, err_pos, err_msg) in &tests {
+            match label_matchers(Span::new(input)) {
+                Err(nom::Err::Failure(err)) => {
+                    assert_eq!(err_msg, err.message());
+                    assert_eq!(err_pos, (err.line(), err.offset()));
+                }
+                Err(err) => panic!("nom::Err::Failure expected but found {:#?}", err),
+                Ok(res) => panic!("nom::Err::Failure expected but found {:#?}", res),
+            };
+        }
+        Ok(())
+    }
+
+    #[test]
     fn test_label_match_list_valid() -> std::result::Result<(), ParseError<'static>> {
         #[rustfmt::skip]
         let tests = [
@@ -279,7 +303,10 @@ mod tests {
         for (input, expected_matchers) in &tests {
             let actual_matchers = match label_match_list(Span::new(&input))? {
                 (_, ParseResult::Complete(m)) => m,
-                (_, ParseResult::Partial(_, _)) => panic!("oops"),
+                (_, ParseResult::Partial(u, w)) => panic!(
+                    "Got partial result {}/{} while testing input {}",
+                    u, w, input
+                ),
             };
 
             assert_eq!(actual_matchers.len(), expected_matchers.len());
@@ -341,7 +368,7 @@ mod tests {
     #[test]
     fn test_label_matcher_invalid() {
         // We don't care about actual error, just the fact that it errored.
-        let tests = ["", ",", "123", "1foo="];
+        let tests = ["", ",", "123", "1foo=", r#"foo=~"*""#];
 
         for input in &tests {
             let res = label_matcher(Span::new(input));
@@ -410,11 +437,10 @@ mod tests {
     }
 
     fn _matcher((label, op, value): (&str, &str, &str)) -> LabelMatcher {
-        use std::convert::TryFrom;
-        LabelMatcher::new(label, MatchOp::try_from(op).unwrap(), value)
+        LabelMatcher::new(label, MatchOp::try_from(op).unwrap(), value).expect("bad test data")
     }
 
-    fn _matchers(matchers: &[(&str, &str, &str)]) -> LabelMatchers {
-        LabelMatchers::new(matchers.iter().map(|&t| _matcher(t)).collect())
+    fn _matchers(matchers: &[(&str, &str, &str)]) -> Vec<LabelMatcher> {
+        matchers.iter().map(|&t| _matcher(t)).collect()
     }
 }

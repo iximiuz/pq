@@ -1,4 +1,5 @@
 use crate::input::Input;
+use crate::labels::MatchOp;
 use crate::parser::ast::*;
 
 pub struct Engine {}
@@ -17,7 +18,7 @@ impl Engine {
                 };
 
                 let mut matched = true;
-                for matcher in selector.labels().iter() {
+                for matcher in selector.matchers().iter() {
                     matched = match record.label(matcher.label()) {
                         Some(label) => match matcher.match_op() {
                             MatchOp::Eql => label == matcher.value(),

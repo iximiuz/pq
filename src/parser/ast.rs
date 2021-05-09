@@ -1,4 +1,5 @@
 use crate::error::{Error, Result};
+use crate::labels::LabelMatcher;
 
 #[derive(Debug)]
 pub struct AST {
@@ -18,117 +19,37 @@ pub enum NodeKind {
 
 #[derive(Debug, PartialEq)]
 pub struct VectorSelector {
-    metric: String,
-    labels: LabelMatchers,
+    matchers: Vec<LabelMatcher>,
 }
 
 impl VectorSelector {
-    pub fn new<S>(metric: Option<S>, labels: LabelMatchers) -> Result<Self>
+    pub fn new<S>(name: Option<S>, mut matchers: Vec<LabelMatcher>) -> Result<Self>
     where
         S: Into<String>,
     {
-        let metric = match metric {
-            Some(m) => m.into(),
-            None => "".to_string(),
-        };
+        let (matches_everything, has_name_matcher) =
+            matchers.iter().fold((true, false), |(me, hnm), m| {
+                (me && m.matches(""), hnm || m.is_name_matcher())
+            });
 
-        if metric == "" && labels.is_match_all() {
+        if name.is_some() && has_name_matcher {
+            return Err(Error::new("potentially ambiguous metric name match"));
+        }
+
+        if name.is_none() && matches_everything {
             return Err(Error::new(
                 "vector selector must contain at least one non-empty matcher",
             ));
         }
 
-        Ok(Self { metric, labels })
-    }
-
-    pub fn labels(&self) -> &LabelMatchers {
-        &self.labels
-    }
-}
-
-#[derive(Debug, Eq, PartialEq)]
-pub struct LabelMatchers {
-    matchers: Vec<LabelMatcher>,
-}
-
-type MatcherIterator<'a> = std::slice::Iter<'a, LabelMatcher>;
-
-impl<'a> LabelMatchers {
-    pub fn new(matchers: Vec<LabelMatcher>) -> Self {
-        Self { matchers }
-    }
-
-    pub fn empty() -> Self {
-        Self { matchers: vec![] }
-    }
-
-    pub fn is_match_all(&self) -> bool {
-        self.matchers.len() == 0
-    }
-
-    pub fn iter(&self) -> MatcherIterator {
-        self.matchers.iter()
-    }
-}
-
-#[derive(Debug, Eq, PartialEq)]
-pub struct LabelMatcher {
-    label: String,
-    match_op: MatchOp,
-    value: String,
-}
-
-impl LabelMatcher {
-    pub fn new<S>(label_str: S, match_op: MatchOp, value_str: S) -> Self
-    where
-        S: Into<String>,
-    {
-        let label = label_str.into();
-        let value = value_str.into();
-
-        // TODO: check it's not a match-all matcher
-
-        assert!(label.len() > 0);
-        assert!(value.len() > 0);
-
-        Self {
-            label,
-            match_op,
-            value,
+        if let Some(name) = name {
+            matchers.push(LabelMatcher::name_matcher(name));
         }
+
+        Ok(Self { matchers })
     }
 
-    pub fn label(&self) -> &String {
-        &self.label
-    }
-
-    pub fn match_op(&self) -> &MatchOp {
-        &self.match_op
-    }
-
-    pub fn value(&self) -> &String {
-        &self.value
-    }
-}
-
-#[derive(Copy, Clone, Debug, Eq, PartialEq)]
-pub enum MatchOp {
-    Eql,
-    Neq,
-    EqlRe,
-    NeqRe,
-}
-
-impl std::convert::TryFrom<&str> for MatchOp {
-    type Error = Error;
-
-    fn try_from(op: &str) -> Result<Self> {
-        match op {
-            "=" => Ok(MatchOp::Eql),
-            "!=" => Ok(MatchOp::Neq),
-            "=~" => Ok(MatchOp::EqlRe),
-            "!~" => Ok(MatchOp::NeqRe),
-            _ => Err(Error::new("Unexpected match op literal")),
-        }
+    pub fn matchers(&self) -> &Vec<LabelMatcher> {
+        &self.matchers
     }
 }
