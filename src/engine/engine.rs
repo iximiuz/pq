@@ -71,7 +71,11 @@ impl Engine {
     }
 
     pub fn execute(&self, query: &AST, input: &mut Input) {
-        match query.root {
+        self.do_execute(&query.root, input)
+    }
+
+    fn do_execute(&self, expr: &Expr, input: &mut Input) {
+        match expr {
             Expr::VectorSelector(ref selector) => loop {
                 let record = match input.take_one().unwrap() {
                     Some(r) => r,
@@ -89,7 +93,7 @@ impl Engine {
                             });
 
                     if matched {
-                        println!("{:?}", record);
+                        println!("{:?}", metric);
                     }
                 }
             },
