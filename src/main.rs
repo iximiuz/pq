@@ -2,11 +2,9 @@ use std::io::{self, BufReader};
 
 use structopt::StructOpt;
 
-use pq::decoder::RegexDecoder;
 use pq::engine::Engine;
-use pq::input::Input;
+use pq::input::{decoder::RegexDecoder, reader::LineReader, Input};
 use pq::parser;
-use pq::reader::LineReader;
 
 #[derive(Debug, StructOpt)]
 #[structopt(name = "pq", about = "pq command line arguments")]

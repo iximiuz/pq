@@ -1,6 +1,6 @@
-use crate::decoder::{Decoder, Record};
+use super::decoder::{Decoder, Record};
+use super::reader::Reader;
 use crate::error::Result;
-use crate::reader::Reader;
 
 pub struct Input {
     reader: Box<dyn Reader>,
