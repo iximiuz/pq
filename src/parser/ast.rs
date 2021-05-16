@@ -1,5 +1,5 @@
 use crate::error::{Error, Result};
-use crate::labels::LabelMatcher;
+use crate::model::labels::LabelMatcher;
 
 #[derive(Debug)]
 pub struct AST {

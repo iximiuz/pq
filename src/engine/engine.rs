@@ -1,4 +1,7 @@
-use crate::input::Input;
+use std::borrow::Borrow;
+use std::rc::Rc;
+
+use crate::input::{Input, Sample};
 use crate::parser::ast::*;
 
 pub struct Engine {}
@@ -70,33 +73,26 @@ impl Engine {
         Self {}
     }
 
-    pub fn execute(&self, query: &AST, input: &mut Input) {
+    pub fn execute<'a>(&self, query: &AST, input: &'a mut Input<'a>) {
         self.do_execute(&query.root, input)
     }
 
-    fn do_execute(&self, expr: &Expr, input: &mut Input) {
+    fn do_execute<'a>(&self, expr: &Expr, input: &'a mut Input<'a>) {
         match expr {
-            Expr::VectorSelector(ref selector) => loop {
-                let record = match input.take_one().unwrap() {
-                    Some(r) => r,
-                    None => return,
-                };
-
-                for metric in record.metrics() {
-                    let matched =
-                        selector
-                            .matchers()
-                            .iter()
-                            .all(|m| match metric.label(m.label()) {
-                                Some(v) => m.matches(v),
-                                None => false,
-                            });
+            Expr::VectorSelector(ref selector) => {
+                for sample in input.cursor().borrow() {
+                    let matched = selector.matchers().iter().all(|m| {
+                        match (sample as Rc<Sample>).label(m.label()) {
+                            Some(v) => m.matches(v),
+                            None => false,
+                        }
+                    });
 
                     if matched {
-                        println!("{:?}", metric);
+                        println!("{:?}", sample);
                     }
                 }
-            },
+            }
             Expr::UnaryExpr(_, _) => unimplemented!(),
         }
     }

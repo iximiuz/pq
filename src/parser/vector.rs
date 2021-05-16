@@ -13,7 +13,7 @@ use super::ast::VectorSelector;
 use super::common::{maybe_lpadded, maybe_padded};
 use super::result::{IResult, ParseError, ParseResult, Span};
 use super::string::string_literal;
-use crate::labels::{LabelMatcher, MatchOp};
+use crate::model::labels::{LabelMatcher, MatchOp};
 
 pub fn vector_selector(input: Span) -> IResult<ParseResult<VectorSelector>> {
     //   metric_identifier label_matchers

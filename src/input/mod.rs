@@ -2,4 +2,5 @@ pub mod decoder;
 pub mod reader;
 
 mod input;
-pub use input::Input;
+
+pub use input::{Input, Sample};

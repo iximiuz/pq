@@ -5,90 +5,8 @@ use chrono::prelude::*;
 use lazy_static::lazy_static;
 use regex;
 
-use super::decoder::Decoder;
-use super::record::Record;
+use super::decoder::{Decoder, Record};
 use crate::error::{Error, Result};
-
-struct CaptureTimestamp {
-    pos: usize,
-    format: String,
-}
-
-impl CaptureTimestamp {
-    fn parse(capstr: String) -> Result<Self> {
-        lazy_static! {
-            static ref RE: regex::Regex = regex::Regex::new(r"^([0-9]{1,3}):(.{1,256})$").unwrap();
-        }
-
-        let caps = RE
-            .captures(&capstr)
-            .ok_or("malformed timestamp capture string")?;
-
-        let pos = caps[1]
-            .parse::<usize>()
-            .map_err(|e| ("unsupported timestamp capture position", e))?;
-
-        let format = caps[2].into();
-
-        Ok(Self { pos, format })
-    }
-}
-
-struct CaptureLabel {
-    pos: usize,
-    name: String,
-}
-
-impl CaptureLabel {
-    fn parse(capstr: String) -> Result<Self> {
-        let (pos, name) = parse_named_capture_str(&capstr, NamedCaptureKind::Label)?;
-        Ok(Self { pos, name })
-    }
-}
-
-struct CaptureMetric {
-    pos: usize,
-    name: String,
-}
-
-impl CaptureMetric {
-    fn parse(capstr: String) -> Result<Self> {
-        let (pos, name) = parse_named_capture_str(&capstr, NamedCaptureKind::Metric)?;
-        Ok(Self { pos, name })
-    }
-}
-
-#[derive(Debug)]
-enum NamedCaptureKind {
-    Label,
-    Metric,
-}
-
-impl fmt::Display for NamedCaptureKind {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "{}", format!("{:?}", self).to_lowercase())
-    }
-}
-
-fn parse_named_capture_str(capstr: &str, kind: NamedCaptureKind) -> Result<(usize, String)> {
-    lazy_static! {
-        static ref RE: regex::Regex =
-            regex::Regex::new(r"^([0-9]{1,3})(:[a-zA-Z_][a-zA-Z0-9_]{0,256})?$").unwrap();
-    }
-
-    let caps = RE
-        .captures(capstr)
-        .ok_or(format!("malformed {} capture string", kind))?;
-
-    let pos = caps[1]
-        .parse::<usize>()
-        .map_err(|e| (format!("unsupported {} capture position", kind), e))?;
-
-    match caps.get(2) {
-        None => Ok((pos, format!("{}{}", kind, pos))),
-        Some(name) => Ok((pos, name.as_str()[1..].into())),
-    }
-}
 
 pub struct RegexDecoder {
     re: regex::bytes::Regex,
@@ -181,7 +99,7 @@ impl RegexDecoder {
 }
 
 impl Decoder for RegexDecoder {
-    fn decode(&mut self, buf: &mut Vec<u8>) -> Result<Record> {
+    fn decode(&mut self, buf: &Vec<u8>) -> Result<Record> {
         let record_caps = self.re.captures(buf).ok_or("no match found")?;
 
         let timestamp = parse_record_timestamp(
@@ -224,7 +142,88 @@ impl Decoder for RegexDecoder {
             }
         }
 
-        Ok(Record::new(timestamp.timestamp_millis(), labels, metrics))
+        Ok(Record(timestamp.timestamp_millis(), labels, metrics))
+    }
+}
+
+struct CaptureTimestamp {
+    pos: usize,
+    format: String,
+}
+
+impl CaptureTimestamp {
+    fn parse(capstr: String) -> Result<Self> {
+        lazy_static! {
+            static ref RE: regex::Regex = regex::Regex::new(r"^([0-9]{1,3}):(.{1,256})$").unwrap();
+        }
+
+        let caps = RE
+            .captures(&capstr)
+            .ok_or("malformed timestamp capture string")?;
+
+        let pos = caps[1]
+            .parse::<usize>()
+            .map_err(|e| ("unsupported timestamp capture position", e))?;
+
+        let format = caps[2].into();
+
+        Ok(Self { pos, format })
+    }
+}
+
+struct CaptureLabel {
+    pos: usize,
+    name: String,
+}
+
+impl CaptureLabel {
+    fn parse(capstr: String) -> Result<Self> {
+        let (pos, name) = parse_named_capture_str(&capstr, NamedCaptureKind::Label)?;
+        Ok(Self { pos, name })
+    }
+}
+
+struct CaptureMetric {
+    pos: usize,
+    name: String,
+}
+
+impl CaptureMetric {
+    fn parse(capstr: String) -> Result<Self> {
+        let (pos, name) = parse_named_capture_str(&capstr, NamedCaptureKind::Metric)?;
+        Ok(Self { pos, name })
+    }
+}
+
+#[derive(Debug)]
+enum NamedCaptureKind {
+    Label,
+    Metric,
+}
+
+impl fmt::Display for NamedCaptureKind {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "{}", format!("{:?}", self).to_lowercase())
+    }
+}
+
+fn parse_named_capture_str(capstr: &str, kind: NamedCaptureKind) -> Result<(usize, String)> {
+    lazy_static! {
+        static ref RE: regex::Regex =
+            regex::Regex::new(r"^([0-9]{1,3})(:[a-zA-Z_][a-zA-Z0-9_]{0,256})?$").unwrap();
+    }
+
+    let caps = RE
+        .captures(capstr)
+        .ok_or(format!("malformed {} capture string", kind))?;
+
+    let pos = caps[1]
+        .parse::<usize>()
+        .map_err(|e| (format!("unsupported {} capture position", kind), e))?;
+
+    match caps.get(2) {
+        None => Ok((pos, format!("{}{}", kind, pos))),
+        Some(name) => Ok((pos, name.as_str()[1..].into())),
     }
 }
 
