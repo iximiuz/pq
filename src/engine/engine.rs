@@ -1,8 +1,7 @@
-use std::borrow::Borrow;
 use std::rc::Rc;
 
 use crate::input::{Input, Sample};
-use crate::parser::ast::*;
+use crate::parser::ast;
 
 pub struct Engine {}
 
@@ -73,27 +72,91 @@ impl Engine {
         Self {}
     }
 
-    pub fn execute<'a>(&self, query: &AST, input: &'a mut Input<'a>) {
-        self.do_execute(&query.root, input)
+    pub fn execute(&self, query: &ast::AST, input: &mut Input) {
+        for sample in self.do_execute(&query.root, input) {
+            println!("{:?}", sample);
+        }
     }
 
-    fn do_execute<'a>(&self, expr: &Expr, input: &'a mut Input<'a>) {
+    fn do_execute(
+        &self,
+        expr: &ast::Expr,
+        input: &mut Input,
+    ) -> Box<dyn std::iter::Iterator<Item = Rc<Sample>>> {
         match expr {
-            Expr::VectorSelector(ref selector) => {
-                for sample in input.cursor().borrow() {
-                    let matched = selector.matchers().iter().all(|m| {
-                        match (sample as Rc<Sample>).label(m.label()) {
-                            Some(v) => m.matches(v),
-                            None => false,
-                        }
-                    });
-
-                    if matched {
-                        println!("{:?}", sample);
-                    }
-                }
+            ast::Expr::VectorSelector(ref selector) => {
+                Box::new(VectorSelector::new(selector, input.cursor()))
             }
-            Expr::UnaryExpr(_, _) => unimplemented!(),
+            ast::Expr::UnaryExpr(op, expr) => {
+                Box::new(UnaryExpr::new(op, self.do_execute(expr, input)))
+            }
+        }
+    }
+}
+
+struct UnaryExpr {
+    op: ast::UnaryOp,
+    inner: Box<dyn std::iter::Iterator<Item = Rc<Sample>>>,
+}
+
+impl UnaryExpr {
+    fn new(op: ast::UnaryOp, inner: Box<dyn std::iter::Iterator<Item = Rc<Sample>>>) -> Self {
+        UnaryExpr { op, inner }
+    }
+}
+
+impl std::iter::Iterator for UnaryExpr {
+    type Item = Rc<Sample>;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        match self.inner.next() {
+            Some(s) => Some(Rc::new(Sample {
+                name: s.name.clone(),
+                value: match self.op {
+                    ast::UnaryOp::Add => s.value,
+                    ast::UnaryOp::Sub => -s.value,
+                },
+                timestamp: s.timestamp,
+                labels: s.labels.clone(),
+            })),
+            None => None,
+        }
+    }
+}
+
+struct VectorSelector {
+    selector: ast::VectorSelector,
+    inner: Box<dyn std::iter::Iterator<Item = Rc<Sample>>>,
+}
+
+impl VectorSelector {
+    fn new(
+        selector: ast::VectorSelector,
+        inner: Box<dyn std::iter::Iterator<Item = Rc<Sample>>>,
+    ) -> Self {
+        VectorSelector { selector, inner }
+    }
+}
+
+impl std::iter::Iterator for VectorSelector {
+    type Item = Rc<Sample>;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        let sample = match self.inner.next() {
+            Some(s) => s,
+            None => return None,
+        };
+
+        match self
+            .selector
+            .matchers()
+            .iter()
+            .all(|m| match sample.label(m.label()) {
+                Some(v) => m.matches(v),
+                None => false,
+            }) {
+            true => Some(sample),
+            false => None,
         }
     }
 }

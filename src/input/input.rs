@@ -1,18 +1,17 @@
 use std::collections::HashMap;
-use std::rc::{Rc, Weak};
+use std::rc::Rc;
 
 use super::decoder::{Decoder, Record};
 use super::reader::Reader;
-use crate::error::Result;
 use crate::model::types::Timestamp;
 
-pub struct Input<'a> {
+pub struct Input {
     reader: Box<dyn Reader>,
     decoder: Box<dyn Decoder>,
-    cursors: Vec<Weak<Cursor<'a>>>,
+    cursors: Vec<Cursor>,
 }
 
-impl<'a> Input<'a> {
+impl Input {
     pub fn new(reader: Box<dyn Reader>, decoder: Box<dyn Decoder>) -> Self {
         Self {
             reader,
@@ -21,30 +20,47 @@ impl<'a> Input<'a> {
         }
     }
 
-    pub fn cursor(&'a mut self) -> Rc<Cursor> {
-        let cursor = Rc::new(Cursor::new(self));
-        cursor
+    pub fn cursor<'a>(&'a mut self) -> &'a mut Cursor {
+        let cursor = Cursor::new(self);
+        self.cursors.push(cursor);
+        self.cursors.last_mut().unwrap()
     }
 
-    fn refill_cursors(&mut self) -> bool {
+    fn refill_cursors(&mut self) {
         loop {
             let mut buf = Vec::new();
             match self.reader.read(&mut buf) {
                 Err(e) => {
                     eprintln!("reader failed with error {}", e);
-                    return false;
+                    break;
                 }
-                Ok(0) => return false,
+                Ok(0) => break, // EOF
                 Ok(_) => (),
             };
 
-            match self.decoder.decode(&mut buf) {
-                Ok(_) => return true,
-                Err(err) => eprintln!(
-                    "Line decoding failed.\nError: {}\nLine: {}",
-                    err,
-                    String::from_utf8_lossy(&buf),
-                ),
+            let (timestamp, labels, values) = match self.decoder.decode(&mut buf) {
+                Ok(Record(ts, ls, vs)) => (ts, ls, vs),
+                Err(err) => {
+                    eprintln!(
+                        "Line decoding failed.\nError: {}\nLine: {}",
+                        err,
+                        String::from_utf8_lossy(&buf),
+                    );
+                    continue;
+                }
+            };
+
+            for (name, value) in values {
+                let sample = Rc::new(Sample {
+                    name,
+                    value,
+                    timestamp,
+                    labels: labels.clone(),
+                });
+
+                for cursor in self.cursors.iter_mut() {
+                    cursor.buffer.push(sample.clone());
+                }
             }
         }
     }
@@ -52,10 +68,10 @@ impl<'a> Input<'a> {
 
 #[derive(Debug)]
 pub struct Sample {
-    name: String,
-    value: f64,
-    timestamp: Timestamp,
-    labels: HashMap<String, String>,
+    pub name: String,
+    pub value: f64,
+    pub timestamp: Timestamp,
+    pub labels: HashMap<String, String>,
 }
 
 impl Sample {
@@ -67,13 +83,13 @@ impl Sample {
     }
 }
 
-pub struct Cursor<'a> {
-    input: &'a mut Input<'a>,
+pub struct Cursor {
+    input: *mut Input,
     buffer: Vec<Rc<Sample>>,
 }
 
-impl<'a> Cursor<'a> {
-    fn new(input: &'a mut Input<'a>) -> Self {
+impl Cursor {
+    fn new(input: *mut Input) -> Self {
         Cursor {
             input,
             buffer: vec![],
@@ -81,23 +97,14 @@ impl<'a> Cursor<'a> {
     }
 }
 
-// TODO:
-// impl Drop for Cursor {
-//     fn drop(&mut self) {
-//         unsafe {
-//             drop_in_place(self.ptr.as_ptr());
-//             let c: NonNull<T> = self.ptr.into();
-//             Global.deallocate(c.cast(), Layout::new::<T>())
-//         }
-//     }
-// }
-
-impl<'a> std::iter::Iterator for Cursor<'a> {
+impl std::iter::Iterator for Cursor {
     type Item = Rc<Sample>;
 
     fn next(&mut self) -> Option<Self::Item> {
-        if self.buffer.len() == 0 && !self.input.refill_cursors() {
-            return None;
+        if self.buffer.len() == 0 {
+            unsafe {
+                (*self.input).refill_cursors();
+            }
         }
         self.buffer.pop()
     }

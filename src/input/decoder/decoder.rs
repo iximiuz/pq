@@ -10,5 +10,5 @@ type Values = HashMap<String, f64>;
 pub struct Record(pub Timestamp, pub Labels, pub Values);
 
 pub trait Decoder {
-    fn decode(&mut self, buf: &Vec<u8>) -> Result<Record>;
+    fn decode(&self, buf: &Vec<u8>) -> Result<Record>;
 }

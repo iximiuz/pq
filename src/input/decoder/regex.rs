@@ -99,7 +99,7 @@ impl RegexDecoder {
 }
 
 impl Decoder for RegexDecoder {
-    fn decode(&mut self, buf: &Vec<u8>) -> Result<Record> {
+    fn decode(&self, buf: &Vec<u8>) -> Result<Record> {
         let record_caps = self.re.captures(buf).ok_or("no match found")?;
 
         let timestamp = parse_record_timestamp(

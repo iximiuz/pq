@@ -3,4 +3,4 @@ pub mod reader;
 
 mod input;
 
-pub use input::{Input, Sample};
+pub use input::{Cursor, Input, Sample};
