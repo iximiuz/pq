@@ -99,6 +99,7 @@ struct UnaryExpr<'a> {
 
 impl<'a> UnaryExpr<'a> {
     fn new(op: ast::UnaryOp, inner: Box<dyn std::iter::Iterator<Item = Rc<Sample>> + 'a>) -> Self {
+        // println!("UnaryExpr::new()");
         UnaryExpr { op, inner }
     }
 }
@@ -132,6 +133,7 @@ impl<'a> VectorSelector<'a> {
         selector: ast::VectorSelector,
         inner: Box<dyn std::iter::Iterator<Item = Rc<Sample>> + 'a>,
     ) -> Self {
+        // println!("VectorSelector::new()");
         VectorSelector { selector, inner }
     }
 }
@@ -140,21 +142,23 @@ impl<'a> std::iter::Iterator for VectorSelector<'a> {
     type Item = Rc<Sample>;
 
     fn next(&mut self) -> Option<Self::Item> {
-        let sample = match self.inner.next() {
-            Some(s) => s,
-            None => return None,
-        };
+        loop {
+            let sample = match self.inner.next() {
+                Some(s) => s,
+                None => return None,
+            };
 
-        match self
-            .selector
-            .matchers()
-            .iter()
-            .all(|m| match sample.label(m.label()) {
-                Some(v) => m.matches(v),
-                None => false,
-            }) {
-            true => Some(sample),
-            false => None,
+            if self
+                .selector
+                .matchers()
+                .iter()
+                .all(|m| match sample.label(m.label()) {
+                    Some(v) => m.matches(v),
+                    None => false,
+                })
+            {
+                return Some(sample);
+            }
         }
     }
 }

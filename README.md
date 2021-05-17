@@ -15,13 +15,17 @@
 ## Run
 
 ```bash
-cargo test
+$ cargo test
 
-cat | cargo run -- '{name="bob"}' -d '([^\s]+)\s(\w+)\s(\d+)' -t '0:%Y-%m-%dT%H:%M:%S' -l 1:name -m 2:age <<EOF
+$ cat | cargo run -- -d '([^\s]+)\s(\w+)\s(\d+)' -t '0:%Y-%m-%dT%H:%M:%S' -l 1:name -m 2:age -- '-age{name=~"(bob|sarah)", name!~"b.*"}' <<EOF
 2021-01-01T05:40:41 bob 42
 2021-01-01T06:30:10 sarah 25
 2022-01-01T05:40:41 bob 42
 2022-01-01T06:30:10 sarah 26
 EOF
+
+# Expected output:
+# Sample { name: "age", value: -26.0, timestamp: 1641018610000, labels: {"name": "sarah"} }
+# Sample { name: "age", value: -25.0, timestamp: 1609482610000, labels: {"name": "sarah"} }
 ```
 
