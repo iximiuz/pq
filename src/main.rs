@@ -41,7 +41,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     // println!("query_ast={:?}", query_ast);
 
     let engine = Engine::new();
-    engine.execute(&query_ast, &mut input);
+    engine.execute(query_ast, &mut input);
 
     Ok(())
 }

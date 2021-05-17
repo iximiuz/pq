@@ -72,40 +72,38 @@ impl Engine {
         Self {}
     }
 
-    pub fn execute(&self, query: &ast::AST, input: &mut Input) {
-        for sample in self.do_execute(&query.root, input) {
+    pub fn execute(&self, query: ast::AST, input: &mut Input) {
+        for sample in self.do_execute(query.root, Box::new(input.cursor())) {
             println!("{:?}", sample);
         }
     }
 
-    fn do_execute(
+    fn do_execute<'a>(
         &self,
-        expr: &ast::Expr,
-        input: &mut Input,
-    ) -> Box<dyn std::iter::Iterator<Item = Rc<Sample>>> {
+        expr: ast::Expr,
+        input: Box<dyn std::iter::Iterator<Item = Rc<Sample>> + 'a>,
+    ) -> Box<dyn std::iter::Iterator<Item = Rc<Sample>> + 'a> {
         match expr {
-            ast::Expr::VectorSelector(ref selector) => {
-                Box::new(VectorSelector::new(selector, input.cursor()))
-            }
+            ast::Expr::VectorSelector(selector) => Box::new(VectorSelector::new(selector, input)),
             ast::Expr::UnaryExpr(op, expr) => {
-                Box::new(UnaryExpr::new(op, self.do_execute(expr, input)))
+                Box::new(UnaryExpr::new(op, self.do_execute(*expr, input)))
             }
         }
     }
 }
 
-struct UnaryExpr {
+struct UnaryExpr<'a> {
     op: ast::UnaryOp,
-    inner: Box<dyn std::iter::Iterator<Item = Rc<Sample>>>,
+    inner: Box<dyn std::iter::Iterator<Item = Rc<Sample>> + 'a>,
 }
 
-impl UnaryExpr {
-    fn new(op: ast::UnaryOp, inner: Box<dyn std::iter::Iterator<Item = Rc<Sample>>>) -> Self {
+impl<'a> UnaryExpr<'a> {
+    fn new(op: ast::UnaryOp, inner: Box<dyn std::iter::Iterator<Item = Rc<Sample>> + 'a>) -> Self {
         UnaryExpr { op, inner }
     }
 }
 
-impl std::iter::Iterator for UnaryExpr {
+impl<'a> std::iter::Iterator for UnaryExpr<'a> {
     type Item = Rc<Sample>;
 
     fn next(&mut self) -> Option<Self::Item> {
@@ -124,21 +122,21 @@ impl std::iter::Iterator for UnaryExpr {
     }
 }
 
-struct VectorSelector {
+struct VectorSelector<'a> {
     selector: ast::VectorSelector,
-    inner: Box<dyn std::iter::Iterator<Item = Rc<Sample>>>,
+    inner: Box<dyn std::iter::Iterator<Item = Rc<Sample>> + 'a>,
 }
 
-impl VectorSelector {
+impl<'a> VectorSelector<'a> {
     fn new(
         selector: ast::VectorSelector,
-        inner: Box<dyn std::iter::Iterator<Item = Rc<Sample>>>,
+        inner: Box<dyn std::iter::Iterator<Item = Rc<Sample>> + 'a>,
     ) -> Self {
         VectorSelector { selector, inner }
     }
 }
 
-impl std::iter::Iterator for VectorSelector {
+impl<'a> std::iter::Iterator for VectorSelector<'a> {
     type Item = Rc<Sample>;
 
     fn next(&mut self) -> Option<Self::Item> {
