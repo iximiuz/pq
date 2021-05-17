@@ -84,11 +84,59 @@ impl Engine {
         input: Box<dyn std::iter::Iterator<Item = Rc<Sample>> + 'a>,
     ) -> Box<dyn std::iter::Iterator<Item = Rc<Sample>> + 'a> {
         match expr {
-            ast::Expr::VectorSelector(selector) => Box::new(VectorSelector::new(selector, input)),
+            ast::Expr::BinaryExpr(left, op, right) => Box::new(BinaryExpr::new(
+                self.do_execute(*left, input),
+                op,
+                self.do_execute(*right, input),
+            )),
             ast::Expr::UnaryExpr(op, expr) => {
                 Box::new(UnaryExpr::new(op, self.do_execute(*expr, input)))
             }
+            ast::Expr::VectorSelector(selector) => Box::new(VectorSelector::new(selector, input)),
         }
+    }
+}
+
+struct BinaryExpr<'a> {
+    op: ast::BinaryOp,
+    left: Box<dyn std::iter::Iterator<Item = Rc<Sample>> + 'a>,
+    right: Box<dyn std::iter::Iterator<Item = Rc<Sample>> + 'a>,
+}
+
+impl<'a> BinaryExpr<'a> {
+    fn new(
+        left: Box<dyn std::iter::Iterator<Item = Rc<Sample>> + 'a>,
+        op: ast::BinaryOp,
+        right: Box<dyn std::iter::Iterator<Item = Rc<Sample>> + 'a>,
+    ) -> Self {
+        // println!("UnaryExpr::new()");
+        BinaryExpr { op, left, right }
+    }
+}
+
+impl<'a> std::iter::Iterator for BinaryExpr<'a> {
+    type Item = Rc<Sample>;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        let lhs = match self.left.next() {
+            Some(l) => l,
+            None => return None,
+        };
+
+        let rhs = match self.right.next() {
+            Some(r) => r,
+            None => return None,
+        };
+
+        Some(Rc::new(Sample {
+            name: format!("{}{:?}{}", lhs.name, self.op, rhs.name),
+            value: match self.op {
+                ast::BinaryOp::Add => lhs.value + rhs.value,
+                ast::BinaryOp::Sub => lhs.value - rhs.value,
+            },
+            timestamp: lhs.timestamp,
+            labels: lhs.labels.clone(),
+        }))
     }
 }
 

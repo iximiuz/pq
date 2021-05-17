@@ -14,6 +14,7 @@ impl AST {
 
 #[derive(Debug, PartialEq)]
 pub enum Expr {
+    BinaryExpr(Box<Expr>, BinaryOp, Box<Expr>),
     UnaryExpr(UnaryOp, Box<Expr>),
     VectorSelector(VectorSelector),
 }
@@ -57,6 +58,12 @@ impl VectorSelector {
 
 #[derive(Debug, PartialEq)]
 pub enum UnaryOp {
+    Add,
+    Sub,
+}
+
+#[derive(Debug, PartialEq)]
+pub enum BinaryOp {
     Add,
     Sub,
 }

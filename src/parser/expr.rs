@@ -1,6 +1,10 @@
-use nom::{branch::alt, character::complete::char, sequence::pair};
+use nom::{
+    branch::alt,
+    character::complete::char,
+    sequence::{pair, tuple},
+};
 
-use super::ast::{Expr, UnaryOp};
+use super::ast::{BinaryOp, Expr, UnaryOp};
 use super::common::maybe_lpadded;
 use super::result::{IResult, ParseResult, Span};
 use super::vector::vector_selector;
@@ -10,6 +14,33 @@ pub fn expr(input: Span) -> IResult<ParseResult<Expr>> {
     // | vector_selector
 
     alt((expr_unary, expr_vector_selector))(input)
+}
+
+fn expr_binary(input: Span) -> IResult<ParseResult<Expr>> {
+    let (rest, (left, op, right)) =
+        match tuple((expr, maybe_lpadded(binary_op), maybe_lpadded(expr)))(input)? {
+            (rest, (ParseResult::Complete(left), op, ParseResult::Complete(right))) => {
+                (rest, (left, op, right))
+            }
+            _ => unimplemented!(), // TODO: ...
+        };
+
+    Ok((
+        rest,
+        ParseResult::Complete(Expr::BinaryExpr(Box::new(left), op, Box::new(right))),
+    ))
+}
+
+fn binary_op(input: Span) -> IResult<BinaryOp> {
+    let (rest, m) = alt((char('+'), char('-')))(input)?;
+    Ok((
+        rest,
+        match m {
+            '+' => BinaryOp::Add,
+            '-' => BinaryOp::Sub,
+            _ => unreachable!(),
+        },
+    ))
 }
 
 fn expr_unary(input: Span) -> IResult<ParseResult<Expr>> {
