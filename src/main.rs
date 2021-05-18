@@ -1,4 +1,5 @@
 use std::io::{self, BufReader};
+use std::time::Duration;
 
 use structopt::StructOpt;
 
@@ -41,7 +42,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     // println!("query_ast={:?}", query_ast);
 
     let engine = Engine::new();
-    engine.execute(query_ast, &mut input);
+    engine.execute(query_ast, &mut input, Duration::from_millis(1000));
 
     Ok(())
 }

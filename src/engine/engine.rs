@@ -1,9 +1,8 @@
 use std::rc::Rc;
+use std::time::Duration;
 
 use crate::input::{Input, Sample};
 use crate::parser::ast;
-
-pub struct Engine {}
 
 // Simple use cases (filtration)
 //
@@ -67,55 +66,73 @@ pub struct Engine {}
 //   - count
 //   - ...
 
+// Every Expr evaluates to a Value.
+#[derive(Debug)]
+enum Value {
+    InstantVector,
+    RangeVector,
+    Scalar,
+}
+
+type ValueIter<'a> = Box<dyn std::iter::Iterator<Item = Value> + 'a>;
+
+pub struct Engine {}
+
 impl Engine {
     pub fn new() -> Self {
         Self {}
     }
 
-    pub fn execute(&self, query: ast::AST, input: &mut Input) {
-        for sample in self.do_execute(query.root, Box::new(input.cursor())) {
-            println!("{:?}", sample);
+    pub fn execute<'a>(&self, query: ast::AST, input: &'a mut Input, step: Duration) {
+        // TODO: construct a tree of iterators from AST first
+        //       then find all vector selectors and inject input cursors
+        //       then start iterating over the root iterator
+        for value in self.do_execute(query.root, None, input, step) {
+            println!("{:?}", value);
         }
     }
 
     fn do_execute<'a>(
         &self,
         expr: ast::Expr,
-        input: Box<dyn std::iter::Iterator<Item = Rc<Sample>> + 'a>,
-    ) -> Box<dyn std::iter::Iterator<Item = Rc<Sample>> + 'a> {
+        prev: Option<ValueIter<'a>>,
+        input: &'a mut Input,
+        step: Duration,
+    ) -> ValueIter<'a> {
         match expr {
-            ast::Expr::BinaryExpr(left, op, right) => Box::new(BinaryExpr::new(
-                self.do_execute(*left, input),
+            // ast::Expr::BinaryExpr(left, op, right) => Box::new(BinaryExpr::new(
+            //     op,
+            //     self.do_execute(*left, input),
+            //     self.do_execute(*right, input),
+            // )),
+            ast::Expr::UnaryExpr(op, expr) => Box::new(UnaryExpr::new(
                 op,
-                self.do_execute(*right, input),
+                self.do_execute(*expr, prev, input, step),
             )),
-            ast::Expr::UnaryExpr(op, expr) => {
-                Box::new(UnaryExpr::new(op, self.do_execute(*expr, input)))
+            // leaf node
+            ast::Expr::VectorSelector(selector) => {
+                Box::new(VectorSelector::new(selector, Box::new(input.cursor())))
             }
-            ast::Expr::VectorSelector(selector) => Box::new(VectorSelector::new(selector, input)),
+            _ => unimplemented!(),
         }
     }
 }
 
 struct BinaryExpr<'a> {
     op: ast::BinaryOp,
-    left: Box<dyn std::iter::Iterator<Item = Rc<Sample>> + 'a>,
-    right: Box<dyn std::iter::Iterator<Item = Rc<Sample>> + 'a>,
+    left: ValueIter<'a>,
+    right: ValueIter<'a>,
 }
 
 impl<'a> BinaryExpr<'a> {
-    fn new(
-        left: Box<dyn std::iter::Iterator<Item = Rc<Sample>> + 'a>,
-        op: ast::BinaryOp,
-        right: Box<dyn std::iter::Iterator<Item = Rc<Sample>> + 'a>,
-    ) -> Self {
+    fn new(op: ast::BinaryOp, left: ValueIter<'a>, right: ValueIter<'a>) -> Self {
         // println!("UnaryExpr::new()");
         BinaryExpr { op, left, right }
     }
 }
 
 impl<'a> std::iter::Iterator for BinaryExpr<'a> {
-    type Item = Rc<Sample>;
+    type Item = Value;
 
     fn next(&mut self) -> Option<Self::Item> {
         let lhs = match self.left.next() {
@@ -128,85 +145,89 @@ impl<'a> std::iter::Iterator for BinaryExpr<'a> {
             None => return None,
         };
 
-        Some(Rc::new(Sample {
-            name: format!("{}{:?}{}", lhs.name, self.op, rhs.name),
-            value: match self.op {
-                ast::BinaryOp::Add => lhs.value + rhs.value,
-                ast::BinaryOp::Sub => lhs.value - rhs.value,
-            },
-            timestamp: lhs.timestamp,
-            labels: lhs.labels.clone(),
-        }))
+        None
+
+        // Some(Rc::new(Sample {
+        //     name: format!("{}{:?}{}", lhs.name, self.op, rhs.name),
+        //     value: match self.op {
+        //         ast::BinaryOp::Add => lhs.value + rhs.value,
+        //         ast::BinaryOp::Sub => lhs.value - rhs.value,
+        //     },
+        //     timestamp: lhs.timestamp,
+        //     labels: lhs.labels.clone(),
+        // }))
     }
 }
 
 struct UnaryExpr<'a> {
     op: ast::UnaryOp,
-    inner: Box<dyn std::iter::Iterator<Item = Rc<Sample>> + 'a>,
+    inner: ValueIter<'a>,
 }
 
 impl<'a> UnaryExpr<'a> {
-    fn new(op: ast::UnaryOp, inner: Box<dyn std::iter::Iterator<Item = Rc<Sample>> + 'a>) -> Self {
+    fn new(op: ast::UnaryOp, inner: ValueIter<'a>) -> Self {
         // println!("UnaryExpr::new()");
         UnaryExpr { op, inner }
     }
 }
 
 impl<'a> std::iter::Iterator for UnaryExpr<'a> {
-    type Item = Rc<Sample>;
+    type Item = Value;
 
     fn next(&mut self) -> Option<Self::Item> {
-        match self.inner.next() {
-            Some(s) => Some(Rc::new(Sample {
-                name: s.name.clone(),
-                value: match self.op {
-                    ast::UnaryOp::Add => s.value,
-                    ast::UnaryOp::Sub => -s.value,
-                },
-                timestamp: s.timestamp,
-                labels: s.labels.clone(),
-            })),
-            None => None,
-        }
+        None
+        // match self.inner.next() {
+        //     Some(s) => Some(Rc::new(Sample {
+        //         name: s.name.clone(),
+        //         value: match self.op {
+        //             ast::UnaryOp::Add => s.value,
+        //             ast::UnaryOp::Sub => -s.value,
+        //         },
+        //         timestamp: s.timestamp,
+        //         labels: s.labels.clone(),
+        //     })),
+        //     None => None,
+        // }
     }
 }
 
 struct VectorSelector<'a> {
     selector: ast::VectorSelector,
-    inner: Box<dyn std::iter::Iterator<Item = Rc<Sample>> + 'a>,
+    input: Box<dyn std::iter::Iterator<Item = Rc<Sample>> + 'a>,
 }
 
 impl<'a> VectorSelector<'a> {
     fn new(
         selector: ast::VectorSelector,
-        inner: Box<dyn std::iter::Iterator<Item = Rc<Sample>> + 'a>,
+        input: Box<dyn std::iter::Iterator<Item = Rc<Sample>> + 'a>,
     ) -> Self {
         // println!("VectorSelector::new()");
-        VectorSelector { selector, inner }
+        VectorSelector { selector, input }
     }
 }
 
 impl<'a> std::iter::Iterator for VectorSelector<'a> {
-    type Item = Rc<Sample>;
+    type Item = Value;
 
     fn next(&mut self) -> Option<Self::Item> {
-        loop {
-            let sample = match self.inner.next() {
-                Some(s) => s,
-                None => return None,
-            };
+        None
+        // loop {
+        //     let sample = match self.inner.next() {
+        //         Some(s) => s,
+        //         None => return None,
+        //     };
 
-            if self
-                .selector
-                .matchers()
-                .iter()
-                .all(|m| match sample.label(m.label()) {
-                    Some(v) => m.matches(v),
-                    None => false,
-                })
-            {
-                return Some(sample);
-            }
-        }
+        //     if self
+        //         .selector
+        //         .matchers()
+        //         .iter()
+        //         .all(|m| match sample.label(m.label()) {
+        //             Some(v) => m.matches(v),
+        //             None => false,
+        //         })
+        //     {
+        //         return Some(sample);
+        //     }
+        // }
     }
 }
