@@ -1,8 +1,9 @@
+use std::cell::RefCell;
 use std::rc::Rc;
 use std::time::Duration;
 
-use crate::input::{Input, Sample};
-use crate::parser::ast;
+use crate::input::{Cursor, Input, Sample};
+use crate::parser::ast::*;
 
 // Simple use cases (filtration)
 //
@@ -69,12 +70,12 @@ use crate::parser::ast;
 // Every Expr evaluates to a Value.
 #[derive(Debug)]
 enum Value {
-    InstantVector,
+    InstantVector(Rc<Sample>),
     RangeVector,
     Scalar,
 }
 
-type ValueIter<'a> = Box<dyn std::iter::Iterator<Item = Value> + 'a>;
+type ValueIter = Box<dyn std::iter::Iterator<Item = Value>>;
 
 pub struct Engine {}
 
@@ -83,55 +84,84 @@ impl Engine {
         Self {}
     }
 
-    pub fn execute<'a>(&self, query: ast::AST, input: &'a mut Input, step: Duration) {
-        // TODO: construct a tree of iterators from AST first
-        //       then find all vector selectors and inject input cursors
-        //       then start iterating over the root iterator
-        for value in self.do_execute(query.root, None, input, step) {
+    pub fn execute(&self, query: AST, input: Input, step: Duration) {
+        let executor = Self::create_executor(query.root, input, step);
+        for value in executor {
             println!("{:?}", value);
         }
     }
 
-    fn do_execute<'a>(
-        &self,
-        expr: ast::Expr,
-        prev: Option<ValueIter<'a>>,
-        input: &'a mut Input,
-        step: Duration,
-    ) -> ValueIter<'a> {
-        match expr {
-            // ast::Expr::BinaryExpr(left, op, right) => Box::new(BinaryExpr::new(
-            //     op,
-            //     self.do_execute(*left, input),
-            //     self.do_execute(*right, input),
-            // )),
-            ast::Expr::UnaryExpr(op, expr) => Box::new(UnaryExpr::new(
-                op,
-                self.do_execute(*expr, prev, input, step),
-            )),
-            // leaf node
-            ast::Expr::VectorSelector(selector) => {
-                Box::new(VectorSelector::new(selector, Box::new(input.cursor())))
+    fn create_executor(root: Expr, input: Input, step: Duration) -> ValueIter {
+        // Alternative recursive implementation:
+        // match expr {
+        //     Expr::BinaryExpr(left, op, right) => {
+        //         let lhs = Self::create_executor(*left);
+        //         let rhs = Self::create_executor(*right);
+        //         Box::new(BinaryExpr::new(op, lhs, rhs))
+        //     }
+        //     Expr::UnaryExpr(op, expr) => {
+        //         Box::new(UnaryExpr::new(op, Self::create_executor(*expr)))
+        //     }
+        //     // leaf node
+        //     Expr::VectorSelector(selector) => Box::new(VectorSelector::new(selector)),
+        //     _ => unimplemented!(),
+        // }
+
+        let input = Rc::new(RefCell::new(input));
+        let mut queue = vec![(root, false)];
+        let mut stack: Vec<ValueIter> = vec![];
+
+        loop {
+            let (node, seen) = match queue.pop() {
+                Some((n, s)) => (n, s),
+                None => break,
+            };
+
+            if !seen {
+                match node {
+                    Expr::UnaryExpr(op, expr) => {
+                        queue.push((Expr::UnaryExpr(op, Box::new(Expr::Noop)), true));
+                        queue.push((*expr, false));
+                    }
+                    Expr::VectorSelector(sel) => {
+                        stack.push(Box::new(VectorSelectorExecutor::new(
+                            sel,
+                            Input::cursor(Rc::clone(&input)),
+                            step,
+                        )));
+                    }
+                    _ => unreachable!(),
+                };
+            } else {
+                match node {
+                    Expr::UnaryExpr(op, _) => {
+                        let inner = stack.pop().expect("must not be empty");
+                        stack.push(Box::new(UnaryExprExecutor::new(op, inner)));
+                    }
+                    _ => unreachable!(),
+                };
             }
-            _ => unimplemented!(),
         }
+
+        assert!(stack.len() == 1);
+        stack.pop().unwrap()
     }
 }
 
-struct BinaryExpr<'a> {
-    op: ast::BinaryOp,
-    left: ValueIter<'a>,
-    right: ValueIter<'a>,
+struct BinaryExprExecutor {
+    op: BinaryOp,
+    left: ValueIter,
+    right: ValueIter,
 }
 
-impl<'a> BinaryExpr<'a> {
-    fn new(op: ast::BinaryOp, left: ValueIter<'a>, right: ValueIter<'a>) -> Self {
+impl BinaryExprExecutor {
+    fn new(op: BinaryOp, left: ValueIter, right: ValueIter) -> Self {
         // println!("UnaryExpr::new()");
-        BinaryExpr { op, left, right }
+        Self { op, left, right }
     }
 }
 
-impl<'a> std::iter::Iterator for BinaryExpr<'a> {
+impl std::iter::Iterator for BinaryExprExecutor {
     type Item = Value;
 
     fn next(&mut self) -> Option<Self::Item> {
@@ -150,8 +180,8 @@ impl<'a> std::iter::Iterator for BinaryExpr<'a> {
         // Some(Rc::new(Sample {
         //     name: format!("{}{:?}{}", lhs.name, self.op, rhs.name),
         //     value: match self.op {
-        //         ast::BinaryOp::Add => lhs.value + rhs.value,
-        //         ast::BinaryOp::Sub => lhs.value - rhs.value,
+        //         BinaryOp::Add => lhs.value + rhs.value,
+        //         BinaryOp::Sub => lhs.value - rhs.value,
         //     },
         //     timestamp: lhs.timestamp,
         //     labels: lhs.labels.clone(),
@@ -159,75 +189,76 @@ impl<'a> std::iter::Iterator for BinaryExpr<'a> {
     }
 }
 
-struct UnaryExpr<'a> {
-    op: ast::UnaryOp,
-    inner: ValueIter<'a>,
+struct UnaryExprExecutor {
+    op: UnaryOp,
+    inner: ValueIter,
 }
 
-impl<'a> UnaryExpr<'a> {
-    fn new(op: ast::UnaryOp, inner: ValueIter<'a>) -> Self {
+impl UnaryExprExecutor {
+    fn new(op: UnaryOp, inner: ValueIter) -> Self {
         // println!("UnaryExpr::new()");
-        UnaryExpr { op, inner }
+        Self { op, inner }
     }
 }
 
-impl<'a> std::iter::Iterator for UnaryExpr<'a> {
+impl std::iter::Iterator for UnaryExprExecutor {
     type Item = Value;
 
     fn next(&mut self) -> Option<Self::Item> {
-        None
-        // match self.inner.next() {
-        //     Some(s) => Some(Rc::new(Sample {
-        //         name: s.name.clone(),
-        //         value: match self.op {
-        //             ast::UnaryOp::Add => s.value,
-        //             ast::UnaryOp::Sub => -s.value,
-        //         },
-        //         timestamp: s.timestamp,
-        //         labels: s.labels.clone(),
-        //     })),
-        //     None => None,
-        // }
+        match self.inner.next() {
+            Some(Value::InstantVector(s)) => Some(Value::InstantVector(Rc::new(Sample {
+                name: s.name.clone(),
+                value: match self.op {
+                    UnaryOp::Add => s.value,
+                    UnaryOp::Sub => -s.value,
+                },
+                timestamp: s.timestamp,
+                labels: s.labels.clone(),
+            }))),
+            None => None,
+            _ => unimplemented!(),
+        }
     }
 }
 
-struct VectorSelector<'a> {
-    selector: ast::VectorSelector,
-    input: Box<dyn std::iter::Iterator<Item = Rc<Sample>> + 'a>,
+struct VectorSelectorExecutor {
+    selector: VectorSelector,
+    cursor: Rc<Cursor>,
+    step: Duration,
 }
 
-impl<'a> VectorSelector<'a> {
-    fn new(
-        selector: ast::VectorSelector,
-        input: Box<dyn std::iter::Iterator<Item = Rc<Sample>> + 'a>,
-    ) -> Self {
+impl VectorSelectorExecutor {
+    fn new(selector: VectorSelector, cursor: Rc<Cursor>, step: Duration) -> Self {
         // println!("VectorSelector::new()");
-        VectorSelector { selector, input }
+        Self {
+            selector,
+            cursor: cursor,
+            step: step,
+        }
     }
 }
 
-impl<'a> std::iter::Iterator for VectorSelector<'a> {
+impl std::iter::Iterator for VectorSelectorExecutor {
     type Item = Value;
 
     fn next(&mut self) -> Option<Self::Item> {
-        None
-        // loop {
-        //     let sample = match self.inner.next() {
-        //         Some(s) => s,
-        //         None => return None,
-        //     };
+        loop {
+            let sample = match self.cursor.read() {
+                Some(s) => s,
+                None => return None,
+            };
 
-        //     if self
-        //         .selector
-        //         .matchers()
-        //         .iter()
-        //         .all(|m| match sample.label(m.label()) {
-        //             Some(v) => m.matches(v),
-        //             None => false,
-        //         })
-        //     {
-        //         return Some(sample);
-        //     }
-        // }
+            if self
+                .selector
+                .matchers()
+                .iter()
+                .all(|m| match sample.label(m.label()) {
+                    Some(v) => m.matches(v),
+                    None => false,
+                })
+            {
+                return Some(Value::InstantVector(sample));
+            }
+        }
     }
 }

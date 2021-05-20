@@ -17,6 +17,10 @@ pub enum Expr {
     BinaryExpr(Box<Expr>, BinaryOp, Box<Expr>),
     UnaryExpr(UnaryOp, Box<Expr>),
     VectorSelector(VectorSelector),
+
+    /// Never appears in the query language. Used in the engine for some
+    /// optimization.
+    Noop,
 }
 
 #[derive(Debug, PartialEq)]
@@ -56,13 +60,13 @@ impl VectorSelector {
     }
 }
 
-#[derive(Debug, PartialEq)]
+#[derive(Clone, Copy, Debug, PartialEq)]
 pub enum UnaryOp {
     Add,
     Sub,
 }
 
-#[derive(Debug, PartialEq)]
+#[derive(Copy, Clone, Debug, PartialEq)]
 pub enum BinaryOp {
     Add,
     Sub,

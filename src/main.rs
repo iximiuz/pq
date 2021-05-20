@@ -28,7 +28,7 @@ struct CliOpt {
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     let opt = CliOpt::from_args();
 
-    let mut input = Input::new(
+    let input = Input::new(
         Box::new(LineReader::new(BufReader::new(io::stdin()))),
         Box::new(RegexDecoder::new(
             &opt.decode,
@@ -42,7 +42,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     // println!("query_ast={:?}", query_ast);
 
     let engine = Engine::new();
-    engine.execute(query_ast, &mut input, Duration::from_millis(1000));
+    engine.execute(query_ast, input, Duration::from_millis(1000));
 
     Ok(())
 }

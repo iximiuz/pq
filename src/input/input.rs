@@ -1,5 +1,6 @@
+use std::cell::RefCell;
 use std::collections::HashMap;
-use std::rc::Rc;
+use std::rc::{Rc, Weak};
 
 use super::decoder::{Decoder, Record};
 use super::reader::Reader;
@@ -8,8 +9,14 @@ use crate::model::types::Timestamp;
 pub struct Input {
     reader: Box<dyn Reader>,
     decoder: Box<dyn Decoder>,
-    cursors: Vec<Cursor>,
+    cursors: Vec<Weak<Cursor>>,
 }
+
+// TODO: implement peakable cursors via multi-threaded reader
+//         - a separate thread calls self.reader.read() and puts the record to an internal queue
+//           (with some back-pressure mechanism)
+//         - main thread takes values only from the queue
+//         - if the queue is empty, peak returns None immediately
 
 impl Input {
     pub fn new(reader: Box<dyn Reader>, decoder: Box<dyn Decoder>) -> Self {
@@ -20,10 +27,10 @@ impl Input {
         }
     }
 
-    pub fn cursor<'a>(&'a mut self) -> &'a mut Cursor {
-        let cursor = Cursor::new(self);
-        self.cursors.push(cursor);
-        self.cursors.last_mut().unwrap()
+    pub fn cursor(input: Rc<RefCell<Self>>) -> Rc<Cursor> {
+        let cursor = Rc::new(Cursor::new(Rc::clone(&input)));
+        input.borrow_mut().cursors.push(Rc::downgrade(&cursor));
+        cursor
     }
 
     fn refill_cursors(&mut self) {
@@ -58,8 +65,10 @@ impl Input {
                     labels: labels.clone(),
                 });
 
-                for cursor in self.cursors.iter_mut() {
-                    cursor.buffer.push(sample.clone());
+                for weak_cursor in self.cursors.iter_mut() {
+                    if let Some(cursor) = weak_cursor.upgrade() {
+                        cursor.buffer.borrow_mut().push(sample.clone());
+                    }
                 }
             }
         }
@@ -84,28 +93,25 @@ impl Sample {
 }
 
 pub struct Cursor {
-    input: *mut Input,
-    buffer: Vec<Rc<Sample>>,
+    input: Rc<RefCell<Input>>,
+    buffer: RefCell<Vec<Rc<Sample>>>,
 }
 
 impl Cursor {
-    fn new(input: *mut Input) -> Self {
+    fn new(input: Rc<RefCell<Input>>) -> Self {
         Cursor {
             input,
-            buffer: vec![],
+            buffer: RefCell::new(vec![]),
         }
     }
-}
 
-impl std::iter::Iterator for Cursor {
-    type Item = Rc<Sample>;
-
-    fn next(&mut self) -> Option<Self::Item> {
-        if self.buffer.len() == 0 {
-            unsafe {
-                (*self.input).refill_cursors();
-            }
+    pub fn read(&self) -> Option<Rc<Sample>> {
+        if self.buffer.borrow().len() == 0 {
+            self.input.borrow_mut().refill_cursors();
         }
-        self.buffer.pop()
+        self.buffer.borrow_mut().pop()
     }
+
+    // TODO:
+    // pub fn peak(&self) -> Option<Rc<Sample>> {}
 }
