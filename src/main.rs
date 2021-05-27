@@ -41,7 +41,12 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let query_ast = parser::parse_query(&opt.query)?;
     // println!("query_ast={:?}", query_ast);
 
-    let exctr = Executor::new(input, None, None, None);
+    let exctr = Executor::new(
+        input,
+        None,
+        Some(Duration::from_millis(1000)),
+        Some(Duration::from_millis(1000)),
+    );
     exctr.execute(query_ast);
 
     Ok(())

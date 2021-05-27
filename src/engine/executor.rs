@@ -2,9 +2,10 @@ use std::cell::RefCell;
 use std::rc::Rc;
 use std::time::Duration;
 
-use super::value::Value;
+use super::value::{InstantVector, Value};
+use super::vector::VectorSelectorExecutor;
 use crate::common::time::TimeRange;
-use crate::input::{Cursor, Input, Sample};
+use crate::input::{Input, Sample};
 use crate::parser::ast::*;
 
 // Simple use cases (filtration)
@@ -102,7 +103,7 @@ impl Executor {
     pub fn execute(&self, query: AST) {
         let iter = self.create_value_iter(query.root);
         for value in iter {
-            println!("{:?}", value);
+            println!("EXECUTOR VALUE {:?}", value);
         }
     }
 
@@ -139,8 +140,8 @@ impl Executor {
                     }
                     Expr::VectorSelector(sel) => {
                         stack.push(Box::new(VectorSelectorExecutor::new(
-                            sel,
                             Input::cursor(Rc::clone(&self.input)),
+                            sel,
                             self.range,
                             self.interval,
                             self.lookback,
@@ -172,7 +173,6 @@ struct BinaryExprExecutor {
 
 impl BinaryExprExecutor {
     fn new(op: BinaryOp, left: ValueIter, right: ValueIter) -> Self {
-        // println!("UnaryExpr::new()");
         Self { op, left, right }
     }
 }
@@ -212,20 +212,15 @@ struct UnaryExprExecutor {
 
 impl UnaryExprExecutor {
     fn new(op: UnaryOp, inner: ValueIter) -> Self {
-        // println!("UnaryExpr::new()");
         Self { op, inner }
     }
 
-    fn next_instant_vector(&self, v: Vec<Rc<Sample>>) -> Value {
-        Value::InstantVector(vec![])
-        // Value::InstantVector(Rc::new(Sample {
-        // name: s.name.clone(),
-        // value: match self.op {
-        //     UnaryOp::Add => s.value,
-        //     UnaryOp::Sub => -s.value,
-        // },
-        // timestamp: s.timestamp,
-        // labels: s.labels.clone(),
+    fn next_instant_vector(&self, v: InstantVector) -> Value {
+        Value::InstantVector(v)
+        // match self.op {
+        //   UnaryOp::Add => s.value,
+        //   UnaryOp::Sub => -s.value,
+        // }
     }
 }
 
@@ -237,57 +232,6 @@ impl std::iter::Iterator for UnaryExprExecutor {
             Some(Value::InstantVector(v)) => Some(self.next_instant_vector(v)),
             None => None,
             _ => unimplemented!(),
-        }
-    }
-}
-
-struct VectorSelectorExecutor {
-    selector: VectorSelector,
-    cursor: Rc<Cursor>,
-    range: TimeRange,
-    interval: Duration,
-    lookback: Duration,
-}
-
-impl VectorSelectorExecutor {
-    fn new(
-        selector: VectorSelector,
-        cursor: Rc<Cursor>,
-        range: TimeRange,
-        interval: Duration,
-        lookback: Duration,
-    ) -> Self {
-        Self {
-            selector,
-            cursor,
-            range,
-            interval,
-            lookback,
-        }
-    }
-}
-
-impl std::iter::Iterator for VectorSelectorExecutor {
-    type Item = Value;
-
-    fn next(&mut self) -> Option<Self::Item> {
-        loop {
-            let sample = match self.cursor.read() {
-                Some(s) => s,
-                None => return None,
-            };
-
-            if self
-                .selector
-                .matchers()
-                .iter()
-                .all(|m| match sample.label(m.label()) {
-                    Some(v) => m.matches(v),
-                    None => false,
-                })
-            {
-                return Some(Value::InstantVector(vec![sample]));
-            }
         }
     }
 }

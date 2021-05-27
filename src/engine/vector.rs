@@ -1,39 +1,41 @@
-use std::collections::VecDeque;
+use std::collections::{HashMap, VecDeque};
 use std::rc::Rc;
 use std::time::Duration;
 
-use super::value::Value;
+use super::value::{InstantVector, Value};
 use crate::common::time::TimeRange;
 use crate::input::{Cursor, Sample};
-use crate::model::types::{Instant, Timestamp};
+use crate::model::types::{Instant, Labels, Timestamp};
 use crate::parser::ast::VectorSelector;
 
 pub(super) struct VectorSelectorExecutor {
-    selector: VectorSelector,
     cursor: Rc<Cursor>,
+    selector: VectorSelector,
     interval: Duration,
     lookback: Duration,
     next_instant: Option<Timestamp>,
     last_instant: Option<Timestamp>,
-    buffer: VecDeque<Rc<Sample>>,
+    buffer: SampleMatrix,
+    finalized: bool,
 }
 
 impl VectorSelectorExecutor {
     pub fn new(
-        selector: VectorSelector,
         cursor: Rc<Cursor>,
+        selector: VectorSelector,
         range: TimeRange,
         interval: Duration,
         lookback: Duration,
     ) -> Self {
         Self {
-            selector,
             cursor,
+            selector,
             interval,
             lookback,
-            next_instant: range.start(),
-            last_instant: range.end(),
-            buffer: VecDeque::new(),
+            next_instant: range.start().map(|t| t.round_up_to_secs()),
+            last_instant: range.end().map(|t| t.round_up_to_secs()),
+            buffer: SampleMatrix::new(),
+            finalized: false,
         }
     }
 
@@ -59,8 +61,23 @@ impl VectorSelectorExecutor {
     }
 
     fn finalize(&mut self) -> Option<Value> {
-        // TODO: turn buffer into instant vector
-        None
+        if self.finalized {
+            return None;
+        }
+
+        match self.next_instant {
+            Some(next_instant) => {
+                self.finalized = true;
+
+                Some(Value::InstantVector(
+                    self.buffer.instant_vector(next_instant, self.lookback),
+                ))
+            }
+            None => {
+                assert!(self.buffer.is_empty());
+                None
+            }
+        }
     }
 }
 
@@ -68,38 +85,87 @@ impl std::iter::Iterator for VectorSelectorExecutor {
     type Item = Value;
 
     fn next(&mut self) -> Option<Self::Item> {
+        println!("VectorSelectorExecutor::next");
         loop {
+            println!("VectorSelectorExecutor::next loop");
             let sample = match self.next_sample() {
                 Some(sample) => sample,
                 None => return self.finalize(), // drained input
             };
+            println!("VectorSelectorExecutor::next SAMPLE={:?}", sample);
+            let sample_timestamp = sample.timestamp();
 
-            if let Some(last_instant) = self.last_instant {
-                // Input not drained, but we've seen enough.
-                if sample.timestamp > last_instant {
-                    return self.finalize();
-                }
+            // Input not drained, but we've seen enough.
+            if sample_timestamp > self.last_instant.unwrap_or(Timestamp::MAX) {
+                return self.finalize();
             }
 
-            // Maybe fixup next_instant on the very first iteration.
-            let next_instant = match self.next_instant {
-                Some(next_instant) => next_instant,
-                None => ((sample.timestamp - 1) as f64 / 1000.0) as Timestamp + 1,
-            };
+            let next_instant = self
+                .next_instant
+                // Maybe fixup next_instant. Can happen
+                // only on the very first next() call.
+                .unwrap_or(sample_timestamp.round_up_to_secs());
 
-            let outdated_instant = next_instant.add(self.lookback);
-            if sample.timestamp <= next_instant {
-                if sample.timestamp > outdated_instant {
-                    self.buffer.push_back(sample);
-                }
-                continue;
+            assert!(next_instant <= self.last_instant.unwrap_or(Timestamp::MAX));
+
+            // This check is more like an optimization than a necessity.
+            if sample_timestamp > next_instant.sub(self.lookback) {
+                self.buffer.push(sample);
             }
 
-            let rv = self.create_vector_from_buffer();
-            self.next_instant = self.next_instant.add(self.interval);
-            self.purge_samples_behind_lookback();
-            self.buffer.push_back(sample);
-            return rv;
+            if sample_timestamp > next_instant {
+                // Here we have a sample after the current next_instant.
+                // Hence, we can create (a potentially empty) vector from the current buffer.
+                let samples = self.buffer.instant_vector(next_instant, self.lookback);
+
+                // Advance next_instant for the next iteration.
+                self.next_instant = Some(next_instant.add(self.interval));
+
+                self.buffer
+                    .purge_stale(self.next_instant.unwrap(), self.lookback);
+
+                return Some(Value::InstantVector(samples));
+            }
         }
     }
+}
+
+struct SampleMatrix {
+    samples: HashMap<String, (Labels, VecDeque<(Timestamp, f64)>)>,
+}
+
+// TODO: optimize me!
+impl SampleMatrix {
+    fn new() -> Self {
+        Self {
+            samples: HashMap::new(),
+        }
+    }
+
+    fn is_empty(&self) -> bool {
+        self.samples.len() == 0
+    }
+
+    fn push(&mut self, sample: Rc<Sample>) {
+        let key = sample
+            .labels()
+            .iter()
+            .map(|(k, v)| format!("{}={}", k, v))
+            .collect::<Vec<String>>()
+            .join(";");
+
+        self.samples
+            .entry(key)
+            .or_insert((sample.labels().clone(), VecDeque::new()))
+            .1
+            .push_back((sample.timestamp(), sample.value()));
+    }
+
+    /// Returns samples in the (instant - lookback, instant] time range.
+    fn instant_vector(&self, instant: Timestamp, lookback: Duration) -> InstantVector {
+        InstantVector::new(instant)
+    }
+
+    /// Purges samples up until and including `next_instant - lookback` duration.
+    fn purge_stale(&mut self, next_instant: Timestamp, lookback: Duration) {}
 }

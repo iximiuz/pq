@@ -1,10 +1,9 @@
 use std::cell::RefCell;
-use std::collections::HashMap;
 use std::rc::{Rc, Weak};
 
 use super::decoder::{Decoder, Record};
 use super::reader::Reader;
-use crate::model::types::Timestamp;
+use crate::model::types::{Labels, Timestamp, Value};
 
 pub struct Input {
     reader: Box<dyn Reader>,
@@ -58,12 +57,7 @@ impl Input {
             };
 
             for (name, value) in values {
-                let sample = Rc::new(Sample {
-                    name,
-                    value,
-                    timestamp,
-                    labels: labels.clone(),
-                });
+                let sample = Rc::new(Sample::new(name, value, timestamp, labels.clone()));
 
                 for weak_cursor in self.cursors.iter_mut() {
                     if let Some(cursor) = weak_cursor.upgrade() {
@@ -71,23 +65,6 @@ impl Input {
                     }
                 }
             }
-        }
-    }
-}
-
-#[derive(Debug)]
-pub struct Sample {
-    pub name: String,
-    pub value: f64,
-    pub timestamp: Timestamp,
-    pub labels: HashMap<String, String>,
-}
-
-impl Sample {
-    pub fn label(&self, name: &str) -> Option<&String> {
-        match name {
-            "__name__" => Some(&self.name),
-            _ => self.labels.get(name),
         }
     }
 }
@@ -114,4 +91,41 @@ impl Cursor {
 
     // TODO:
     // pub fn peak(&self) -> Option<Rc<Sample>> {}
+}
+
+#[derive(Debug)]
+pub struct Sample {
+    value: Value,
+    timestamp: Timestamp,
+    labels: Labels,
+}
+
+impl Sample {
+    fn new(name: String, value: Value, timestamp: Timestamp, mut labels: Labels) -> Self {
+        labels.insert("__name__".into(), name);
+        Self {
+            value,
+            timestamp,
+            labels,
+        }
+    }
+
+    #[inline]
+    pub fn value(&self) -> Value {
+        self.value
+    }
+
+    #[inline]
+    pub fn timestamp(&self) -> Timestamp {
+        self.timestamp
+    }
+
+    #[inline]
+    pub fn labels(&self) -> &Labels {
+        &self.labels
+    }
+
+    pub fn label(&self, name: &str) -> Option<&String> {
+        self.labels.get(name)
+    }
 }
