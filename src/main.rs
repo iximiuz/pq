@@ -3,7 +3,7 @@ use std::time::Duration;
 
 use structopt::StructOpt;
 
-use pq::engine::Engine;
+use pq::engine::Executor;
 use pq::input::{decoder::RegexDecoder, reader::LineReader, Input};
 use pq::parser;
 
@@ -41,8 +41,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let query_ast = parser::parse_query(&opt.query)?;
     // println!("query_ast={:?}", query_ast);
 
-    let engine = Engine::new();
-    engine.execute(query_ast, input, Duration::from_millis(1000));
+    let exctr = Executor::new(input, None, None, None);
+    exctr.execute(query_ast);
 
     Ok(())
 }

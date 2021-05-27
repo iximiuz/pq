@@ -3,7 +3,6 @@ use std::rc::Rc;
 use std::time::Duration;
 
 use super::value::Value;
-use super::vector::VectorSelectorExecutor;
 use crate::common::time::TimeRange;
 use crate::input::{Cursor, Input, Sample};
 use crate::parser::ast::*;
@@ -72,7 +71,7 @@ use crate::parser::ast::*;
 
 type ValueIter = Box<dyn std::iter::Iterator<Item = Value>>;
 
-const DEFAULT_INTERVAL: Duration = Duration::SECOND;
+const DEFAULT_INTERVAL: Duration = Duration::from_millis(1000);
 const DEFAULT_LOOKBACK: Duration = DEFAULT_INTERVAL;
 
 pub struct Executor {
@@ -238,6 +237,57 @@ impl std::iter::Iterator for UnaryExprExecutor {
             Some(Value::InstantVector(v)) => Some(self.next_instant_vector(v)),
             None => None,
             _ => unimplemented!(),
+        }
+    }
+}
+
+struct VectorSelectorExecutor {
+    selector: VectorSelector,
+    cursor: Rc<Cursor>,
+    range: TimeRange,
+    interval: Duration,
+    lookback: Duration,
+}
+
+impl VectorSelectorExecutor {
+    fn new(
+        selector: VectorSelector,
+        cursor: Rc<Cursor>,
+        range: TimeRange,
+        interval: Duration,
+        lookback: Duration,
+    ) -> Self {
+        Self {
+            selector,
+            cursor,
+            range,
+            interval,
+            lookback,
+        }
+    }
+}
+
+impl std::iter::Iterator for VectorSelectorExecutor {
+    type Item = Value;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        loop {
+            let sample = match self.cursor.read() {
+                Some(s) => s,
+                None => return None,
+            };
+
+            if self
+                .selector
+                .matchers()
+                .iter()
+                .all(|m| match sample.label(m.label()) {
+                    Some(v) => m.matches(v),
+                    None => false,
+                })
+            {
+                return Some(Value::InstantVector(vec![sample]));
+            }
         }
     }
 }
