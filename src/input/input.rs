@@ -1,4 +1,5 @@
 use std::cell::RefCell;
+use std::collections::VecDeque;
 use std::rc::{Rc, Weak};
 
 use super::decoder::{Decoder, Record};
@@ -61,7 +62,7 @@ impl Input {
 
                 for weak_cursor in self.cursors.iter_mut() {
                     if let Some(cursor) = weak_cursor.upgrade() {
-                        cursor.buffer.borrow_mut().push(sample.clone());
+                        cursor.buffer.borrow_mut().push_front(sample.clone());
                     }
                 }
             }
@@ -71,14 +72,14 @@ impl Input {
 
 pub struct Cursor {
     input: Rc<RefCell<Input>>,
-    buffer: RefCell<Vec<Rc<Sample>>>,
+    buffer: RefCell<VecDeque<Rc<Sample>>>,
 }
 
 impl Cursor {
     fn new(input: Rc<RefCell<Input>>) -> Self {
         Cursor {
             input,
-            buffer: RefCell::new(vec![]),
+            buffer: RefCell::new(VecDeque::new()),
         }
     }
 
@@ -86,7 +87,7 @@ impl Cursor {
         if self.buffer.borrow().len() == 0 {
             self.input.borrow_mut().refill_cursors();
         }
-        self.buffer.borrow_mut().pop()
+        self.buffer.borrow_mut().pop_back()
     }
 
     // TODO:

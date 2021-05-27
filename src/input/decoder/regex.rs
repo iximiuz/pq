@@ -5,8 +5,10 @@ use chrono::prelude::*;
 use lazy_static::lazy_static;
 use regex;
 
-use super::decoder::{Decoder, Record};
+use super::decoder::{Decoder, Record, Values};
 use crate::error::{Error, Result};
+
+// TODO: consider renaming "metric" -> "value"
 
 pub struct RegexDecoder {
     re: regex::bytes::Regex,
@@ -114,7 +116,7 @@ impl Decoder for RegexDecoder {
             Some(&self.timestamp_cap.format),
         )?;
 
-        let mut metrics = HashMap::new();
+        let mut metrics = Values::new();
         for metric_cap in self.metric_caps.iter() {
             if let Some(metric) = record_caps.get(metric_cap.pos + 1) {
                 metrics.insert(

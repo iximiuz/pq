@@ -215,12 +215,11 @@ impl UnaryExprExecutor {
         Self { op, inner }
     }
 
-    fn next_instant_vector(&self, v: InstantVector) -> Value {
+    fn next_instant_vector(&self, mut v: InstantVector) -> Value {
+        if self.op == UnaryOp::Sub {
+            v.mul(-1.0);
+        }
         Value::InstantVector(v)
-        // match self.op {
-        //   UnaryOp::Add => s.value,
-        //   UnaryOp::Sub => -s.value,
-        // }
     }
 }
 

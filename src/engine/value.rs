@@ -1,4 +1,4 @@
-use crate::model::types::{Timestamp, Value as ScalarValue};
+use crate::model::types::{Labels, Timestamp, Value as ScalarValue};
 
 // Every Expr can be evaluated to a Value.
 #[derive(Debug)]
@@ -11,11 +11,16 @@ pub(super) enum Value {
 #[derive(Debug)]
 pub(super) struct InstantVector {
     instant: Timestamp,
+    samples: Vec<(Labels, ScalarValue)>,
 }
 
 impl InstantVector {
-    pub fn new(instant: Timestamp) -> Self {
-        Self { instant }
+    pub fn new(instant: Timestamp, samples: Vec<(Labels, ScalarValue)>) -> Self {
+        Self { instant, samples }
+    }
+
+    pub fn mul(&mut self, m: ScalarValue) {
+        self.samples.iter_mut().for_each(|(_, val)| *val = *val * m);
     }
 }
 

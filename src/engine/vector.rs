@@ -2,10 +2,10 @@ use std::collections::{HashMap, VecDeque};
 use std::rc::Rc;
 use std::time::Duration;
 
-use super::value::{InstantVector, Value};
+use super::value::{InstantVector, Value as ExprValue};
 use crate::common::time::TimeRange;
 use crate::input::{Cursor, Sample};
-use crate::model::types::{Instant, Labels, Timestamp};
+use crate::model::types::{Instant, Labels, Timestamp, Value};
 use crate::parser::ast::VectorSelector;
 
 pub(super) struct VectorSelectorExecutor {
@@ -70,7 +70,7 @@ impl VectorSelectorExecutor {
 }
 
 impl std::iter::Iterator for VectorSelectorExecutor {
-    type Item = Value;
+    type Item = ExprValue;
 
     fn next(&mut self) -> Option<Self::Item> {
         while self
@@ -115,31 +115,32 @@ impl std::iter::Iterator for VectorSelectorExecutor {
         self.buffer
             .purge_stale(self.next_instant.unwrap(), self.lookback);
 
-        return Some(Value::InstantVector(vector));
+        return Some(ExprValue::InstantVector(vector));
     }
 }
 
 struct SampleMatrix {
-    samples: HashMap<String, (Labels, VecDeque<(Timestamp, f64)>)>,
+    matrix: HashMap<String, (Labels, VecDeque<(Timestamp, Value)>)>,
     latest_sample_timestamp: Option<Timestamp>,
 }
 
-// TODO: optimize me!
+// TODO: optimize - algorithm!
+// TODO: optimize - stop cloning labels!
 impl SampleMatrix {
     fn new() -> Self {
         Self {
-            samples: HashMap::new(),
+            matrix: HashMap::new(),
             latest_sample_timestamp: None,
         }
     }
 
     fn is_empty(&self) -> bool {
-        assert!((self.samples.len() == 0) == self.latest_sample_timestamp.is_none());
-        self.samples.len() == 0
+        assert!((self.matrix.len() == 0) == self.latest_sample_timestamp.is_none());
+        self.matrix.len() == 0
     }
 
     fn latest_sample_timestamp(&self) -> Option<Timestamp> {
-        assert!((self.samples.len() == 0) == self.latest_sample_timestamp.is_none());
+        assert!((self.matrix.len() == 0) == self.latest_sample_timestamp.is_none());
         self.latest_sample_timestamp
     }
 
@@ -151,7 +152,7 @@ impl SampleMatrix {
             .collect::<Vec<String>>()
             .join(";");
 
-        self.samples
+        self.matrix
             .entry(key)
             .or_insert((sample.labels().clone(), VecDeque::new()))
             .1
@@ -162,9 +163,55 @@ impl SampleMatrix {
 
     /// Returns samples in the (instant - lookback, instant] time range.
     fn instant_vector(&self, instant: Timestamp, lookback: Duration) -> InstantVector {
-        InstantVector::new(instant)
+        let stale_instant = instant.sub(lookback);
+
+        let samples = self
+            .matrix
+            .values()
+            .filter_map(|(labels, series)| {
+                series
+                    .iter()
+                    .rev()
+                    .find_map(|(ts, val)| {
+                        if stale_instant < *ts && *ts <= instant {
+                            Some(*val)
+                        } else {
+                            None
+                        }
+                    })
+                    .map(|val| (labels.clone(), val))
+            })
+            .collect();
+
+        InstantVector::new(instant, samples)
     }
 
     /// Purges samples up until and including `next_instant - lookback` duration.
-    fn purge_stale(&mut self, next_instant: Timestamp, lookback: Duration) {}
+    fn purge_stale(&mut self, next_instant: Timestamp, lookback: Duration) {
+        let keep_after = next_instant.sub(lookback);
+
+        self.matrix.retain(|_, (_, series)| {
+            // Tiny optimization - maybe we can clean up the whole key in one go.
+            if let Some((ts, _)) = series.back() {
+                if *ts <= keep_after {
+                    series.clear();
+                }
+            }
+
+            loop {
+                match series.front() {
+                    Some((ts, _)) if *ts <= keep_after => {
+                        series.pop_front();
+                    }
+                    _ => break,
+                }
+            }
+
+            !series.is_empty()
+        });
+
+        if self.matrix.len() == 0 {
+            self.latest_sample_timestamp = None;
+        }
+    }
 }
