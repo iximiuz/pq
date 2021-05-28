@@ -5,7 +5,9 @@ use std::time::Duration;
 use super::value::{InstantVector, Value};
 use super::vector::VectorSelectorExecutor;
 use crate::common::time::TimeRange;
-use crate::input::{Input, Sample};
+use crate::error::Result;
+use crate::input::Input;
+use crate::output::Output;
 use crate::parser::ast::*;
 
 // Simple use cases (filtration)
@@ -77,6 +79,7 @@ const DEFAULT_LOOKBACK: Duration = DEFAULT_INTERVAL;
 
 pub struct Executor {
     input: Rc<RefCell<Input>>,
+    output: RefCell<Output>,
     range: TimeRange,
     interval: Duration,
     lookback: Duration,
@@ -85,6 +88,7 @@ pub struct Executor {
 impl Executor {
     pub fn new(
         input: Input,
+        output: Output,
         range: Option<TimeRange>,
         interval: Option<Duration>,
         lookback: Option<Duration>,
@@ -94,17 +98,19 @@ impl Executor {
 
         Self {
             input: Rc::new(RefCell::new(input)),
+            output: RefCell::new(output),
             range: range.unwrap_or(TimeRange::infinity()),
             interval,
             lookback: lookback.unwrap_or(DEFAULT_LOOKBACK),
         }
     }
 
-    pub fn execute(&self, query: AST) {
-        let iter = self.create_value_iter(query.root);
-        for value in iter {
-            println!("EXECUTOR VALUE {:?}", value);
+    pub fn execute(&self, query: AST) -> Result<()> {
+        for value in self.create_value_iter(query.root) {
+            self.output.borrow_mut().write(&value)?;
         }
+        // self.output.flush();
+        Ok(())
     }
 
     fn create_value_iter(&self, root: Expr) -> ValueIter {

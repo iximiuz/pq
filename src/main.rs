@@ -5,6 +5,7 @@ use structopt::StructOpt;
 
 use pq::engine::Executor;
 use pq::input::{decoder::RegexDecoder, reader::LineReader, Input};
+use pq::output::{encoder::PromApiEncoder, writer::LineWriter, Output};
 use pq::parser;
 
 #[derive(Debug, StructOpt)]
@@ -38,16 +39,21 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         )?),
     );
 
-    let query_ast = parser::parse_query(&opt.query)?;
-    // println!("query_ast={:?}", query_ast);
+    let output = Output::new(
+        Box::new(LineWriter::new(io::stdout())),
+        Box::new(PromApiEncoder::new()),
+    );
 
     let exctr = Executor::new(
         input,
+        output,
         None,
         Some(Duration::from_millis(1000)),
         Some(Duration::from_millis(1000)),
     );
-    exctr.execute(query_ast);
+
+    let query_ast = parser::parse_query(&opt.query)?;
+    exctr.execute(query_ast)?;
 
     Ok(())
 }
