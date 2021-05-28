@@ -3,28 +3,11 @@ use std::time::Duration;
 
 use structopt::StructOpt;
 
+use pq::cliopt::CliOpt;
 use pq::engine::Executor;
 use pq::input::{decoder::RegexDecoder, reader::LineReader, Input};
 use pq::output::{encoder::PromApiEncoder, writer::LineWriter, Output};
 use pq::parser;
-
-#[derive(Debug, StructOpt)]
-#[structopt(name = "pq", about = "pq command line arguments")]
-struct CliOpt {
-    #[structopt(long = "decode", short = "d")]
-    decode: String,
-
-    #[structopt(long = "timestamp", short = "t")]
-    timestamp: String,
-
-    #[structopt(long = "label", short = "l")]
-    labels: Vec<String>,
-
-    #[structopt(long = "metric", short = "m", required = true, min_values = 1)]
-    metrics: Vec<String>,
-
-    query: String,
-}
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     let opt = CliOpt::from_args();
