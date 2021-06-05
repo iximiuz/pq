@@ -3,6 +3,7 @@ use std::rc::Rc;
 use std::time::Duration;
 
 use super::binary_expr::BinaryExprExecutor;
+use super::identity::IdentityExecutor;
 use super::unary_expr::UnaryExprExecutor;
 use super::value::ValueIter;
 use super::vector::VectorSelectorExecutor;
@@ -115,15 +116,18 @@ impl Executor {
 
     fn create_value_iter(&self, node: Expr) -> ValueIter {
         match node {
+            Expr::UnaryExpr(op, expr) => {
+                Box::new(UnaryExprExecutor::new(op, self.create_value_iter(*expr)))
+            }
+
             Expr::BinaryExpr(left, op, right) => {
                 let lhs = self.create_value_iter(*left);
                 let rhs = self.create_value_iter(*right);
                 Box::new(BinaryExprExecutor::new(op, lhs, rhs))
             }
 
-            Expr::UnaryExpr(op, expr) => {
-                Box::new(UnaryExprExecutor::new(op, self.create_value_iter(*expr)))
-            }
+            // leaf node
+            Expr::NumberLiteral(val) => Box::new(IdentityExecutor::scalar(val)),
 
             // leaf node
             Expr::VectorSelector(sel) => Box::new(VectorSelectorExecutor::new(

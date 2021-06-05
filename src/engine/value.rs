@@ -6,6 +6,7 @@ pub enum ValueKind {
     InstantVector(InstantVector),
     RangeVector(RangeVector),
     Scalar(Value),
+    // String(String),
 }
 
 pub(super) type ValueIter = Box<dyn std::iter::Iterator<Item = ValueKind>>;
