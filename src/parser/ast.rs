@@ -1,5 +1,5 @@
 use crate::error::{Error, Result};
-use crate::model::labels::LabelMatcher;
+use crate::model::{labels::LabelMatcher, types::Value};
 
 #[derive(Debug)]
 pub struct AST {
@@ -15,6 +15,7 @@ impl AST {
 #[derive(Debug, PartialEq)]
 pub enum Expr {
     BinaryExpr(Box<Expr>, BinaryOp, Box<Expr>),
+    NumberLiteral(Value),
     UnaryExpr(UnaryOp, Box<Expr>),
     VectorSelector(VectorSelector),
 
@@ -74,11 +75,17 @@ pub enum BinaryOp {
     Mod,
     Pow,
     Sub,
+    // TOOD: ==, !=, <=, <, >=, >
+    // TODO: and, unless
+    // TODO: or
 }
 
 impl BinaryOp {
     pub fn precendence(&self) -> usize {
         match self {
+            // TODO: or
+            // TODO: and, unless
+            // TOOD: ==, !=, <=, <, >=, >
             &BinaryOp::Add => 40,
             &BinaryOp::Sub => 40,
             &BinaryOp::Mul => 50,

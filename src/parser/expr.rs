@@ -1,4 +1,4 @@
-use nom::{branch::alt, character::complete::char, sequence::pair};
+use nom::{branch::alt, character::complete::char, number::complete::double, sequence::pair};
 
 use super::ast::{BinaryOp, Expr, UnaryOp};
 use super::common::maybe_lpadded;
@@ -6,7 +6,7 @@ use super::result::{IResult, ParseResult, Span};
 use super::vector::vector_selector;
 
 pub fn expr(input: Span) -> IResult<ParseResult<Expr>> {
-    let (rest, lhs) = match alt((expr_unary, expr_vector_selector))(input)? {
+    let (rest, lhs) = match alt((number_literal, expr_unary, expr_vector_selector))(input)? {
         (r, ParseResult::Complete(e)) => (r, e),
         (r, ParseResult::Partial(w, u)) => return Ok((r, ParseResult::Partial(w, u))),
     };
@@ -118,6 +118,12 @@ fn expr_vector_selector(input: Span) -> IResult<ParseResult<Expr>> {
     Ok((rest, ParseResult::Complete(Expr::VectorSelector(selector))))
 }
 
+/// number_literal uses ParseResult to unify the caller side.
+fn number_literal(input: Span) -> IResult<ParseResult<Expr>> {
+    let (rest, n) = double(input)?;
+    Ok((rest, ParseResult::Complete(Expr::NumberLiteral(n))))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -147,6 +153,10 @@ mod tests {
     ) -> std::result::Result<(), nom::Err<ParseError<'static>>> {
         #[rustfmt::skip]
         let tests = [
+            ("42 + bar", vec![BinaryOp::Add]),
+            ("42.42 + bar", vec![BinaryOp::Add]),
+            ("42.42 + bar % 9000", vec![BinaryOp::Mod, BinaryOp::Add]),
+            ("-42.42 + -bar % 9000", vec![BinaryOp::Mod, BinaryOp::Add]),
             ("foo + bar", vec![BinaryOp::Add]),
             ("foo + bar - baz", vec![BinaryOp::Sub, BinaryOp::Add]),
             ("foo + bar * baz", vec![BinaryOp::Mul, BinaryOp::Add]),
@@ -162,6 +172,7 @@ mod tests {
                     .chain(extract_operators(rhs).into_iter())
                     .chain(vec![op].into_iter())
                     .collect(),
+                Expr::UnaryExpr(_, expr) => extract_operators(expr),
                 _ => vec![],
             }
         }
@@ -173,7 +184,6 @@ mod tests {
                 }
                 (_, ParseResult::Complete(e)) => e,
             };
-            println!("{:#?}", ex);
             assert_eq!(expected_ops, &extract_operators(Box::new(ex)));
         }
         Ok(())
