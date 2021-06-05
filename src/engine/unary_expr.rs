@@ -13,7 +13,7 @@ impl UnaryExprExecutor {
 
     fn next_instant_vector(&self, mut v: InstantVector) -> ValueKind {
         if self.op == UnaryOp::Sub {
-            v.mul(-1.0);
+            v.mutate_values(|(_, val)| *val = -*val);
         }
         ValueKind::InstantVector(v)
     }

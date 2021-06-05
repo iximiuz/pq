@@ -31,8 +31,8 @@ impl InstantVector {
         return &self.samples;
     }
 
-    pub fn mul(&mut self, m: Value) {
-        self.samples.iter_mut().for_each(|(_, val)| *val = *val * m);
+    pub fn mutate_values(&mut self, f: impl FnMut(&mut (Labels, Value))) {
+        self.samples.iter_mut().for_each(f)
     }
 }
 

@@ -75,3 +75,16 @@ pub enum BinaryOp {
     Pow,
     Sub,
 }
+
+impl BinaryOp {
+    pub fn precendence(&self) -> usize {
+        match self {
+            &BinaryOp::Add => 40,
+            &BinaryOp::Sub => 40,
+            &BinaryOp::Mul => 50,
+            &BinaryOp::Div => 50,
+            &BinaryOp::Mod => 50,
+            &BinaryOp::Pow => 60,
+        }
+    }
+}
