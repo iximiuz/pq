@@ -1,8 +1,7 @@
 use std::io::{self, Write};
 
-pub trait Writer<W: Write> {
+pub trait Writer {
     fn write(&mut self, buf: &Vec<u8>) -> io::Result<()>;
-    fn into_inner(self) -> W;
 }
 
 pub struct LineWriter<W> {
@@ -21,15 +20,15 @@ impl<W: Write> LineWriter<W> {
     pub fn with_delimiter(inner: W, delim: u8) -> Self {
         Self { inner, delim }
     }
+
+    pub fn into_inner(self) -> W {
+        self.inner
+    }
 }
 
-impl<W: Write> Writer<W> for LineWriter<W> {
+impl<W: Write> Writer for LineWriter<W> {
     fn write(&mut self, buf: &Vec<u8>) -> io::Result<()> {
         self.inner.write_all(buf)?;
         self.inner.write_all(&[self.delim])
-    }
-
-    fn into_inner(self) -> W {
-        self.inner
     }
 }

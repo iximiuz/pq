@@ -1,6 +1,6 @@
 use serde::Serialize;
 use serde_json;
-use std::collections::HashMap;
+use std::collections::BTreeMap;
 
 use super::encoder::Encoder;
 use crate::engine::{InstantVector, RangeVector, Value};
@@ -22,7 +22,7 @@ use crate::error::Result;
 // }
 #[derive(Serialize)]
 struct VectorItem {
-    metric: HashMap<String, String>,
+    metric: BTreeMap<String, String>,
     value: (f64, String),
 }
 
@@ -41,7 +41,7 @@ impl Vector {
                 .samples()
                 .iter()
                 .map(|(labels, value)| VectorItem {
-                    metric: labels.clone(),
+                    metric: labels.clone().into_iter().collect(), // to make the label order deterministic
                     value: (vector.timestamp() as f64 / 1000.0, value.to_string()),
                 })
                 .collect(),

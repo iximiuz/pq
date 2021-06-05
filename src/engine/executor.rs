@@ -1,5 +1,4 @@
 use std::cell::RefCell;
-use std::io::Write;
 use std::rc::Rc;
 use std::time::Duration;
 
@@ -78,18 +77,18 @@ type ValueIter = Box<dyn std::iter::Iterator<Item = Value>>;
 const DEFAULT_INTERVAL: Duration = Duration::from_millis(1000);
 const DEFAULT_LOOKBACK: Duration = DEFAULT_INTERVAL;
 
-pub struct Executor<W> {
+pub struct Executor {
     input: Rc<RefCell<Input>>,
-    output: RefCell<Output<W>>,
+    output: RefCell<Output>,
     range: TimeRange,
     interval: Duration,
     lookback: Duration,
 }
 
-impl<W: Write> Executor<W> {
+impl Executor {
     pub fn new(
         input: Input,
-        output: Output<W>,
+        output: Output,
         range: Option<TimeRange>,
         interval: Option<Duration>,
         lookback: Option<Duration>,
@@ -112,10 +111,6 @@ impl<W: Write> Executor<W> {
         }
         // self.output.flush();
         Ok(())
-    }
-
-    pub fn output(self) -> Output<W> {
-        self.output.into_inner()
     }
 
     fn create_value_iter(&self, root: Expr) -> ValueIter {
