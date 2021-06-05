@@ -32,6 +32,7 @@ impl BinaryExprExecutor {
     fn next_scalar_vector(&self, lv: Value, mut rv: InstantVector) -> ValueKind {
         match self.op {
             BinaryOp::Add => rv.mutate_values(|(_, val)| *val = lv + *val),
+            BinaryOp::Sub => rv.mutate_values(|(_, val)| *val = lv - *val),
             _ => unimplemented!(),
         }
         ValueKind::InstantVector(rv)
