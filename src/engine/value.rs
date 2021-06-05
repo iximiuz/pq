@@ -1,21 +1,23 @@
-use crate::model::types::{Labels, Timestamp, Value as ScalarValue};
+use crate::model::types::{Labels, Timestamp, Value};
 
 // Every Expr can be evaluated to a Value.
 #[derive(Debug)]
-pub enum Value {
+pub enum ValueKind {
     InstantVector(InstantVector),
     RangeVector(RangeVector),
-    Scalar(ScalarValue),
+    Scalar(Value),
 }
+
+pub(super) type ValueIter = Box<dyn std::iter::Iterator<Item = ValueKind>>;
 
 #[derive(Debug)]
 pub struct InstantVector {
     instant: Timestamp,
-    samples: Vec<(Labels, ScalarValue)>,
+    samples: Vec<(Labels, Value)>,
 }
 
 impl InstantVector {
-    pub fn new(instant: Timestamp, samples: Vec<(Labels, ScalarValue)>) -> Self {
+    pub fn new(instant: Timestamp, samples: Vec<(Labels, Value)>) -> Self {
         Self { instant, samples }
     }
 
@@ -25,11 +27,11 @@ impl InstantVector {
     }
 
     #[inline]
-    pub fn samples(&self) -> &[(Labels, ScalarValue)] {
+    pub fn samples(&self) -> &[(Labels, Value)] {
         return &self.samples;
     }
 
-    pub fn mul(&mut self, m: ScalarValue) {
+    pub fn mul(&mut self, m: Value) {
         self.samples.iter_mut().for_each(|(_, val)| *val = *val * m);
     }
 }

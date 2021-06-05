@@ -37,6 +37,10 @@ fn binary_op(input: Span) -> IResult<BinaryOp> {
         rest,
         match m {
             '+' => BinaryOp::Add,
+            '/' => BinaryOp::Div,
+            '*' => BinaryOp::Mul,
+            '%' => BinaryOp::Mod,
+            '^' => BinaryOp::Pow,
             '-' => BinaryOp::Sub,
             _ => unreachable!(),
         },

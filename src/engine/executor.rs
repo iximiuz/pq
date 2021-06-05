@@ -2,7 +2,9 @@ use std::cell::RefCell;
 use std::rc::Rc;
 use std::time::Duration;
 
-use super::value::{InstantVector, Value};
+use super::binary_expr::BinaryExprExecutor;
+use super::unary_expr::UnaryExprExecutor;
+use super::value::ValueIter;
 use super::vector::VectorSelectorExecutor;
 use crate::common::time::TimeRange;
 use crate::error::Result;
@@ -72,8 +74,6 @@ use crate::parser::ast::*;
 //   - count
 //   - ...
 
-type ValueIter = Box<dyn std::iter::Iterator<Item = Value>>;
-
 const DEFAULT_INTERVAL: Duration = Duration::from_millis(1000);
 const DEFAULT_LOOKBACK: Duration = DEFAULT_INTERVAL;
 
@@ -113,130 +113,70 @@ impl Executor {
         Ok(())
     }
 
-    fn create_value_iter(&self, root: Expr) -> ValueIter {
-        // Alternative recursive implementation:
-        // match expr {
-        //     Expr::BinaryExpr(left, op, right) => {
-        //         let lhs = Self::create_executor(*left);
-        //         let rhs = Self::create_executor(*right);
-        //         Box::new(BinaryExpr::new(op, lhs, rhs))
-        //     }
-        //     Expr::UnaryExpr(op, expr) => {
-        //         Box::new(UnaryExpr::new(op, Self::create_executor(*expr)))
-        //     }
-        //     // leaf node
-        //     Expr::VectorSelector(selector) => Box::new(VectorSelector::new(selector)),
-        //     _ => unimplemented!(),
-        // }
-
-        let mut queue = vec![(root, false)];
-        let mut stack: Vec<ValueIter> = vec![];
-
-        loop {
-            let (node, seen) = match queue.pop() {
-                Some((n, s)) => (n, s),
-                None => break,
-            };
-
-            if !seen {
-                match node {
-                    Expr::UnaryExpr(op, expr) => {
-                        queue.push((Expr::UnaryExpr(op, Box::new(Expr::Noop)), true));
-                        queue.push((*expr, false));
-                    }
-                    Expr::VectorSelector(sel) => {
-                        stack.push(Box::new(VectorSelectorExecutor::new(
-                            Input::cursor(Rc::clone(&self.input)),
-                            sel,
-                            self.range,
-                            self.interval,
-                            self.lookback,
-                        )));
-                    }
-                    _ => unreachable!(),
-                };
-            } else {
-                match node {
-                    Expr::UnaryExpr(op, _) => {
-                        let inner = stack.pop().expect("must not be empty");
-                        stack.push(Box::new(UnaryExprExecutor::new(op, inner)));
-                    }
-                    _ => unreachable!(),
-                };
+    fn create_value_iter(&self, node: Expr) -> ValueIter {
+        match node {
+            Expr::BinaryExpr(left, op, right) => {
+                let lhs = self.create_value_iter(*left);
+                let rhs = self.create_value_iter(*right);
+                Box::new(BinaryExprExecutor::new(op, lhs, rhs))
             }
-        }
 
-        assert!(stack.len() == 1);
-        stack.pop().unwrap()
-    }
-}
+            Expr::UnaryExpr(op, expr) => {
+                Box::new(UnaryExprExecutor::new(op, self.create_value_iter(*expr)))
+            }
 
-struct BinaryExprExecutor {
-    op: BinaryOp,
-    left: ValueIter,
-    right: ValueIter,
-}
+            // leaf node
+            Expr::VectorSelector(sel) => Box::new(VectorSelectorExecutor::new(
+                Input::cursor(Rc::clone(&self.input)),
+                sel,
+                self.range,
+                self.interval,
+                self.lookback,
+            )),
 
-impl BinaryExprExecutor {
-    fn new(op: BinaryOp, left: ValueIter, right: ValueIter) -> Self {
-        Self { op, left, right }
-    }
-}
-
-impl std::iter::Iterator for BinaryExprExecutor {
-    type Item = Value;
-
-    fn next(&mut self) -> Option<Self::Item> {
-        let lhs = match self.left.next() {
-            Some(l) => l,
-            None => return None,
-        };
-
-        let rhs = match self.right.next() {
-            Some(r) => r,
-            None => return None,
-        };
-
-        None
-
-        // Some(Rc::new(Sample {
-        //     name: format!("{}{:?}{}", lhs.name, self.op, rhs.name),
-        //     value: match self.op {
-        //         BinaryOp::Add => lhs.value + rhs.value,
-        //         BinaryOp::Sub => lhs.value - rhs.value,
-        //     },
-        //     timestamp: lhs.timestamp,
-        //     labels: lhs.labels.clone(),
-        // }))
-    }
-}
-
-struct UnaryExprExecutor {
-    op: UnaryOp,
-    inner: ValueIter,
-}
-
-impl UnaryExprExecutor {
-    fn new(op: UnaryOp, inner: ValueIter) -> Self {
-        Self { op, inner }
-    }
-
-    fn next_instant_vector(&self, mut v: InstantVector) -> Value {
-        if self.op == UnaryOp::Sub {
-            v.mul(-1.0);
-        }
-        Value::InstantVector(v)
-    }
-}
-
-impl std::iter::Iterator for UnaryExprExecutor {
-    type Item = Value;
-
-    fn next(&mut self) -> Option<Self::Item> {
-        match self.inner.next() {
-            Some(Value::InstantVector(v)) => Some(self.next_instant_vector(v)),
-            None => None,
             _ => unimplemented!(),
         }
+
+        // Alternative iterative implementation to consider:
+        //
+        // let mut queue = vec![(root, false)];
+        // let mut stack: Vec<ValueIter> = vec![];
+
+        // loop {
+        //     let (node, seen) = match queue.pop() {
+        //         Some((n, s)) => (n, s),
+        //         None => break,
+        //     };
+
+        //     if !seen {
+        //         match node {
+        //             Expr::UnaryExpr(op, expr) => {
+        //                 queue.push((Expr::UnaryExpr(op, Box::new(Expr::Noop)), true));
+        //                 queue.push((*expr, false));
+        //             }
+        //             Expr::VectorSelector(sel) => {
+        //                 stack.push(Box::new(VectorSelectorExecutor::new(
+        //                     Input::cursor(Rc::clone(&self.input)),
+        //                     sel,
+        //                     self.range,
+        //                     self.interval,
+        //                     self.lookback,
+        //                 )));
+        //             }
+        //             _ => unreachable!(),
+        //         };
+        //     } else {
+        //         match node {
+        //             Expr::UnaryExpr(op, _) => {
+        //                 let inner = stack.pop().expect("must not be empty");
+        //                 stack.push(Box::new(UnaryExprExecutor::new(op, inner)));
+        //             }
+        //             _ => unreachable!(),
+        //         };
+        //     }
+        // }
+
+        // assert!(stack.len() == 1);
+        // stack.pop().unwrap()
     }
 }

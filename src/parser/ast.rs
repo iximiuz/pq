@@ -69,5 +69,9 @@ pub enum UnaryOp {
 #[derive(Copy, Clone, Debug, PartialEq)]
 pub enum BinaryOp {
     Add,
+    Div,
+    Mul,
+    Mod,
+    Pow,
     Sub,
 }

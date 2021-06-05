@@ -1,8 +1,6 @@
-use std::io::Write;
-
 use super::encoder::Encoder;
 use super::writer::Writer;
-use crate::engine::Value;
+use crate::engine::ValueKind;
 use crate::error::Result;
 
 pub struct Output {
@@ -15,7 +13,7 @@ impl Output {
         Self { writer, encoder }
     }
 
-    pub fn write(&mut self, value: &Value) -> Result<()> {
+    pub fn write(&mut self, value: &ValueKind) -> Result<()> {
         let buf = self.encoder.encode(value)?;
 
         self.writer

@@ -3,7 +3,7 @@ use serde_json;
 use std::collections::BTreeMap;
 
 use super::encoder::Encoder;
-use crate::engine::{InstantVector, RangeVector, Value};
+use crate::engine::{InstantVector, RangeVector, ValueKind};
 use crate::error::Result;
 
 // Instant query - instant vector
@@ -138,10 +138,10 @@ impl PromApiEncoder {
 }
 
 impl Encoder for PromApiEncoder {
-    fn encode(&self, value: &Value) -> Result<Vec<u8>> {
+    fn encode(&self, value: &ValueKind) -> Result<Vec<u8>> {
         match value {
-            Value::InstantVector(v) => self.encode_instant_vector(v),
-            Value::RangeVector(v) => self.encode_range_vector(v),
+            ValueKind::InstantVector(v) => self.encode_instant_vector(v),
+            ValueKind::RangeVector(v) => self.encode_range_vector(v),
             _ => unimplemented!(),
         }
     }

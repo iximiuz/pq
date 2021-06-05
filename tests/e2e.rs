@@ -25,12 +25,12 @@ fn e2e() -> Result<(), Box<dyn std::error::Error>> {
     for test_dir in fs::read_dir(&root_test_dir)? {
         let test_dir = test_dir?.path();
 
-        let args: Vec<String> =
+        let cli_args: Vec<String> =
             serde_json::from_str(&fs::read_to_string(test_dir.join("args.json"))?)?;
 
         let actual_output = query(
             Box::new(io::BufReader::new(fs::File::open(test_dir.join("input"))?)),
-            &args,
+            &cli_args,
         )?;
 
         let expected_output = expected(Box::new(io::BufReader::new(fs::File::open(
@@ -51,9 +51,9 @@ fn e2e() -> Result<(), Box<dyn std::error::Error>> {
 
 fn query<'a>(
     input_reader: Box<dyn io::BufRead>,
-    args: &[String],
+    cli_args: &[String],
 ) -> Result<Vec<u8>, Box<dyn std::error::Error>> {
-    let opt = CliOpt::from_iter(args);
+    let opt = CliOpt::from_iter(cli_args);
 
     let input = Input::new(
         Box::new(LineReader::new(input_reader)),

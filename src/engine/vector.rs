@@ -2,7 +2,7 @@ use std::collections::{HashMap, VecDeque};
 use std::rc::Rc;
 use std::time::Duration;
 
-use super::value::{InstantVector, Value as ExprValue};
+use super::value::{InstantVector, ValueKind};
 use crate::common::time::TimeRange;
 use crate::input::{Cursor, Sample};
 use crate::model::types::{Instant, Labels, Timestamp, Value};
@@ -70,7 +70,7 @@ impl VectorSelectorExecutor {
 }
 
 impl std::iter::Iterator for VectorSelectorExecutor {
-    type Item = ExprValue;
+    type Item = ValueKind;
 
     fn next(&mut self) -> Option<Self::Item> {
         while self
@@ -115,7 +115,7 @@ impl std::iter::Iterator for VectorSelectorExecutor {
         self.buffer
             .purge_stale(self.next_instant.unwrap(), self.lookback);
 
-        return Some(ExprValue::InstantVector(vector));
+        return Some(ValueKind::InstantVector(vector));
     }
 }
 
