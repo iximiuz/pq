@@ -75,23 +75,30 @@ pub enum BinaryOp {
     Mod,
     Pow,
     Sub,
-    // TOOD: ==, !=, <=, <, >=, >
-    // TODO: and, unless
-    // TODO: or
+    Eql,
+    Gte,
+    Gtr,
+    Lss,
+    Lte,
+    Neq,
+    And,
+    Unless,
+    Or,
 }
 
+pub(super) type Precedence = usize;
+
 impl BinaryOp {
-    pub fn precendence(&self) -> usize {
+    pub(super) fn precedence(self) -> Precedence {
+        use BinaryOp::*;
+
         match self {
-            // TODO: or
-            // TODO: and, unless
-            // TOOD: ==, !=, <=, <, >=, >
-            &BinaryOp::Add => 40,
-            &BinaryOp::Sub => 40,
-            &BinaryOp::Mul => 50,
-            &BinaryOp::Div => 50,
-            &BinaryOp::Mod => 50,
-            &BinaryOp::Pow => 60,
+            Or => 10,
+            And | Unless => 20,
+            Eql | Gte | Gtr | Lss | Lte | Neq => 30,
+            Add | Sub => 40,
+            Mul | Div | Mod => 50,
+            Pow => 60,
         }
     }
 }

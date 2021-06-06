@@ -5,6 +5,6 @@
   "-l", "1:name",
   "-m", "2:age",
   "--",
-  "42.42 + -age{name=~\"(bob|sarah)\", name!~\"b.*\"}"
+  "42.0 + -age{name=~\"(bob|sarah)\", name!~\"b.*\"} * 2^3 -1"
 ]
 

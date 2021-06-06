@@ -1,66 +1,44 @@
 use nom::{branch::alt, character::complete::char, number::complete::double, sequence::pair};
 
-use super::ast::{BinaryOp, Expr, UnaryOp};
+use super::ast::{BinaryOp, Expr, Precedence, UnaryOp};
 use super::common::maybe_lpadded;
 use super::result::{IResult, ParseResult, Span};
 use super::vector::vector_selector;
 
-pub fn expr(input: Span) -> IResult<ParseResult<Expr>> {
-    let (rest, lhs) = match alt((number_literal, expr_unary, expr_vector_selector))(input)? {
-        (r, ParseResult::Complete(e)) => (r, e),
-        (r, ParseResult::Partial(w, u)) => return Ok((r, ParseResult::Partial(w, u))),
-    };
+pub fn expr<'a>(min_prec: Precedence) -> impl FnMut(Span<'a>) -> IResult<ParseResult<Expr>> {
+    move |input: Span| {
+        let (mut rest, mut lhs) =
+            match alt((expr_number_literal, expr_unary, expr_vector_selector))(input)? {
+                (r, ParseResult::Complete(e)) => (r, e),
+                (r, ParseResult::Partial(w, u)) => return Ok((r, ParseResult::Partial(w, u))),
+            };
 
-    if *rest == "" {
-        // Non-compound expression, we are done here.
-        return Ok((rest, ParseResult::Complete(lhs)));
+        // The rest is dealing with the left-recursive grammar.
+        // E.g.  expr = unary_expr | vector_selector | binary_expr ...
+        // where binary_expr = expr <OP> expr
+
+        while *rest != "" {
+            let (tmp_rest, op) = maybe_lpadded(binary_op)(rest)?;
+            if op.precedence() <= min_prec {
+                break;
+            }
+            rest = tmp_rest;
+
+            let (tmp_rest, rhs) = match maybe_lpadded(expr(op.precedence()))(rest) {
+                Ok((r, ParseResult::Complete(e))) => (r, e),
+                Ok((r, ParseResult::Partial(w, u))) => return Ok((r, ParseResult::Partial(w, u))),
+                Err(nom::Err::Error(_)) => {
+                    return Ok((rest, ParseResult::Partial("binary expression", "symbol(s)")))
+                }
+                Err(e) => return Err(e),
+            };
+
+            rest = tmp_rest;
+            lhs = Expr::BinaryExpr(Box::new(lhs), op, Box::new(rhs));
+        }
+
+        Ok((rest, ParseResult::Complete(lhs)))
     }
-
-    // The rest is dealing with the left-recursive grammar.
-    // E.g.  expr = unary_expr | binary_expr | vector_selector | ...
-    // where binary_expr = expr <OP> expr
-
-    let (rest, op) = match maybe_lpadded(binary_op)(rest) {
-        Ok((r, o)) => (r, o),
-        Err(nom::Err::Error(_)) => {
-            return Ok((rest, ParseResult::Partial("expression", "symbol(s)")))
-        }
-        Err(e) => return Err(e),
-    };
-
-    let (rest, rhs) = match maybe_lpadded(expr)(rest) {
-        Ok((r, ParseResult::Complete(e))) => (r, e),
-        Ok((r, ParseResult::Partial(w, u))) => return Ok((r, ParseResult::Partial(w, u))),
-        Err(nom::Err::Error(_)) => {
-            return Ok((rest, ParseResult::Partial("expression", "symbol(s)")))
-        }
-        Err(e) => return Err(e),
-    };
-
-    if *rest != "" {
-        return Ok((rest, ParseResult::Partial("expression", "symbol(s)")));
-    }
-
-    // The `rhs` can itself be a binary expr. Its operator may though may have a lower
-    // precendence than `op` from above. That is, we may need to regroup expressions
-    // here to fix the precendence in the resulting compound expression.
-    let (lhs, op, rhs) = match rhs {
-        Expr::BinaryExpr(l, o, r) if o.precendence() >= op.precendence() => {
-            // Nope, false alarm. Restore `rhs` as it used to be.
-            (lhs, op, Expr::BinaryExpr(l, o, r))
-        }
-        Expr::BinaryExpr(l, o, r) => {
-            // Yep! Fixing the precendence by reorganizing expressions.
-            (Expr::BinaryExpr(Box::new(lhs), op, l), o, *r)
-        }
-        // The `rhs` is not even a binary expr.
-        _ => (lhs, op, rhs),
-    };
-
-    return Ok((
-        rest,
-        ParseResult::Complete(Expr::BinaryExpr(Box::new(lhs), op, Box::new(rhs))),
-    ));
 }
 
 fn binary_op(input: Span) -> IResult<BinaryOp> {
@@ -87,10 +65,11 @@ fn binary_op(input: Span) -> IResult<BinaryOp> {
 }
 
 fn expr_unary(input: Span) -> IResult<ParseResult<Expr>> {
-    let (rest, (op, expr)) = match pair(unary_op, maybe_lpadded(expr))(input)? {
-        (r, (o, ParseResult::Complete(e))) => (r, (o, e)),
-        (r, (_, ParseResult::Partial(w, u))) => return Ok((r, ParseResult::Partial(w, u))),
-    };
+    let (rest, (op, expr)) =
+        match pair(unary_op, maybe_lpadded(expr(BinaryOp::Mul.precedence())))(input)? {
+            (r, (o, ParseResult::Complete(e))) => (r, (o, e)),
+            (r, (_, ParseResult::Partial(w, u))) => return Ok((r, ParseResult::Partial(w, u))),
+        };
 
     Ok((
         rest,
@@ -118,8 +97,8 @@ fn expr_vector_selector(input: Span) -> IResult<ParseResult<Expr>> {
     Ok((rest, ParseResult::Complete(Expr::VectorSelector(selector))))
 }
 
-/// number_literal uses ParseResult to unify the caller side.
-fn number_literal(input: Span) -> IResult<ParseResult<Expr>> {
+/// expr_number_literal uses ParseResult to unify the caller side.
+fn expr_number_literal(input: Span) -> IResult<ParseResult<Expr>> {
     let (rest, n) = double(input)?;
     Ok((rest, ParseResult::Complete(Expr::NumberLiteral(n))))
 }
@@ -130,7 +109,7 @@ mod tests {
     use crate::parser::result::ParseError;
 
     #[test]
-    fn test_expr_valid() -> std::result::Result<(), nom::Err<ParseError<'static>>> {
+    fn test_valid_expressions() -> std::result::Result<(), nom::Err<ParseError<'static>>> {
         #[rustfmt::skip]
         let tests = [
             "foo{}",
@@ -141,9 +120,119 @@ mod tests {
         ];
 
         for input in &tests {
-            let ex = expr(Span::new(input))?;
-            println!("{:#?}", ex);
-            // TODO: add assertions
+            match expr(Precedence::MIN)(Span::new(input))? {
+                (_, ParseResult::Complete(_)) => (),
+                (_, ParseResult::Partial(w, u)) => {
+                    panic!(
+                        "valid expression {} couldn't be parsed: {} {}",
+                        *input, w, u
+                    );
+                }
+            };
+        }
+        Ok(())
+    }
+
+    #[test]
+    fn test_valid_expressions_ex() -> std::result::Result<(), nom::Err<ParseError<'static>>> {
+        use Expr::*;
+
+        let tests = [
+            (
+                "-1 + 2",
+                BinaryExpr(
+                    Box::new(NumberLiteral(-1.0)),
+                    BinaryOp::Add,
+                    Box::new(NumberLiteral(2.0)),
+                ),
+            ),
+            (
+                "-1 * 2",
+                BinaryExpr(
+                    Box::new(NumberLiteral(-1.0)),
+                    BinaryOp::Mul,
+                    Box::new(NumberLiteral(2.0)),
+                ),
+            ),
+            (
+                "-1 ^ 2",
+                BinaryExpr(
+                    Box::new(NumberLiteral(-1.0)),
+                    BinaryOp::Pow,
+                    Box::new(NumberLiteral(2.0)),
+                ),
+            ),
+            (
+                "-1 ^ 2 * 3",
+                BinaryExpr(
+                    Box::new(BinaryExpr(
+                        Box::new(NumberLiteral(-1.0)),
+                        BinaryOp::Pow,
+                        Box::new(NumberLiteral(2.0)),
+                    )),
+                    BinaryOp::Mul,
+                    Box::new(NumberLiteral(3.0)),
+                ),
+            ),
+            (
+                "1 - -2",
+                BinaryExpr(
+                    Box::new(NumberLiteral(1.0)),
+                    BinaryOp::Sub,
+                    Box::new(NumberLiteral(-2.0)),
+                ),
+            ),
+            (
+                "-1---2",
+                BinaryExpr(
+                    Box::new(NumberLiteral(-1.0)),
+                    BinaryOp::Sub,
+                    Box::new(UnaryExpr(UnaryOp::Sub, Box::new(NumberLiteral(-2.0)))),
+                ),
+            ),
+            (
+                "-1---2+3",
+                BinaryExpr(
+                    Box::new(BinaryExpr(
+                        Box::new(NumberLiteral(-1.0)),
+                        BinaryOp::Sub,
+                        Box::new(UnaryExpr(UnaryOp::Sub, Box::new(NumberLiteral(-2.0)))),
+                    )),
+                    BinaryOp::Add,
+                    Box::new(NumberLiteral(3.0)),
+                ),
+            ),
+            // TODO: "-1---2*3-4",
+            (
+                "1 + -4*2^3 -5",
+                BinaryExpr(
+                    Box::new(BinaryExpr(
+                        Box::new(NumberLiteral(1.0)),
+                        BinaryOp::Add,
+                        Box::new(BinaryExpr(
+                            Box::new(NumberLiteral(-4.0)),
+                            BinaryOp::Mul,
+                            Box::new(BinaryExpr(
+                                Box::new(NumberLiteral(2.0)),
+                                BinaryOp::Pow,
+                                Box::new(NumberLiteral(3.0)),
+                            )),
+                        )),
+                    )),
+                    BinaryOp::Sub,
+                    Box::new(NumberLiteral(5.0)),
+                ),
+            ),
+        ];
+
+        for (input, expected_expr) in &tests {
+            let actual_expr = match expr(Precedence::MIN)(Span::new(input))? {
+                (r, ParseResult::Partial(w, u)) => {
+                    panic!("Unexpected partial parse result: {}, {}, {}", r, w, u)
+                }
+                (_, ParseResult::Complete(e)) => e,
+            };
+            assert_eq!(expected_expr, &actual_expr, "while parsing {}", input);
         }
         Ok(())
     }
@@ -158,7 +247,7 @@ mod tests {
             ("42.42 + bar % 9000", vec![BinaryOp::Mod, BinaryOp::Add]),
             ("-42.42 + -bar % 9000", vec![BinaryOp::Mod, BinaryOp::Add]),
             ("foo + bar", vec![BinaryOp::Add]),
-            ("foo + bar - baz", vec![BinaryOp::Sub, BinaryOp::Add]),
+            ("foo + bar - baz", vec![BinaryOp::Add, BinaryOp::Sub]),
             ("foo + bar * baz", vec![BinaryOp::Mul, BinaryOp::Add]),
             ("foo * bar + baz", vec![BinaryOp::Mul, BinaryOp::Add]),
             ("foo * bar ^ baz", vec![BinaryOp::Pow, BinaryOp::Mul]),
@@ -178,7 +267,7 @@ mod tests {
         }
 
         for (input, expected_ops) in &tests {
-            let ex = match expr(Span::new(input))? {
+            let ex = match expr(Precedence::MIN)(Span::new(input))? {
                 (r, ParseResult::Partial(w, u)) => {
                     panic!("Unexpected partial parse result: {}, {}, {}", r, w, u)
                 }

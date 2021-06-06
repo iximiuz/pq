@@ -107,6 +107,8 @@ impl Executor {
     }
 
     pub fn execute(&self, query: AST) -> Result<()> {
+        // println!("Executor::execute {:#?}", query);
+
         for value in self.create_value_iter(query.root) {
             self.output.borrow_mut().write(&value)?;
         }

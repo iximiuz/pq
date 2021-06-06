@@ -29,13 +29,30 @@ impl BinaryExprExecutor {
         })
     }
 
-    fn next_scalar_vector(&self, lv: Value, mut rv: InstantVector) -> ValueKind {
+    fn next_scalar_vector(&self, n: Value, mut v: InstantVector) -> ValueKind {
         match self.op {
-            BinaryOp::Add => rv.mutate_values(|(_, val)| *val = lv + *val),
-            BinaryOp::Sub => rv.mutate_values(|(_, val)| *val = lv - *val),
+            BinaryOp::Add => v.mutate_values(|(_, val)| *val = n + *val),
+            BinaryOp::Div => v.mutate_values(|(_, val)| *val = n / *val),
+            BinaryOp::Mul => v.mutate_values(|(_, val)| *val = n * *val),
+            BinaryOp::Mod => v.mutate_values(|(_, val)| *val = n % *val),
+            BinaryOp::Pow => v.mutate_values(|(_, val)| *val = Value::powf(n, *val)),
+            BinaryOp::Sub => v.mutate_values(|(_, val)| *val = n - *val),
             _ => unimplemented!(),
         }
-        ValueKind::InstantVector(rv)
+        ValueKind::InstantVector(v)
+    }
+
+    fn next_vector_scalar(&self, mut v: InstantVector, n: Value) -> ValueKind {
+        match self.op {
+            BinaryOp::Add => v.mutate_values(|(_, val)| *val = *val + n),
+            BinaryOp::Div => v.mutate_values(|(_, val)| *val = *val / n),
+            BinaryOp::Mul => v.mutate_values(|(_, val)| *val = *val * n),
+            BinaryOp::Mod => v.mutate_values(|(_, val)| *val = *val % n),
+            BinaryOp::Pow => v.mutate_values(|(_, val)| *val = Value::powf(*val, n)),
+            BinaryOp::Sub => v.mutate_values(|(_, val)| *val = *val - n),
+            _ => unimplemented!(),
+        }
+        ValueKind::InstantVector(v)
     }
 }
 
@@ -53,6 +70,8 @@ impl std::iter::Iterator for BinaryExprExecutor {
             None => return None,
         };
 
+        // println!("binary_expr\t{:?} {:?} {:?}", lv, self.op, rv);
+
         match (lv, rv) {
             (ValueKind::Scalar(lv), ValueKind::Scalar(rv)) => {
                 return Some(self.next_scalar_scalar(lv, rv))
@@ -60,9 +79,9 @@ impl std::iter::Iterator for BinaryExprExecutor {
             (ValueKind::Scalar(lv), ValueKind::InstantVector(rv)) => {
                 return Some(self.next_scalar_vector(lv, rv))
             }
-            // (ValueKind::InstantVector(lv), ValueKind::Scalar(rv)) => {
-            //     return Some(self.next_vector_scalar(lv, rv))
-            // }
+            (ValueKind::InstantVector(lv), ValueKind::Scalar(rv)) => {
+                return Some(self.next_vector_scalar(lv, rv))
+            }
             _ => unimplemented!(),
         }
     }
