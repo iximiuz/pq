@@ -35,6 +35,27 @@ impl InstantVector {
     pub fn mutate_values(&mut self, f: impl FnMut(&mut (Labels, Value))) {
         self.samples.iter_mut().for_each(f)
     }
+
+    pub fn match_vector(
+        &self,
+        other: &InstantVector,
+        _on: Vec<String>,
+        _ignoring: Vec<String>,
+        f: impl Fn(Value, Value) -> Value,
+    ) -> Self {
+        // println!("match vector {:?} {:?}", self, other);
+        // TODO: assert!(self.instant == other.instant);
+
+        // TODO: implement me!
+        let samples = self
+            .samples
+            .iter()
+            .zip(other.samples.iter())
+            .map(|((ll, lv), (_, rv))| (ll.clone(), f(*lv, *rv)))
+            .collect();
+
+        InstantVector::new(self.instant, samples)
+    }
 }
 
 #[derive(Debug)]

@@ -18,41 +18,63 @@ impl BinaryExprExecutor {
     }
 
     fn next_scalar_scalar(&self, lv: Value, rv: Value) -> ValueKind {
+        use BinaryOp::*;
+
         ValueKind::Scalar(match self.op {
-            BinaryOp::Add => lv + rv,
-            BinaryOp::Div => lv / rv,
-            BinaryOp::Mul => lv * rv,
-            BinaryOp::Mod => lv % rv,
-            BinaryOp::Pow => Value::powf(lv, rv),
-            BinaryOp::Sub => lv - rv,
+            Add => lv + rv,
+            Div => lv / rv,
+            Mul => lv * rv,
+            Mod => lv % rv,
+            Pow => Value::powf(lv, rv),
+            Sub => lv - rv,
             _ => unimplemented!(),
         })
     }
 
     fn next_scalar_vector(&self, n: Value, mut v: InstantVector) -> ValueKind {
+        use BinaryOp::*;
+
         match self.op {
-            BinaryOp::Add => v.mutate_values(|(_, val)| *val = n + *val),
-            BinaryOp::Div => v.mutate_values(|(_, val)| *val = n / *val),
-            BinaryOp::Mul => v.mutate_values(|(_, val)| *val = n * *val),
-            BinaryOp::Mod => v.mutate_values(|(_, val)| *val = n % *val),
-            BinaryOp::Pow => v.mutate_values(|(_, val)| *val = Value::powf(n, *val)),
-            BinaryOp::Sub => v.mutate_values(|(_, val)| *val = n - *val),
+            Add => v.mutate_values(|(_, val)| *val = n + *val),
+            Div => v.mutate_values(|(_, val)| *val = n / *val),
+            Mul => v.mutate_values(|(_, val)| *val = n * *val),
+            Mod => v.mutate_values(|(_, val)| *val = n % *val),
+            Pow => v.mutate_values(|(_, val)| *val = Value::powf(n, *val)),
+            Sub => v.mutate_values(|(_, val)| *val = n - *val),
             _ => unimplemented!(),
         }
         ValueKind::InstantVector(v)
     }
 
     fn next_vector_scalar(&self, mut v: InstantVector, n: Value) -> ValueKind {
+        use BinaryOp::*;
+
         match self.op {
-            BinaryOp::Add => v.mutate_values(|(_, val)| *val = *val + n),
-            BinaryOp::Div => v.mutate_values(|(_, val)| *val = *val / n),
-            BinaryOp::Mul => v.mutate_values(|(_, val)| *val = *val * n),
-            BinaryOp::Mod => v.mutate_values(|(_, val)| *val = *val % n),
-            BinaryOp::Pow => v.mutate_values(|(_, val)| *val = Value::powf(*val, n)),
-            BinaryOp::Sub => v.mutate_values(|(_, val)| *val = *val - n),
+            Add => v.mutate_values(|(_, val)| *val = *val + n),
+            Div => v.mutate_values(|(_, val)| *val = *val / n),
+            Mul => v.mutate_values(|(_, val)| *val = *val * n),
+            Mod => v.mutate_values(|(_, val)| *val = *val % n),
+            Pow => v.mutate_values(|(_, val)| *val = Value::powf(*val, n)),
+            Sub => v.mutate_values(|(_, val)| *val = *val - n),
             _ => unimplemented!(),
         }
         ValueKind::InstantVector(v)
+    }
+
+    fn next_vector_vector(&self, lv: InstantVector, rv: InstantVector) -> ValueKind {
+        use BinaryOp::*;
+
+        ValueKind::InstantVector(
+            lv.match_vector(&rv, vec![], vec![], |lval, rval| match self.op {
+                Add => lval + rval,
+                Div => lval / rval,
+                Mul => lval * rval,
+                Mod => lval % rval,
+                Pow => Value::powf(lval, rval),
+                Sub => lval - rval,
+                _ => unimplemented!(),
+            }),
+        )
     }
 }
 
@@ -81,6 +103,9 @@ impl std::iter::Iterator for BinaryExprExecutor {
             }
             (ValueKind::InstantVector(lv), ValueKind::Scalar(rv)) => {
                 return Some(self.next_vector_scalar(lv, rv))
+            }
+            (ValueKind::InstantVector(lv), ValueKind::InstantVector(rv)) => {
+                return Some(self.next_vector_vector(lv, rv))
             }
             _ => unimplemented!(),
         }
