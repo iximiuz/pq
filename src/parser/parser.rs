@@ -1,10 +1,10 @@
-use super::ast::{Precedence, AST};
+use super::ast::AST;
 use super::expr::expr;
 use super::result::{ParseError, ParseResult, Span};
 use crate::error::{Error, Result};
 
 pub fn parse_query(input: &str) -> Result<AST> {
-    let (rest, ex) = match expr(Precedence::MIN)(Span::new(input)) {
+    let (rest, ex) = match expr(None)(Span::new(input)) {
         Ok((r, ParseResult::Complete(m))) => (r, m),
         Ok(res) => return Err(Error::from(err_msg_partial_result(res))),
         Err(nom::Err::Error(e)) | Err(nom::Err::Failure(e)) => {

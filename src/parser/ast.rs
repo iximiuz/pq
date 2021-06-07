@@ -102,3 +102,70 @@ impl BinaryOp {
         }
     }
 }
+
+// impl fmt::Display for BinaryOp {
+//     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+//         use BinaryOp::*;
+//
+//         match self {
+//             Add => write!(f, "+"),
+//             Div => write!(f, "/"),
+//             Mul => write!(f, "*"),
+//             Mod => write!(f, "%"),
+//             Pow => write!(f, "^"),
+//             Sub => write!(f, "-"),
+//             Eql => write!(f, "=="),
+//             Gte => write!(f, ">="),
+//             Gtr => write!(f, ">"),
+//             Lss => write!(f, "<"),
+//             Lte => write!(f, "<="),
+//             Neq => write!(f, "!="),
+//             And => write!(f, "and"),
+//             Unless => write!(f, "unless"),
+//             Or => write!(f, "or"),
+//         }
+//     }
+// }
+
+/// Try to parse a string into a binary op.
+///
+/// ```
+/// # use std::convert::TryFrom;
+/// # use pq::parser::ast::BinaryOp;
+/// #
+/// # fn main() {
+/// let op = BinaryOp::try_from("+");
+/// assert_eq!(BinaryOp::Add, op.unwrap());
+///
+/// let op = BinaryOp::try_from("==");
+/// assert_eq!(BinaryOp::Eql, op.unwrap());
+///
+/// let op = BinaryOp::try_from("uNLeSs");
+/// assert_eq!(BinaryOp::Unless, op.unwrap());
+/// # }
+impl std::convert::TryFrom<&str> for BinaryOp {
+    type Error = Error;
+
+    fn try_from(op: &str) -> Result<Self> {
+        use BinaryOp::*;
+
+        match op.to_lowercase().as_str() {
+            "+" => Ok(Add),
+            "/" => Ok(Div),
+            "*" => Ok(Mul),
+            "%" => Ok(Mod),
+            "^" => Ok(Pow),
+            "-" => Ok(Sub),
+            "==" => Ok(Eql),
+            ">=" => Ok(Gte),
+            ">" => Ok(Gtr),
+            "<" => Ok(Lss),
+            "<=" => Ok(Lte),
+            "!=" => Ok(Neq),
+            "and" => Ok(And),
+            "unless" => Ok(Unless),
+            "or" => Ok(Or),
+            _ => Err(Error::new("Unexpected binary op literal")),
+        }
+    }
+}
