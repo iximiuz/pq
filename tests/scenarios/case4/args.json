@@ -1,0 +1,10 @@
+[
+  "pq",
+  "-d", "[^\\[]+\\[([^\\]]+)]\\s+\"([^\\s]+)[^\"]*?\"\\s+\\d+\\s+(\\d+).*",
+  "-t", "0:%d/%b/%Y:%H:%M:%S",
+  "-l", "1:method",
+  "-m", "2:content_length",
+  "--",
+  "content_length{method=\"GET\"} + content_length{method=\"POST\"}"
+]
+

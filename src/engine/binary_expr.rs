@@ -61,11 +61,35 @@ impl BinaryExprExecutor {
         ValueKind::InstantVector(v)
     }
 
-    fn next_vector_vector(&self, lv: InstantVector, rv: InstantVector) -> ValueKind {
+    fn next_vector_vector(
+        &mut self,
+        mut lv: InstantVector,
+        mut rv: InstantVector,
+    ) -> Option<ValueKind> {
         use BinaryOp::*;
 
-        ValueKind::InstantVector(
-            lv.match_vector(&rv, vec![], vec![], |lval, rval| match self.op {
+        // Rather ugly way to align left and right vectors time-wise.
+        // Making ValuiIter a peekable iterator could improve the readability
+        // of this and similar cases.
+        while lv.timestamp() != rv.timestamp() {
+            lv = match self.left.next() {
+                Some(ValueKind::InstantVector(lv)) => lv,
+                None => return None,
+                _ => panic!("bug"),
+            };
+
+            rv = match self.right.next() {
+                Some(ValueKind::InstantVector(rv)) => rv,
+                None => return None,
+                _ => panic!("bug"),
+            };
+        }
+
+        Some(ValueKind::InstantVector(lv.match_vector(
+            &rv,
+            vec![],
+            vec![],
+            |lval, rval| match self.op {
                 Add => lval + rval,
                 Div => lval / rval,
                 Mul => lval * rval,
@@ -73,8 +97,8 @@ impl BinaryExprExecutor {
                 Pow => Value::powf(lval, rval),
                 Sub => lval - rval,
                 _ => unimplemented!(),
-            }),
-        )
+            },
+        )))
     }
 }
 
@@ -105,7 +129,7 @@ impl std::iter::Iterator for BinaryExprExecutor {
                 return Some(self.next_vector_scalar(lv, rv))
             }
             (ValueKind::InstantVector(lv), ValueKind::InstantVector(rv)) => {
-                return Some(self.next_vector_vector(lv, rv))
+                return self.next_vector_vector(lv, rv)
             }
             _ => unimplemented!(),
         }

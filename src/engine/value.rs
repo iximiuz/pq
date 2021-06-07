@@ -44,9 +44,9 @@ impl InstantVector {
         f: impl Fn(Value, Value) -> Value,
     ) -> Self {
         // println!("match vector {:?} {:?}", self, other);
-        // TODO: assert!(self.instant == other.instant);
+        assert!(self.instant == other.instant);
 
-        // TODO: implement me!
+        // TODO: implement proper label matching!
         let samples = self
             .samples
             .iter()
