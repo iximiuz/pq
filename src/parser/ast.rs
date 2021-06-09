@@ -61,6 +61,32 @@ impl VectorSelector {
     }
 }
 
+pub enum VectorMatchingKind {
+    On,
+    Ignoring,
+}
+
+pub struct VectorMatching {
+    kind: VectorMatchingKind,
+    labels: Vec<String>,
+}
+
+impl VectorMatching {
+    pub fn new_on(labels: Vec<String>) -> Self {
+        Self {
+            kind: VectorMatchingKind::On,
+            labels,
+        }
+    }
+
+    pub fn new_ignoring(labels: Vec<String>) -> Self {
+        Self {
+            kind: VectorMatchingKind::Ignoring,
+            labels,
+        }
+    }
+}
+
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub enum UnaryOp {
     Add,
