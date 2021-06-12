@@ -5,7 +5,7 @@ use nom::{
     sequence::pair,
 };
 
-use super::ast::{BinaryOp, Expr, Precedence, UnaryOp, VectorMatching};
+use super::ast::{BinaryOp, Expr, Precedence, UnaryOp, VectorMatching, VectorMatchingKind};
 use super::common::maybe_lpadded;
 use super::result::{IResult, ParseResult, Span};
 use super::vector::vector_selector;
@@ -61,12 +61,11 @@ pub fn expr<'a>(
             };
             rest = tmp_rest;
 
-            // TODO: Validate: vector_matching can only be used with arithmetic or comparison binary op.
-
             // let (rest, group_modifier) = maybe_group_modifier(rest)?;
 
             // TODO: Validate:
             //   - if group_modifier is present, vector_matching must be present
+            //   - if group_modifier is present, op must not be AND, OR, or UNLESS
             //   - if vector_matching is 'on', vector_matching & group_modifier intersection
             //     must result in empty set.
 
@@ -121,7 +120,20 @@ fn maybe_bool_modifier(input: Span) -> IResult<()> {
 fn maybe_vector_matching(input: Span) -> IResult<ParseResult<VectorMatching>> {
     let (rest, kind) = maybe_lpadded(alt((tag_no_case("on"), tag_no_case("ignoring"))))(input)?;
 
-    Ok((rest, ParseResult::Complete(VectorMatching::new_on(vec![]))))
+    let kind = VectorMatchingKind::try_from(*kind).unwrap();
+    let (rest, labels) = match maybe_lpadded(label_list)(rest)? {
+        (r, ParseResult::Complete(ls)) => (r, ls),
+        (r, ParseResult::Partial(w, u)) => return Ok((r, ParseResult::Partial(w, u))),
+    };
+
+    Ok((
+        rest,
+        ParseResult::Complete(VectorMatching::new(kind, labels)),
+    ))
+}
+
+fn label_list(input: Span) -> IResult<ParseResult<Vec<String>>> {
+    Ok((input, ParseResult::Complete(vec![])))
 }
 
 fn expr_unary(input: Span) -> IResult<ParseResult<Expr>> {
@@ -382,16 +394,16 @@ mod tests {
 
     #[test]
     #[ignore]
-    fn test_binary_expr_on_ignoring_modifier(
-    ) -> std::result::Result<(), nom::Err<ParseError<'static>>> {
+    fn test_binary_expr_vector_matching() -> std::result::Result<(), nom::Err<ParseError<'static>>>
+    {
         #[rustfmt::skip]
          let tests = [
              ("foo * on() bar", "foo"),
+             ("foo % ignoring() bar", "foo"),
              ("foo + on(abc) bar", "foo"),
              ("foo != on(abc,def) bar", "foo"),
-             ("foo unless on(abc,def,) bar", "foo"),
-             ("foo - on(abc) bar / on(qux, lol)", "foo"),
-             ("foo + ignoring(abc) group_right(bar) bar", "foo"),
+             ("foo > on(abc,def,) bar", "foo"),
+             ("foo - on(abc) bar / on(qux, lol) baz", "foo"),
          ];
 
         for (input, _expected_ops) in &tests {
@@ -401,9 +413,16 @@ mod tests {
                 }
                 (_, ParseResult::Complete(e)) => e,
             };
+            // TODO: add assertion
             println!("{:?}", ex);
         }
         assert!(false);
         Ok(())
+    }
+
+    #[test]
+    fn test_group_modifier() {
+        // foo * on(test,blub) group_left bar
+        // foo + ignoring(abc) group_right(bar) bar
     }
 }

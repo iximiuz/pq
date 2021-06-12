@@ -61,9 +61,37 @@ impl VectorSelector {
     }
 }
 
+#[derive(Copy, Clone, Debug, PartialEq)]
 pub enum VectorMatchingKind {
     On,
     Ignoring,
+}
+
+/// Try to parse a string into a VectorMatchingKind.
+///
+/// ```
+/// # use std::convert::TryFrom;
+/// # use pq::parser::ast::VectorMatchingKind;
+/// #
+/// # fn main() {
+/// let kind = VectorMatchingKind::try_from("on");
+/// assert_eq!(VectorMatchingKind::On, kind.unwrap());
+///
+/// let kind = VectorMatchingKind::try_from("iGnOrInG");
+/// assert_eq!(VectorMatchingKind::Ignoring, kind.unwrap());
+/// # }
+impl std::convert::TryFrom<&str> for VectorMatchingKind {
+    type Error = Error;
+
+    fn try_from(s: &str) -> Result<Self> {
+        use VectorMatchingKind::*;
+
+        match s.to_lowercase().as_str() {
+            "on" => Ok(On),
+            "ignoring" => Ok(Ignoring),
+            _ => Err(Error::new("Unexpected vector matching kind")),
+        }
+    }
 }
 
 pub struct VectorMatching {
@@ -72,18 +100,8 @@ pub struct VectorMatching {
 }
 
 impl VectorMatching {
-    pub fn new_on(labels: Vec<String>) -> Self {
-        Self {
-            kind: VectorMatchingKind::On,
-            labels,
-        }
-    }
-
-    pub fn new_ignoring(labels: Vec<String>) -> Self {
-        Self {
-            kind: VectorMatchingKind::Ignoring,
-            labels,
-        }
+    pub fn new(kind: VectorMatchingKind, labels: Vec<String>) -> Self {
+        Self { kind, labels }
     }
 }
 

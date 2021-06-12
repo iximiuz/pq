@@ -1,16 +1,9 @@
 use std::convert::TryFrom;
 
-use nom::{
-    branch::alt,
-    bytes::complete::tag,
-    character::complete::{alpha1, alphanumeric1, char},
-    combinator::recognize,
-    multi::{many0, separated_list1},
-    sequence::pair,
-};
+use nom::{branch::alt, bytes::complete::tag, character::complete::char, multi::separated_list1};
 
 use super::ast::VectorSelector;
-use super::common::{maybe_lpadded, maybe_padded};
+use super::common::{label_identifier, maybe_lpadded, maybe_padded, metric_identifier};
 use super::result::{IResult, ParseError, ParseResult, Span};
 use super::string::string_literal;
 use crate::model::labels::{LabelMatcher, MatchOp};
@@ -116,30 +109,12 @@ fn label_matcher(input: Span) -> IResult<ParseResult<LabelMatcher>> {
     Ok((rest, ParseResult::Complete(matcher)))
 }
 
-fn label_identifier(input: Span) -> IResult<String> {
-    // [a-zA-Z_][a-zA-Z0-9_]*
-    let (rest, m) = recognize(pair(
-        alt((alpha1, tag("_"))),
-        many0(alt((alphanumeric1, tag("_")))),
-    ))(input)?;
-    Ok((rest, String::from(*m.fragment())))
-}
-
 fn match_op(input: Span) -> IResult<MatchOp> {
     let (rest, m) = alt((tag("=~"), tag("!~"), tag("!="), tag("=")))(input)?;
     Ok((
         rest,
         MatchOp::try_from(*m.fragment()).expect("unreachable!"),
     ))
-}
-
-fn metric_identifier(input: Span) -> IResult<String> {
-    // [a-zA-Z_:][a-zA-Z0-9_:]*
-    let (rest, m) = recognize(pair(
-        alt((alpha1, tag("_"), tag(":"))),
-        many0(alt((alphanumeric1, tag("_"), tag(":")))),
-    ))(input)?;
-    Ok((rest, String::from(*m)))
 }
 
 #[cfg(test)]
