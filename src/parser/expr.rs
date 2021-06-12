@@ -294,7 +294,7 @@ mod tests {
                 BinaryExpr(BinaryExprInner::new(
                     NumberLiteral(-1.0),
                     BinaryOp::Sub,
-                    NumberLiteral(-2.0),
+                    UnaryExpr(UnaryOp::Sub, Box::new(NumberLiteral(-2.0))),
                 )),
             ),
             (
@@ -357,7 +357,7 @@ mod tests {
         ];
 
         fn extract_operators(expr: &Expr) -> Vec<BinaryOp> {
-            match *expr {
+            match expr {
                 Expr::BinaryExpr(e) => extract_operators(e.lhs())
                     .into_iter()
                     .chain(extract_operators(e.rhs()).into_iter())

@@ -99,6 +99,21 @@ impl BinaryExpr {
     }
 
     #[inline]
+    pub fn op(&self) -> BinaryOp {
+        self.op
+    }
+
+    #[inline]
+    pub fn lhs(&self) -> &Expr {
+        self.lhs.as_ref()
+    }
+
+    #[inline]
+    pub fn rhs(&self) -> &Expr {
+        self.rhs.as_ref()
+    }
+
+    #[inline]
     pub fn into_inner(
         self,
     ) -> (
