@@ -1,9 +1,9 @@
 use std::convert::TryFrom;
 
-use nom::{branch::alt, bytes::complete::tag, character::complete::char, multi::separated_list1};
+use nom::{branch::alt, bytes::complete::tag};
 
 use super::ast::VectorSelector;
-use super::common::{label_identifier, maybe_lpadded, maybe_padded, metric_identifier};
+use super::common::{label_identifier, maybe_lpadded, metric_identifier, separated_list};
 use super::result::{IResult, ParseError, Span};
 use super::string::string_literal;
 use crate::model::labels::{LabelMatcher, MatchOp};
@@ -34,37 +34,14 @@ fn label_matchers(input: Span) -> IResult<Vec<LabelMatcher>> {
     // | LEFT_BRACE label_match_list COMMA RIGHT_BRACE
     // | LEFT_BRACE RIGHT_BRACE
 
-    let (rest, _) = char('{')(input)?;
-
-    let (rest, matchers) = match maybe_lpadded(label_match_list)(rest) {
-        Ok((r, ms)) => (r, ms),
-        Err(nom::Err::Error(_)) => (rest, vec![]),
-        Err(e) => return Err(e), // abort parsing, probably due to a partial result.
-    };
-
-    // Chop off a possible trailing comma, but only matchers list is not empty.
-    let (rest, _) = match matchers.len() {
-        0 => (rest, '_'),
-        _ => maybe_lpadded(char(','))(rest).unwrap_or((rest, '_')),
-    };
-
-    match maybe_lpadded(char('}'))(rest) {
-        Ok((r, _)) => Ok((r, matchers)),
-        Err(_) => Err(nom::Err::Failure(ParseError::partial(
-            "label matching",
-            r#"identifier or "}""#,
-            rest,
-        ))),
-    }
-}
-
-/// Parses a non-empty list of label matches separated by a comma.
-/// No trailing commas allowed.
-fn label_match_list(input: Span) -> IResult<Vec<LabelMatcher>> {
-    //   label_match_list COMMA label_matcher
-    // | label_matcher
-
-    separated_list1(tag(","), maybe_padded(label_matcher))(input)
+    separated_list(
+        '{',
+        '}',
+        ',',
+        label_matcher,
+        "label matching",
+        r#"identifier or "}""#,
+    )(input)
 }
 
 fn label_matcher(input: Span) -> IResult<LabelMatcher> {
@@ -250,34 +227,6 @@ mod tests {
             };
         }
         Ok(())
-    }
-
-    #[test]
-    fn test_label_match_list_valid() -> std::result::Result<(), ParseError<'static>> {
-        #[rustfmt::skip]
-        let tests = [
-            (r#"foo!~"123 qux""#, vec![("foo", "!~", "123 qux")]),
-            (r#"foo!~"123 qux","#, vec![("foo", "!~", "123 qux")]),
-            (r#"foo!~"123 qux",bar="42""#, vec![("foo", "!~", "123 qux"), ("bar", "=", "42")]),
-        ];
-
-        for (input, expected_matchers) in &tests {
-            let (_, actual_matchers) = label_match_list(Span::new(&input))?;
-
-            assert_eq!(actual_matchers.len(), expected_matchers.len());
-            for (actual, expected) in actual_matchers.iter().zip(expected_matchers.iter()) {
-                assert_eq!(&_matcher(*expected), actual);
-            }
-        }
-        Ok(())
-    }
-
-    #[test]
-    fn test_label_match_list_invalid() {
-        assert!(label_match_list(Span::new("")).is_err());
-        assert!(label_match_list(Span::new(",")).is_err());
-        assert!(label_match_list(Span::new(",,")).is_err());
-        assert!(label_match_list(Span::new(", ,")).is_err());
     }
 
     #[test]
