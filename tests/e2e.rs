@@ -40,7 +40,8 @@ fn e2e() -> Result<(), Box<dyn std::error::Error>> {
         assert_eq!(
             expected_output,
             actual_output,
-            "\n\nExpected:\n{}\nActual:\n{}",
+            "\nUnexpected query result in '{}'.\nExpected:\n{}\nActual:\n{}",
+            test_dir.display(),
             String::from_utf8_lossy(&expected_output),
             String::from_utf8_lossy(&actual_output),
         );

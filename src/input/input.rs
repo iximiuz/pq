@@ -12,11 +12,10 @@ pub struct Input {
     cursors: Vec<Weak<Cursor>>,
 }
 
-// TODO: implement peakable cursors via multi-threaded reader
+// TODO: implement multi-threaded reader
 //         - a separate thread calls self.reader.read() and puts the record to an internal queue
-//           (with some back-pressure mechanism)
+//           (with some backpressure mechanism)
 //         - main thread takes values only from the queue
-//         - if the queue is empty, peak returns None immediately
 
 impl Input {
     pub fn new(reader: Box<dyn Reader>, decoder: Box<dyn Decoder>) -> Self {
@@ -89,9 +88,6 @@ impl Cursor {
         }
         self.buffer.borrow_mut().pop_back()
     }
-
-    // TODO:
-    // pub fn peak(&self) -> Option<Rc<Sample>> {}
 }
 
 #[derive(Debug)]

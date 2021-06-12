@@ -9,6 +9,7 @@ pub enum ExprValue {
     // String(String)
 }
 
+#[derive(Debug, PartialEq)]
 pub(super) enum ExprValueKind {
     InstantVector,
     RangeVector,
