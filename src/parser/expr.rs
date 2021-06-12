@@ -6,7 +6,7 @@ use nom::{
 };
 
 use super::ast::{BinaryOp, Expr, Precedence, UnaryOp, VectorMatching, VectorMatchingKind};
-use super::common::maybe_lpadded;
+use super::common::{label_identifier, maybe_lpadded, separated_list};
 use super::result::{IResult, ParseError, Span};
 use super::vector::vector_selector;
 
@@ -48,7 +48,7 @@ pub fn expr<'a>(min_prec: Option<Precedence>) -> impl FnMut(Span<'a>) -> IResult
 
             // TODO: Validate: lhs is an instant vector selector or scalar.
 
-            let (tmp_rest, bool_modifier) = match maybe_bool_modifier(rest) {
+            let (tmp_rest, bool_modifier) = match maybe_lpadded(bool_modifier)(rest) {
                 Ok((r, _)) => (r, true),
                 Err(nom::Err::Error(_)) => (rest, false),
                 Err(e) => return Err(e),
@@ -57,14 +57,14 @@ pub fn expr<'a>(min_prec: Option<Precedence>) -> impl FnMut(Span<'a>) -> IResult
 
             // TODO: Validate: bool_modifier can only be used with a comparison binary op.
 
-            let (tmp_rest, vector_matching) = match maybe_vector_matching(rest) {
+            let (tmp_rest, vector_matching) = match maybe_lpadded(vector_matching)(rest) {
                 Ok((r, vm)) => (r, Some(vm)),
                 Err(nom::Err::Error(_)) => (rest, None),
                 Err(e) => return Err(e),
             };
             rest = tmp_rest;
 
-            // let (rest, group_modifier) = maybe_group_modifier(rest)?;
+            // let (rest, group_modifier) = group_modifier(rest)?;
 
             // TODO: Validate:
             //   - if group_modifier is present, vector_matching must be present
@@ -118,22 +118,38 @@ fn binary_op(input: Span) -> IResult<BinaryOp> {
     Ok((rest, BinaryOp::try_from(*op).unwrap()))
 }
 
-fn maybe_bool_modifier(input: Span) -> IResult<()> {
-    let (rest, _) = maybe_lpadded(tag_no_case("bool"))(input)?;
+fn bool_modifier(input: Span) -> IResult<()> {
+    let (rest, _) = tag_no_case("bool")(input)?;
     Ok((rest, ()))
 }
 
-fn maybe_vector_matching(input: Span) -> IResult<VectorMatching> {
-    let (rest, kind) = maybe_lpadded(alt((tag_no_case("on"), tag_no_case("ignoring"))))(input)?;
+fn vector_matching(input: Span) -> IResult<VectorMatching> {
+    let (rest, kind) = alt((tag_no_case("on"), tag_no_case("ignoring")))(input)?;
 
     let kind = VectorMatchingKind::try_from(*kind).unwrap();
-    let (rest, labels) = maybe_lpadded(label_list)(rest)?;
+    let (rest, labels) = maybe_lpadded(grouping_labels)(rest)?;
 
     Ok((rest, VectorMatching::new(kind, labels)))
 }
 
-fn label_list(input: Span) -> IResult<Vec<String>> {
-    Ok((input, vec![]))
+// fn group_modifier(input: Span) -> IResult<GroupModifier> {
+//     let (rest, kind) = alt((tag_no_case("on"), tag_no_case("ignoring")))(input)?;
+//
+//     let kind = VectorMatchingKind::try_from(*kind).unwrap();
+//     let (rest, labels) = maybe_lpadded(grouping_labels)(rest)?;
+//
+//     Ok((rest, VectorMatching::new(kind, labels)))
+// }
+
+fn grouping_labels(input: Span) -> IResult<Vec<String>> {
+    separated_list(
+        '(',
+        ')',
+        ',',
+        label_identifier,
+        "grouping labels clause",
+        r#"label or ")""#,
+    )(input)
 }
 
 fn expr_unary(input: Span) -> IResult<Expr> {
@@ -359,7 +375,6 @@ mod tests {
     }
 
     #[test]
-    #[ignore]
     fn test_binary_expr_vector_matching() -> std::result::Result<(), nom::Err<ParseError<'static>>>
     {
         #[rustfmt::skip]
@@ -377,7 +392,6 @@ mod tests {
             // TODO: add assertion
             println!("{:?}", ex);
         }
-        assert!(false);
         Ok(())
     }
 
