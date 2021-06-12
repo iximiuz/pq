@@ -1,6 +1,6 @@
 use super::value::{InstantVector, ValueIter, ValueKind};
 use crate::model::types::Value;
-use crate::parser::ast::BinaryOp;
+use crate::parser::ast::{BinaryOp, GroupModifier, VectorMatching};
 
 /// BinaryExprExecutor performs a binary operation between:
 ///   - scalar and scalar
@@ -10,11 +10,28 @@ pub struct BinaryExprExecutor {
     op: BinaryOp,
     left: ValueIter,
     right: ValueIter,
+    bool_modifier: bool,
+    vector_matching: Option<VectorMatching>,
+    group_modifier: Option<GroupModifier>,
 }
 
 impl BinaryExprExecutor {
-    pub fn new(op: BinaryOp, left: ValueIter, right: ValueIter) -> Self {
-        Self { op, left, right }
+    pub fn new(
+        left: ValueIter,
+        op: BinaryOp,
+        right: ValueIter,
+        bool_modifier: bool,
+        vector_matching: Option<VectorMatching>,
+        group_modifier: Option<GroupModifier>,
+    ) -> Self {
+        Self {
+            op,
+            left,
+            right,
+            bool_modifier,
+            vector_matching,
+            group_modifier,
+        }
     }
 
     fn next_scalar_scalar(&self, lv: Value, rv: Value) -> ValueKind {

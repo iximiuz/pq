@@ -122,10 +122,19 @@ impl Executor {
                 Box::new(UnaryExprExecutor::new(op, self.create_value_iter(*expr)))
             }
 
-            Expr::BinaryExpr(left, op, right) => {
-                let lhs = self.create_value_iter(*left);
-                let rhs = self.create_value_iter(*right);
-                Box::new(BinaryExprExecutor::new(op, lhs, rhs))
+            Expr::BinaryExpr(expr) => {
+                let (lhs, op, rhs, bool_modifier, vector_matching, group_modifier) =
+                    expr.into_inner();
+                let lhs = self.create_value_iter(*lhs);
+                let rhs = self.create_value_iter(*rhs);
+                Box::new(BinaryExprExecutor::new(
+                    lhs,
+                    op,
+                    rhs,
+                    bool_modifier,
+                    vector_matching,
+                    group_modifier,
+                ))
             }
 
             // leaf node

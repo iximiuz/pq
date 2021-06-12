@@ -14,7 +14,7 @@ impl AST {
 
 #[derive(Debug, PartialEq)]
 pub enum Expr {
-    BinaryExpr(Box<Expr>, BinaryOp, Box<Expr>),
+    BinaryExpr(BinaryExpr),
     NumberLiteral(Value),
     UnaryExpr(UnaryOp, Box<Expr>),
     VectorSelector(VectorSelector),
@@ -61,6 +61,65 @@ impl VectorSelector {
     }
 }
 
+#[derive(Debug, PartialEq)]
+pub struct BinaryExpr {
+    lhs: Box<Expr>,
+    rhs: Box<Expr>,
+    op: BinaryOp,
+    bool_modifier: bool,
+    vector_matching: Option<VectorMatching>,
+    group_modifier: Option<GroupModifier>,
+}
+
+impl BinaryExpr {
+    pub fn new(lhs: Expr, op: BinaryOp, rhs: Expr) -> Self {
+        Self::new_ex(lhs, op, rhs, false, None, None)
+    }
+
+    pub fn new_ex(
+        lhs: Expr,
+        op: BinaryOp,
+        rhs: Expr,
+        bool_modifier: bool,
+        vector_matching: Option<VectorMatching>,
+        group_modifier: Option<GroupModifier>,
+    ) -> Self {
+        assert!(!bool_modifier || op.is_comparison());
+        assert!(group_modifier.is_none() || vector_matching.is_some());
+        assert!(group_modifier.is_none() || !op.is_logical());
+
+        Self {
+            lhs: Box::new(lhs),
+            rhs: Box::new(rhs),
+            op,
+            bool_modifier,
+            vector_matching,
+            group_modifier,
+        }
+    }
+
+    #[inline]
+    pub fn into_inner(
+        self,
+    ) -> (
+        Box<Expr>,
+        BinaryOp,
+        Box<Expr>,
+        bool,
+        Option<VectorMatching>,
+        Option<GroupModifier>,
+    ) {
+        (
+            self.lhs,
+            self.op,
+            self.rhs,
+            self.bool_modifier,
+            self.vector_matching,
+            self.group_modifier,
+        )
+    }
+}
+
 #[derive(Copy, Clone, Debug, PartialEq)]
 pub enum VectorMatchingKind {
     On,
@@ -94,6 +153,7 @@ impl std::convert::TryFrom<&str> for VectorMatchingKind {
     }
 }
 
+#[derive(Debug, PartialEq)]
 pub struct VectorMatching {
     kind: VectorMatchingKind,
     labels: Vec<String>,
@@ -105,6 +165,7 @@ impl VectorMatching {
     }
 }
 
+#[derive(Debug, PartialEq)]
 pub enum GroupModifier {
     Left(Vec<String>),
     Right(Vec<String>),
@@ -138,6 +199,7 @@ pub enum BinaryOp {
 pub(super) type Precedence = usize;
 
 impl BinaryOp {
+    #[inline]
     pub(super) fn precedence(self) -> Precedence {
         use BinaryOp::*;
 
@@ -148,6 +210,31 @@ impl BinaryOp {
             Add | Sub => 40,
             Mul | Div | Mod => 50,
             Pow => 60,
+        }
+    }
+
+    #[inline]
+    pub(super) fn is_arithmetic(self) -> bool {
+        !(self.is_comparison() || self.is_logical())
+    }
+
+    #[inline]
+    pub(super) fn is_comparison(self) -> bool {
+        use BinaryOp::*;
+
+        match self {
+            Eql | Gte | Gtr | Lss | Lte | Neq => true,
+            _ => false,
+        }
+    }
+
+    #[inline]
+    pub(super) fn is_logical(self) -> bool {
+        use BinaryOp::*;
+
+        match self {
+            And | Unless | Or => true,
+            _ => false,
         }
     }
 }

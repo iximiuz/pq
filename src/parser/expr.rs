@@ -6,7 +6,8 @@ use nom::{
 };
 
 use super::ast::{
-    BinaryOp, Expr, GroupModifier, Precedence, UnaryOp, VectorMatching, VectorMatchingKind,
+    BinaryExpr, BinaryOp, Expr, GroupModifier, Precedence, UnaryOp, VectorMatching,
+    VectorMatchingKind,
 };
 use super::common::{label_identifier, maybe_lpadded, separated_list};
 use super::result::{IResult, ParseError, Span};
@@ -97,7 +98,14 @@ pub fn expr<'a>(min_prec: Option<Precedence>) -> impl FnMut(Span<'a>) -> IResult
             //   - if vector_matching is present, lhs and rhs must be instant vectors.
 
             rest = tmp_rest;
-            lhs = Expr::BinaryExpr(Box::new(lhs), op, Box::new(rhs));
+            lhs = Expr::BinaryExpr(BinaryExpr::new_ex(
+                lhs,
+                op,
+                rhs,
+                bool_modifier,
+                vector_matching,
+                group_modifier,
+            ));
         }
 
         Ok((rest, lhs))
@@ -226,6 +234,7 @@ mod tests {
 
     #[test]
     fn test_valid_expressions_ex() -> std::result::Result<(), nom::Err<ParseError<'static>>> {
+        use super::BinaryExpr as BinaryExprInner;
         use Expr::*;
 
         let tests = [
@@ -238,88 +247,88 @@ mod tests {
             ("-Inf", NumberLiteral(f64::NEG_INFINITY)),
             (
                 "-1 + 2",
-                BinaryExpr(
-                    Box::new(NumberLiteral(-1.0)),
+                BinaryExpr(BinaryExprInner::new(
+                    NumberLiteral(-1.0),
                     BinaryOp::Add,
-                    Box::new(NumberLiteral(2.0)),
-                ),
+                    NumberLiteral(2.0),
+                )),
             ),
             (
                 "-1 * 2",
-                BinaryExpr(
-                    Box::new(NumberLiteral(-1.0)),
+                BinaryExpr(BinaryExprInner::new(
+                    NumberLiteral(-1.0),
                     BinaryOp::Mul,
-                    Box::new(NumberLiteral(2.0)),
-                ),
+                    NumberLiteral(2.0),
+                )),
             ),
             (
                 "-1 ^ 2",
-                BinaryExpr(
-                    Box::new(NumberLiteral(-1.0)),
+                BinaryExpr(BinaryExprInner::new(
+                    NumberLiteral(-1.0),
                     BinaryOp::Pow,
-                    Box::new(NumberLiteral(2.0)),
-                ),
+                    NumberLiteral(2.0),
+                )),
             ),
             (
                 "-1 ^ 2 * 3",
-                BinaryExpr(
-                    Box::new(BinaryExpr(
-                        Box::new(NumberLiteral(-1.0)),
+                BinaryExpr(BinaryExprInner::new(
+                    BinaryExpr(BinaryExprInner::new(
+                        NumberLiteral(-1.0),
                         BinaryOp::Pow,
-                        Box::new(NumberLiteral(2.0)),
+                        NumberLiteral(2.0),
                     )),
                     BinaryOp::Mul,
-                    Box::new(NumberLiteral(3.0)),
-                ),
+                    NumberLiteral(3.0),
+                )),
             ),
             (
                 "1 - -2",
-                BinaryExpr(
-                    Box::new(NumberLiteral(1.0)),
+                BinaryExpr(BinaryExprInner::new(
+                    NumberLiteral(1.0),
                     BinaryOp::Sub,
-                    Box::new(NumberLiteral(-2.0)),
-                ),
+                    NumberLiteral(-2.0),
+                )),
             ),
             (
                 "-1---2",
-                BinaryExpr(
-                    Box::new(NumberLiteral(-1.0)),
+                BinaryExpr(BinaryExprInner::new(
+                    NumberLiteral(-1.0),
                     BinaryOp::Sub,
-                    Box::new(UnaryExpr(UnaryOp::Sub, Box::new(NumberLiteral(-2.0)))),
-                ),
+                    NumberLiteral(-2.0),
+                )),
             ),
             (
                 "-1---2+3",
-                BinaryExpr(
-                    Box::new(BinaryExpr(
-                        Box::new(NumberLiteral(-1.0)),
+                BinaryExpr(BinaryExprInner::new(
+                    BinaryExpr(BinaryExprInner::new(
+                        NumberLiteral(-1.0),
                         BinaryOp::Sub,
-                        Box::new(UnaryExpr(UnaryOp::Sub, Box::new(NumberLiteral(-2.0)))),
+                        UnaryExpr(UnaryOp::Sub, Box::new(NumberLiteral(-2.0))),
                     )),
                     BinaryOp::Add,
-                    Box::new(NumberLiteral(3.0)),
-                ),
+                    NumberLiteral(3.0),
+                )),
             ),
             // TODO: "-1---2*3-4",
             (
                 "1 + -4*2^3 -5",
-                BinaryExpr(
-                    Box::new(BinaryExpr(
-                        Box::new(NumberLiteral(1.0)),
+                BinaryExpr(BinaryExprInner::new(
+                    BinaryExpr(BinaryExprInner::new(
+                        NumberLiteral(1.0),
                         BinaryOp::Add,
-                        Box::new(BinaryExpr(
-                            Box::new(NumberLiteral(-4.0)),
+                        BinaryExpr(BinaryExprInner::new(
+                            NumberLiteral(-4.0),
                             BinaryOp::Mul,
-                            Box::new(BinaryExpr(
-                                Box::new(NumberLiteral(2.0)),
+                            BinaryExpr(BinaryExprInner::new(
+                                NumberLiteral(2.0),
                                 BinaryOp::Pow,
-                                Box::new(NumberLiteral(3.0)),
+                                NumberLiteral(3.0),
                             )),
                         )),
                     )),
                     BinaryOp::Sub,
-                    Box::new(NumberLiteral(5.0)),
-                ),
+                    NumberLiteral(5.0),
+                )),
             ),
         ];
 
@@ -347,21 +356,21 @@ mod tests {
             ("foo * bar ^ baz - qux / abc", vec![BinaryOp::Pow, BinaryOp::Mul, BinaryOp::Div, BinaryOp::Sub]),
         ];
 
-        fn extract_operators(expr: Box<Expr>) -> Vec<BinaryOp> {
+        fn extract_operators(expr: &Expr) -> Vec<BinaryOp> {
             match *expr {
-                Expr::BinaryExpr(lhs, op, rhs) => extract_operators(lhs)
+                Expr::BinaryExpr(e) => extract_operators(e.lhs())
                     .into_iter()
-                    .chain(extract_operators(rhs).into_iter())
-                    .chain(vec![op].into_iter())
+                    .chain(extract_operators(e.rhs()).into_iter())
+                    .chain(vec![e.op()].into_iter())
                     .collect(),
-                Expr::UnaryExpr(_, expr) => extract_operators(expr),
+                Expr::UnaryExpr(_, e) => extract_operators(e.as_ref()),
                 _ => vec![],
             }
         }
 
         for (input, expected_ops) in &tests {
             let (_, ex) = expr(None)(Span::new(input))?;
-            assert_eq!(expected_ops, &extract_operators(Box::new(ex)));
+            assert_eq!(expected_ops, &extract_operators(&ex));
         }
         Ok(())
     }
