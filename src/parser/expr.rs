@@ -48,7 +48,7 @@ pub fn expr<'a>(min_prec: Option<Precedence>) -> impl FnMut(Span<'a>) -> IResult
 
             // So, it IS a binary expression since we have the `lhs` and the `op`.
 
-            // TODO: Validate: lhs is an instant vector selector or scalar.
+            // TODO: validate - lhs is an instant vector selector or scalar.
 
             let (tmp_rest, bool_modifier) = match maybe_lpadded(bool_modifier)(rest) {
                 Ok((r, _)) => (r, true),
@@ -57,7 +57,7 @@ pub fn expr<'a>(min_prec: Option<Precedence>) -> impl FnMut(Span<'a>) -> IResult
             };
             rest = tmp_rest;
 
-            // TODO: Validate: bool_modifier can only be used with a comparison binary op.
+            // TODO: validate - bool_modifier can only be used with a comparison binary op.
 
             let (tmp_rest, vector_matching) = match maybe_lpadded(vector_matching)(rest) {
                 Ok((r, vm)) => (r, Some(vm)),
@@ -73,7 +73,7 @@ pub fn expr<'a>(min_prec: Option<Precedence>) -> impl FnMut(Span<'a>) -> IResult
             };
             rest = tmp_rest;
 
-            // TODO: Validate:
+            // TODO: validate
             //   - if group_modifier is present, vector_matching must be present
             //   - if group_modifier is present, op must not be AND, OR, or UNLESS
             //   - if vector_matching is 'on', vector_matching & group_modifier intersection
@@ -91,7 +91,7 @@ pub fn expr<'a>(min_prec: Option<Precedence>) -> impl FnMut(Span<'a>) -> IResult
                 Err(e) => return Err(e),
             };
 
-            // TODO: Validate:
+            // TODO: validate
             //   - rhs is an instant vector selector or scalar
             //   - if (lhs, op, rhs) is (scalar, comparison, scalar), the bool_modifier must be present.
             //   - if vector_matching is present, lhs and rhs must be instant vectors.
@@ -171,6 +171,8 @@ fn expr_unary(input: Span) -> IResult<Expr> {
         unary_op,
         maybe_lpadded(expr(Some(BinaryOp::Mul.precedence()))),
     )(input)?;
+
+    // TODO: validate - expression is scalar or instant vector.
 
     Ok((rest, Expr::UnaryExpr(op, Box::new(expr))))
 }
