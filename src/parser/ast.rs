@@ -105,6 +105,11 @@ impl VectorMatching {
     }
 }
 
+pub enum GroupModifier {
+    Left(Vec<String>),
+    Right(Vec<String>),
+}
+
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub enum UnaryOp {
     Add,

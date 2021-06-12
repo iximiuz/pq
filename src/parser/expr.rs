@@ -5,7 +5,9 @@ use nom::{
     sequence::pair,
 };
 
-use super::ast::{BinaryOp, Expr, Precedence, UnaryOp, VectorMatching, VectorMatchingKind};
+use super::ast::{
+    BinaryOp, Expr, GroupModifier, Precedence, UnaryOp, VectorMatching, VectorMatchingKind,
+};
 use super::common::{label_identifier, maybe_lpadded, separated_list};
 use super::result::{IResult, ParseError, Span};
 use super::vector::vector_selector;
@@ -64,7 +66,12 @@ pub fn expr<'a>(min_prec: Option<Precedence>) -> impl FnMut(Span<'a>) -> IResult
             };
             rest = tmp_rest;
 
-            // let (rest, group_modifier) = group_modifier(rest)?;
+            let (tmp_rest, group_modifier) = match maybe_lpadded(group_modifier)(rest) {
+                Ok((r, gm)) => (r, Some(gm)),
+                Err(nom::Err::Error(_)) => (rest, None),
+                Err(e) => return Err(e),
+            };
+            rest = tmp_rest;
 
             // TODO: Validate:
             //   - if group_modifier is present, vector_matching must be present
@@ -132,14 +139,21 @@ fn vector_matching(input: Span) -> IResult<VectorMatching> {
     Ok((rest, VectorMatching::new(kind, labels)))
 }
 
-// fn group_modifier(input: Span) -> IResult<GroupModifier> {
-//     let (rest, kind) = alt((tag_no_case("on"), tag_no_case("ignoring")))(input)?;
-//
-//     let kind = VectorMatchingKind::try_from(*kind).unwrap();
-//     let (rest, labels) = maybe_lpadded(grouping_labels)(rest)?;
-//
-//     Ok((rest, VectorMatching::new(kind, labels)))
-// }
+fn group_modifier(input: Span) -> IResult<GroupModifier> {
+    let (rest, modifier) = alt((tag_no_case("group_left"), tag_no_case("group_right")))(input)?;
+
+    let (rest, labels) = match maybe_lpadded(grouping_labels)(rest) {
+        Ok((r, ls)) => (r, ls),
+        Err(nom::Err::Error(_)) => (rest, vec![]),
+        Err(e) => return Err(e),
+    };
+
+    if modifier.to_lowercase() == "group_left" {
+        Ok((rest, GroupModifier::Left(labels)))
+    } else {
+        Ok((rest, GroupModifier::Right(labels)))
+    }
+}
 
 fn grouping_labels(input: Span) -> IResult<Vec<String>> {
     separated_list(
@@ -396,8 +410,20 @@ mod tests {
     }
 
     #[test]
-    fn test_group_modifier() {
-        // foo * on(test,blub) group_left bar
-        // foo + ignoring(abc) group_right(bar) bar
+    fn test_group_modifier() -> std::result::Result<(), nom::Err<ParseError<'static>>> {
+        #[rustfmt::skip]
+         let tests = [
+             ("foo * on(test) group_left bar", "foo"),
+             ("foo * on(test,blub) group_left() bar", "foo"),
+             ("foo + ignoring(abc) group_right (qux) bar", "foo"),
+             ("foo + ignoring(abc) group_right(def,qux,) bar", "foo"),
+         ];
+
+        for (input, _expected_ops) in &tests {
+            let (_, ex) = expr(None)(Span::new(input))?;
+            // TODO: add assertion
+            println!("{:?}", ex);
+        }
+        Ok(())
     }
 }
