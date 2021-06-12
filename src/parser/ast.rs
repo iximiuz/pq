@@ -87,9 +87,9 @@ impl BinaryExpr {
         vector_matching: Option<VectorMatching>,
         group_modifier: Option<GroupModifier>,
     ) -> Self {
-        assert!(!bool_modifier || op.is_comparison());
+        assert!(!bool_modifier || op.kind() == BinaryOpKind::Comparison);
         assert!(group_modifier.is_none() || vector_matching.is_some());
-        assert!(group_modifier.is_none() || !op.is_logical());
+        assert!(group_modifier.is_none() || op.kind() != BinaryOpKind::Logical);
 
         Self {
             lhs: Box::new(lhs),
@@ -120,16 +120,16 @@ impl BinaryExpr {
     pub fn into_inner(
         self,
     ) -> (
-        Box<Expr>,
         BinaryOp,
+        Box<Expr>,
         Box<Expr>,
         bool,
         Option<VectorMatching>,
         Option<GroupModifier>,
     ) {
         (
-            self.lhs,
             self.op,
+            self.lhs,
             self.rhs,
             self.bool_modifier,
             self.vector_matching,
@@ -214,6 +214,13 @@ pub enum BinaryOp {
     Or,
 }
 
+#[derive(Debug, PartialEq)]
+pub enum BinaryOpKind {
+    Arithmetic,
+    Comparison,
+    Logical,
+}
+
 pub(super) type Precedence = usize;
 
 impl BinaryOp {
@@ -232,27 +239,14 @@ impl BinaryOp {
     }
 
     #[inline]
-    pub fn is_arithmetic(self) -> bool {
-        !(self.is_comparison() || self.is_logical())
-    }
-
-    #[inline]
-    pub fn is_comparison(self) -> bool {
+    pub fn kind(self) -> BinaryOpKind {
         use BinaryOp::*;
+        use BinaryOpKind::*;
 
         match self {
-            Eql | Gte | Gtr | Lss | Lte | Neq => true,
-            _ => false,
-        }
-    }
-
-    #[inline]
-    pub fn is_logical(self) -> bool {
-        use BinaryOp::*;
-
-        match self {
-            And | Unless | Or => true,
-            _ => false,
+            Add | Sub | Mul | Div | Mod | Pow => Arithmetic,
+            Eql | Gte | Gtr | Lss | Lte | Neq => Comparison,
+            And | Unless | Or => Logical,
         }
     }
 }

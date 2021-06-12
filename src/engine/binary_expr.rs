@@ -2,6 +2,24 @@ use super::value::{ExprValue, ExprValueIter, ExprValueKind, InstantVector};
 use crate::model::types::SampleValue;
 use crate::parser::ast::{BinaryOp, GroupModifier, VectorMatching};
 
+pub(super) fn create_binary_expr_executor(
+    op: BinaryOp,
+    left: Box<dyn ExprValueIter>,
+    right: Box<dyn ExprValueIter>,
+    bool_modifier: bool,
+    vector_matching: Option<VectorMatching>,
+    group_modifier: Option<GroupModifier>,
+) -> Box<dyn ExprValueIter> {
+    Box::new(ArithmeticExprExecutor::new(
+        op,
+        left,
+        right,
+        bool_modifier,
+        vector_matching,
+        group_modifier,
+    ))
+}
+
 /// ArithmeticExprExecutor performs a binary operation between:
 ///   - scalar and scalar
 ///   - vector and scalar, or scalar and vector
@@ -17,8 +35,8 @@ pub(super) struct ArithmeticExprExecutor {
 
 impl ArithmeticExprExecutor {
     pub fn new(
-        left: Box<dyn ExprValueIter>,
         op: BinaryOp,
+        left: Box<dyn ExprValueIter>,
         right: Box<dyn ExprValueIter>,
         bool_modifier: bool,
         vector_matching: Option<VectorMatching>,

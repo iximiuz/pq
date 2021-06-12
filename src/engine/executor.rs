@@ -2,7 +2,7 @@ use std::cell::RefCell;
 use std::rc::Rc;
 use std::time::Duration;
 
-use super::binary_expr::ArithmeticExprExecutor;
+use super::binary_expr::create_binary_expr_executor;
 use super::identity::IdentityExecutor;
 use super::unary_expr::UnaryExprExecutor;
 use super::value::ExprValueIter;
@@ -126,23 +126,16 @@ impl Executor {
             }
 
             Expr::BinaryExpr(expr) => {
-                let (lhs, op, rhs, bool_modifier, vector_matching, group_modifier) =
+                let (op, lhs, rhs, bool_modifier, vector_matching, group_modifier) =
                     expr.into_inner();
-                let lhs = self.create_value_iter(*lhs);
-                let rhs = self.create_value_iter(*rhs);
-
-                if op.is_arithmetic() {
-                    return Box::new(ArithmeticExprExecutor::new(
-                        lhs,
-                        op,
-                        rhs,
-                        bool_modifier,
-                        vector_matching,
-                        group_modifier,
-                    ));
-                }
-
-                unimplemented!();
+                create_binary_expr_executor(
+                    op,
+                    self.create_value_iter(*lhs),
+                    self.create_value_iter(*rhs),
+                    bool_modifier,
+                    vector_matching,
+                    group_modifier,
+                )
             }
 
             // leaf node
