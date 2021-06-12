@@ -4,11 +4,11 @@ use nom::{branch::alt, bytes::complete::tag, character::complete::char, multi::s
 
 use super::ast::VectorSelector;
 use super::common::{label_identifier, maybe_lpadded, maybe_padded, metric_identifier};
-use super::result::{IResult, ParseError, ParseResult, Span};
+use super::result::{IResult, ParseError, Span};
 use super::string::string_literal;
 use crate::model::labels::{LabelMatcher, MatchOp};
 
-pub fn vector_selector(input: Span) -> IResult<ParseResult<VectorSelector>> {
+pub fn vector_selector(input: Span) -> IResult<VectorSelector> {
     //   metric_identifier label_matchers
     // | metric_identifier
     // | label_matchers
@@ -19,18 +19,17 @@ pub fn vector_selector(input: Span) -> IResult<ParseResult<VectorSelector>> {
     };
 
     let (rest, matchers) = match maybe_lpadded(label_matchers)(rest) {
-        Ok((r, ParseResult::Partial(w, e))) => return Ok((r, ParseResult::Partial(w, e))),
-        Ok((r, ParseResult::Complete(m))) => (r, m),
+        Ok((r, ms)) => (r, ms),
         Err(nom::Err::Error(_)) if metric.is_some() => (rest, vec![]),
         Err(e) => return Err(e),
     };
 
     let selector = VectorSelector::new(metric, matchers)
         .map_err(|e| nom::Err::Failure(ParseError::new(e.to_string(), input)))?;
-    Ok((rest, ParseResult::Complete(selector)))
+    Ok((rest, selector))
 }
 
-fn label_matchers(input: Span) -> IResult<ParseResult<Vec<LabelMatcher>>> {
+fn label_matchers(input: Span) -> IResult<Vec<LabelMatcher>> {
     //   LEFT_BRACE label_match_list RIGHT_BRACE
     // | LEFT_BRACE label_match_list COMMA RIGHT_BRACE
     // | LEFT_BRACE RIGHT_BRACE
@@ -38,10 +37,9 @@ fn label_matchers(input: Span) -> IResult<ParseResult<Vec<LabelMatcher>>> {
     let (rest, _) = char('{')(input)?;
 
     let (rest, matchers) = match maybe_lpadded(label_match_list)(rest) {
-        Ok((r, ParseResult::Partial(w, e))) => return Ok((r, ParseResult::Partial(w, e))),
-        Ok((r, ParseResult::Complete(m))) => (r, m),
+        Ok((r, ms)) => (r, ms),
         Err(nom::Err::Error(_)) => (rest, vec![]),
-        Err(e) => return Err(e),
+        Err(e) => return Err(e), // abort parsing, probably due to a partial result.
     };
 
     // Chop off a possible trailing comma, but only matchers list is not empty.
@@ -50,35 +48,26 @@ fn label_matchers(input: Span) -> IResult<ParseResult<Vec<LabelMatcher>>> {
         _ => maybe_lpadded(char(','))(rest).unwrap_or((rest, '_')),
     };
 
-    Ok(match maybe_lpadded(char('}'))(rest) {
-        Ok((r, _)) => (r, ParseResult::Complete(matchers)),
-        Err(_) => (
+    match maybe_lpadded(char('}'))(rest) {
+        Ok((r, _)) => Ok((r, matchers)),
+        Err(_) => Err(nom::Err::Failure(ParseError::partial(
+            "label matching",
+            r#"identifier or "}""#,
             rest,
-            ParseResult::Partial("label matching", r#"identifier or "}""#),
-        ),
-    })
+        ))),
+    }
 }
 
 /// Parses a non-empty list of label matches separated by a comma.
 /// No trailing commas allowed.
-fn label_match_list(input: Span) -> IResult<ParseResult<Vec<LabelMatcher>>> {
+fn label_match_list(input: Span) -> IResult<Vec<LabelMatcher>> {
     //   label_match_list COMMA label_matcher
     // | label_matcher
 
-    let (rest, matches) = separated_list1(tag(","), maybe_padded(label_matcher))(input)?;
-
-    let mut matchers = vec![];
-    for m in matches.into_iter() {
-        match m {
-            ParseResult::Complete(m) => matchers.push(m),
-            ParseResult::Partial(w, e) => return Ok((rest, ParseResult::Partial(w, e))),
-        };
-    }
-
-    Ok((rest, ParseResult::Complete(matchers)))
+    separated_list1(tag(","), maybe_padded(label_matcher))(input)
 }
 
-fn label_matcher(input: Span) -> IResult<ParseResult<LabelMatcher>> {
+fn label_matcher(input: Span) -> IResult<LabelMatcher> {
     // IDENTIFIER match_op STRING
 
     let (rest, label) = label_identifier(input)?;
@@ -86,27 +75,29 @@ fn label_matcher(input: Span) -> IResult<ParseResult<LabelMatcher>> {
     let (rest, op) = match maybe_lpadded(match_op)(rest) {
         Ok(v) => v,
         Err(_) => {
-            return Ok((
+            return Err(nom::Err::Failure(ParseError::partial(
+                "label matching",
+                r#"one of "=", "!=", "=~", "!~""#,
                 rest,
-                ParseResult::Partial("label matching", r#"one of "=", "!=", "=~", "!~""#),
-            ));
+            )))
         }
     };
 
     let (rest, value) = match maybe_lpadded(string_literal)(rest) {
         Ok(v) => v,
         Err(_) => {
-            return Ok((
+            return Err(nom::Err::Failure(ParseError::partial(
+                "label matching",
+                "label value as string literal",
                 rest,
-                ParseResult::Partial("label matching", "label value as string literal"),
-            ));
+            )))
         }
     };
 
     let matcher = LabelMatcher::new(label, op, value)
         .map_err(|e| nom::Err::Failure(ParseError::new(e.to_string(), input)))?;
 
-    Ok((rest, ParseResult::Complete(matcher)))
+    Ok((rest, matcher))
 }
 
 fn match_op(input: Span) -> IResult<MatchOp> {
@@ -138,11 +129,7 @@ mod tests {
 
         for (input, metric, labels) in &tests {
             let actual_selector = match vector_selector(Span::new(input)) {
-                Ok((_, ParseResult::Complete(s))) => s,
-                Ok((_, ParseResult::Partial(u, w))) => panic!(
-                    "Got partial result {}/{} while testing input {}",
-                    u, w, input
-                ),
+                Ok((_, s)) => s,
                 Err(e) => panic!("Got error {} while testing input {}", e, input),
             };
             assert_eq!(
@@ -158,24 +145,20 @@ mod tests {
     fn test_vector_selector_invalid() {
         #[rustfmt::skip]
         let tests = [
-            (r#"{}"#, "vector selector must contain at least one non-empty matcher", (1, 0)),
-            (r#"{foo=""}"#, "vector selector must contain at least one non-empty matcher", (1, 0)),
-            (r#"{foo=~".*"}"#, "vector selector must contain at least one non-empty matcher", (1, 0)),
-            (r#"{foo!~".+"}"#, "vector selector must contain at least one non-empty matcher", (1, 0)),
-            (r#"{foo!="bar"}"#, "vector selector must contain at least one non-empty matcher", (1, 0)),
-            (r#"foo{__name__="foo"}"#, "potentially ambiguous metric name match", (1, 0)),
-            (r#"foo{__name__="bar"}"#, "potentially ambiguous metric name match", (1, 0)),
+            (r#"{}"#, "1:0: parse error: vector selector must contain at least one non-empty matcher", (1, 0)),
+            (r#"{foo=""}"#, "1:0: parse error: vector selector must contain at least one non-empty matcher", (1, 0)),
+            (r#"{foo=~".*"}"#, "1:0: parse error: vector selector must contain at least one non-empty matcher", (1, 0)),
+            (r#"{foo!~".+"}"#, "1:0: parse error: vector selector must contain at least one non-empty matcher", (1, 0)),
+            (r#"{foo!="bar"}"#, "1:0: parse error: vector selector must contain at least one non-empty matcher", (1, 0)),
+            (r#"foo{__name__="foo"}"#, "1:0: parse error: potentially ambiguous metric name match", (1, 0)),
+            (r#"foo{__name__="bar"}"#, "1:0: parse error: potentially ambiguous metric name match", (1, 0)),
         ];
 
         for &(input, err_msg, err_pos) in &tests {
             let err = match vector_selector(Span::new(input)) {
-                Ok((_, ParseResult::Complete(s))) => {
-                    panic!("Got complete result {:?} while testing input {}", s, input)
+                Ok((_, s)) => {
+                    panic!("Got result {:?} while testing input {}", s, input)
                 }
-                Ok((_, ParseResult::Partial(u, w))) => panic!(
-                    "Got partial result {}/{} while testing input {}",
-                    u, w, input
-                ),
                 Err(nom::Err::Error(e)) => e,
                 Err(nom::Err::Failure(e)) => e,
                 _ => unreachable!(),
@@ -216,10 +199,7 @@ mod tests {
 
         for (input, expected_matchers) in &tests {
             let (_, actual_matchers) = label_matchers(Span::new(input))?;
-            assert_eq!(
-                ParseResult::Complete(_matchers(expected_matchers)),
-                actual_matchers
-            );
+            assert_eq!(_matchers(expected_matchers), actual_matchers);
         }
         Ok(())
     }
@@ -238,10 +218,16 @@ mod tests {
         ];
 
         for &(input, unexpected, error_pos, expected) in &tests {
-            let (rest, matchers) = label_matchers(Span::new(input))?;
-            assert_eq!(matchers, ParseResult::Partial("label matching", expected));
-            assert_eq!(*rest, unexpected);
-            assert_eq!((rest.location_line(), rest.location_offset()), error_pos);
+            let err = match label_matchers(Span::new(input)) {
+                Err(nom::Err::Failure(e)) => e,
+                _ => panic!("unexpected result"),
+            };
+            assert_eq!(
+                ParseError::partial("label matching", expected, *err.span()).message(),
+                err.message()
+            );
+            assert_eq!(unexpected, **err.span());
+            assert_eq!(error_pos, (err.line(), err.offset()));
         }
         Ok(())
     }
@@ -250,7 +236,7 @@ mod tests {
     fn test_label_matchers_invalid() -> std::result::Result<(), ParseError<'static>> {
         #[rustfmt::skip]
         let tests = [
-            (r#"{foo=~"*"}"#, (1, 1), "regex parse error:\n    ^(?:*)$\n        ^\nerror: repetition operator missing expression"),
+            (r#"{foo=~"*"}"#, (1, 1), "1:1: parse error: regex parse error:\n    ^(?:*)$\n        ^\nerror: repetition operator missing expression"),
         ];
 
         for &(input, err_pos, err_msg) in &tests {
@@ -276,13 +262,7 @@ mod tests {
         ];
 
         for (input, expected_matchers) in &tests {
-            let actual_matchers = match label_match_list(Span::new(&input))? {
-                (_, ParseResult::Complete(m)) => m,
-                (_, ParseResult::Partial(u, w)) => panic!(
-                    "Got partial result {}/{} while testing input {}",
-                    u, w, input
-                ),
-            };
+            let (_, actual_matchers) = label_match_list(Span::new(&input))?;
 
             assert_eq!(actual_matchers.len(), expected_matchers.len());
             for (actual, expected) in actual_matchers.iter().zip(expected_matchers.iter()) {
@@ -310,7 +290,7 @@ mod tests {
 
         for &(input, expected) in &tests {
             let (_, actual) = label_matcher(Span::new(input))?;
-            assert_eq!(ParseResult::Complete(_matcher(expected)), actual);
+            assert_eq!(_matcher(expected), actual);
         }
         Ok(())
     }
@@ -327,16 +307,17 @@ mod tests {
         ];
 
         for &(input, output, expected, error_pos) in &tests {
-            match label_matcher(Span::new(input)) {
-                Ok((span, ParseResult::Partial(wherein, exp))) => {
-                    assert_eq!(*span, output);
-                    assert_eq!((span.location_line(), span.location_offset()), error_pos);
-                    assert_eq!(expected, exp);
-                    assert_eq!("label matching", wherein);
-                }
-                Ok(res) => panic!("ParseResult::Partial expected but found {:#?}", res),
-                Err(err) => panic!("ParseResult::Partial expected but found {:#?}", err),
+            let err = match label_matcher(Span::new(input)) {
+                Err(nom::Err::Failure(e)) => e,
+                Ok(res) => panic!("nom::Err::Failure expected but found {:#?}", res),
+                Err(err) => panic!("nom::Err::Failure expected but found {:#?}", err),
             };
+            assert_eq!(**err.span(), output);
+            assert_eq!((err.line(), err.offset()), error_pos);
+            assert_eq!(
+                ParseError::partial("label matching", expected, *err.span()).message(),
+                err.message()
+            );
         }
     }
 

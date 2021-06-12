@@ -6,34 +6,77 @@ pub type Span<'a> = LocatedSpan<&'a str>;
 
 pub type IResult<'a, O> = nom::IResult<Span<'a>, O, ParseError<'a>>;
 
-#[derive(PartialEq, Debug)]
-pub enum ParseResult<T> {
-    Complete(T),
-    // (wherein, expected)
-    Partial(&'static str, &'static str),
-}
-
 #[derive(Debug, PartialEq)]
 pub struct ParseError<'a> {
-    message: String,
-    wherein: Span<'a>,
+    span: Span<'a>,
+    message: Option<String>,
+    wherein: Option<&'static str>,
+    expected: Option<&'static str>,
 }
 
 impl<'a> ParseError<'a> {
-    pub fn new(message: String, wherein: Span<'a>) -> Self {
-        Self { message, wherein }
+    pub fn new(message: String, span: Span<'a>) -> Self {
+        Self {
+            span,
+            message: Some(message),
+            wherein: None,
+            expected: None,
+        }
     }
 
-    pub fn message(&self) -> &String {
-        &self.message
+    pub fn partial(wherein: &'static str, expected: &'static str, span: Span<'a>) -> Self {
+        Self {
+            span,
+            message: None,
+            wherein: Some(wherein),
+            expected: Some(expected),
+        }
     }
 
+    #[inline]
+    pub fn span(&self) -> &Span {
+        &self.span
+    }
+
+    #[inline]
     pub fn line(&self) -> u32 {
-        self.wherein.location_line()
+        self.span().location_line()
     }
 
+    #[inline]
     pub fn offset(&self) -> usize {
-        self.wherein.location_offset()
+        self.span().location_offset()
+    }
+
+    pub fn message(&self) -> String {
+        if let Some(ref message) = self.message {
+            return format!(
+                "{}:{}: parse error: {}",
+                self.line(),
+                self.offset(),
+                message
+            );
+        }
+
+        if let (Some(wherein), Some(expected)) = (self.wherein, self.expected) {
+            return format!(
+                "{}:{}: parse error: unexpected '{}' in {}, expected {}",
+                self.line(),
+                self.offset(),
+                unexpected(**self.span()),
+                wherein,
+                expected,
+            );
+        }
+
+        unimplemented!();
+    }
+}
+
+fn unexpected(found: &str) -> String {
+    match found {
+        "" => String::from("EOF"),
+        v => format!("\"{}\"", v),
     }
 }
 

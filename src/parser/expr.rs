@@ -7,14 +7,12 @@ use nom::{
 
 use super::ast::{BinaryOp, Expr, Precedence, UnaryOp, VectorMatching, VectorMatchingKind};
 use super::common::maybe_lpadded;
-use super::result::{IResult, ParseResult, Span};
+use super::result::{IResult, ParseError, Span};
 use super::vector::vector_selector;
 
-pub fn expr<'a>(
-    min_prec: Option<Precedence>,
-) -> impl FnMut(Span<'a>) -> IResult<ParseResult<Expr>> {
+pub fn expr<'a>(min_prec: Option<Precedence>) -> impl FnMut(Span<'a>) -> IResult<Expr> {
     move |input: Span| {
-        let (mut rest, mut lhs) = match alt((
+        let (mut rest, mut lhs) = alt((
             // expr_aggregate
             // expr_function_call
             // expr_paren
@@ -23,18 +21,24 @@ pub fn expr<'a>(
             expr_vector_selector,
             // expr_matrix_selector  <-- consider merging with vector_selector
             // expr_offset           <-- consider merging with vector_selector
-        ))(input)?
-        {
-            (r, ParseResult::Complete(e)) => (r, e),
-            (r, ParseResult::Partial(w, u)) => return Ok((r, ParseResult::Partial(w, u))),
-        };
+        ))(input)?;
 
         // The rest is dealing with the left-recursive grammar.
         // E.g.  expr = unary_expr | vector_selector | binary_expr ...
         // where binary_expr = expr <OP> expr
 
         while *rest != "" {
-            let (tmp_rest, op) = maybe_lpadded(binary_op)(rest)?;
+            let (tmp_rest, op) = match maybe_lpadded(binary_op)(rest) {
+                Ok((r, o)) => (r, o),
+                Err(_) => {
+                    return Err(nom::Err::Failure(ParseError::partial(
+                        "binary expression",
+                        "symbol(s)",
+                        rest,
+                    )))
+                }
+            };
+
             if op.precedence() <= min_prec.unwrap_or(Precedence::MIN) {
                 break;
             }
@@ -54,8 +58,7 @@ pub fn expr<'a>(
             // TODO: Validate: bool_modifier can only be used with a comparison binary op.
 
             let (tmp_rest, vector_matching) = match maybe_vector_matching(rest) {
-                Ok((r, ParseResult::Complete(vm))) => (r, Some(vm)),
-                Ok((r, ParseResult::Partial(w, u))) => return Ok((r, ParseResult::Partial(w, u))),
+                Ok((r, vm)) => (r, Some(vm)),
                 Err(nom::Err::Error(_)) => (rest, None),
                 Err(e) => return Err(e),
             };
@@ -70,10 +73,13 @@ pub fn expr<'a>(
             //     must result in empty set.
 
             let (tmp_rest, rhs) = match maybe_lpadded(expr(Some(op.precedence())))(rest) {
-                Ok((r, ParseResult::Complete(e))) => (r, e),
-                Ok((r, ParseResult::Partial(w, u))) => return Ok((r, ParseResult::Partial(w, u))),
+                Ok((r, e)) => (r, e),
                 Err(nom::Err::Error(_)) => {
-                    return Ok((rest, ParseResult::Partial("binary expression", "symbol(s)")))
+                    return Err(nom::Err::Failure(ParseError::partial(
+                        "binary expression",
+                        "symbol(s)",
+                        rest,
+                    )))
                 }
                 Err(e) => return Err(e),
             };
@@ -87,7 +93,7 @@ pub fn expr<'a>(
             lhs = Expr::BinaryExpr(Box::new(lhs), op, Box::new(rhs));
         }
 
-        Ok((rest, ParseResult::Complete(lhs)))
+        Ok((rest, lhs))
     }
 }
 
@@ -117,39 +123,26 @@ fn maybe_bool_modifier(input: Span) -> IResult<()> {
     Ok((rest, ()))
 }
 
-fn maybe_vector_matching(input: Span) -> IResult<ParseResult<VectorMatching>> {
+fn maybe_vector_matching(input: Span) -> IResult<VectorMatching> {
     let (rest, kind) = maybe_lpadded(alt((tag_no_case("on"), tag_no_case("ignoring"))))(input)?;
 
     let kind = VectorMatchingKind::try_from(*kind).unwrap();
-    let (rest, labels) = match maybe_lpadded(label_list)(rest)? {
-        (r, ParseResult::Complete(ls)) => (r, ls),
-        (r, ParseResult::Partial(w, u)) => return Ok((r, ParseResult::Partial(w, u))),
-    };
+    let (rest, labels) = maybe_lpadded(label_list)(rest)?;
 
-    Ok((
-        rest,
-        ParseResult::Complete(VectorMatching::new(kind, labels)),
-    ))
+    Ok((rest, VectorMatching::new(kind, labels)))
 }
 
-fn label_list(input: Span) -> IResult<ParseResult<Vec<String>>> {
-    Ok((input, ParseResult::Complete(vec![])))
+fn label_list(input: Span) -> IResult<Vec<String>> {
+    Ok((input, vec![]))
 }
 
-fn expr_unary(input: Span) -> IResult<ParseResult<Expr>> {
-    let (rest, (op, expr)) = match pair(
+fn expr_unary(input: Span) -> IResult<Expr> {
+    let (rest, (op, expr)) = pair(
         unary_op,
         maybe_lpadded(expr(Some(BinaryOp::Mul.precedence()))),
-    )(input)?
-    {
-        (r, (o, ParseResult::Complete(e))) => (r, (o, e)),
-        (r, (_, ParseResult::Partial(w, u))) => return Ok((r, ParseResult::Partial(w, u))),
-    };
+    )(input)?;
 
-    Ok((
-        rest,
-        ParseResult::Complete(Expr::UnaryExpr(op, Box::new(expr))),
-    ))
+    Ok((rest, Expr::UnaryExpr(op, Box::new(expr))))
 }
 
 fn unary_op(input: Span) -> IResult<UnaryOp> {
@@ -164,18 +157,14 @@ fn unary_op(input: Span) -> IResult<UnaryOp> {
     ))
 }
 
-fn expr_vector_selector(input: Span) -> IResult<ParseResult<Expr>> {
-    let (rest, selector) = match vector_selector(input)? {
-        (r, ParseResult::Complete(s)) => (r, s),
-        (r, ParseResult::Partial(w, u)) => return Ok((r, ParseResult::Partial(w, u))),
-    };
-    Ok((rest, ParseResult::Complete(Expr::VectorSelector(selector))))
+fn expr_vector_selector(input: Span) -> IResult<Expr> {
+    let (rest, vs) = vector_selector(input)?;
+    Ok((rest, Expr::VectorSelector(vs)))
 }
 
-/// expr_number_literal uses ParseResult to unify the caller side.
-fn expr_number_literal(input: Span) -> IResult<ParseResult<Expr>> {
+fn expr_number_literal(input: Span) -> IResult<Expr> {
     let (rest, n) = double(input)?;
-    Ok((rest, ParseResult::Complete(Expr::NumberLiteral(n))))
+    Ok((rest, Expr::NumberLiteral(n)))
 }
 
 #[cfg(test)]
@@ -198,15 +187,7 @@ mod tests {
         ];
 
         for input in &tests {
-            match expr(None)(Span::new(input))? {
-                (_, ParseResult::Complete(_)) => (),
-                (_, ParseResult::Partial(w, u)) => {
-                    panic!(
-                        "valid expression {} couldn't be parsed: {} {}",
-                        *input, w, u
-                    );
-                }
-            };
+            expr(None)(Span::new(input))?;
         }
         Ok(())
     }
@@ -311,12 +292,7 @@ mod tests {
         ];
 
         for (input, expected_expr) in &tests {
-            let actual_expr = match expr(None)(Span::new(input))? {
-                (r, ParseResult::Partial(w, u)) => {
-                    panic!("Unexpected partial parse result: {}, {}, {}", r, w, u)
-                }
-                (_, ParseResult::Complete(e)) => e,
-            };
+            let (_, actual_expr) = expr(None)(Span::new(input))?;
             assert_eq!(expected_expr, &actual_expr, "while parsing {}", input);
         }
         Ok(())
@@ -352,12 +328,7 @@ mod tests {
         }
 
         for (input, expected_ops) in &tests {
-            let ex = match expr(None)(Span::new(input))? {
-                (r, ParseResult::Partial(w, u)) => {
-                    panic!("Unexpected partial parse result: {}, {}, {}", r, w, u)
-                }
-                (_, ParseResult::Complete(e)) => e,
-            };
+            let (_, ex) = expr(None)(Span::new(input))?;
             assert_eq!(expected_ops, &extract_operators(Box::new(ex)));
         }
         Ok(())
@@ -380,12 +351,7 @@ mod tests {
          ];
 
         for (input, _expected_ops) in &tests {
-            let ex = match expr(None)(Span::new(input))? {
-                (r, ParseResult::Partial(w, u)) => {
-                    panic!("Unexpected partial parse result: {}, {}, {}", r, w, u)
-                }
-                (_, ParseResult::Complete(e)) => e,
-            };
+            let (_, ex) = expr(None)(Span::new(input))?;
             // TODO: add assertion
             println!("{:?}", ex);
         }
@@ -407,12 +373,7 @@ mod tests {
          ];
 
         for (input, _expected_ops) in &tests {
-            let ex = match expr(None)(Span::new(input))? {
-                (r, ParseResult::Partial(w, u)) => {
-                    panic!("Unexpected partial parse result: {}, {}, {}", r, w, u)
-                }
-                (_, ParseResult::Complete(e)) => e,
-            };
+            let (_, ex) = expr(None)(Span::new(input))?;
             // TODO: add assertion
             println!("{:?}", ex);
         }
