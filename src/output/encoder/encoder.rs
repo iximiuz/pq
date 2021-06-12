@@ -1,6 +1,6 @@
-use crate::engine::ValueKind;
+use crate::engine::ExprValue;
 use crate::error::Result;
 
 pub trait Encoder {
-    fn encode(&self, value: &ValueKind) -> Result<Vec<u8>>;
+    fn encode(&self, value: &ExprValue) -> Result<Vec<u8>>;
 }

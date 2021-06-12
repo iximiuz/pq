@@ -2,10 +2,10 @@ use std::cell::RefCell;
 use std::rc::Rc;
 use std::time::Duration;
 
-use super::binary_expr::BinaryExprExecutor;
+use super::binary_expr::ArithmeticExprExecutor;
 use super::identity::IdentityExecutor;
 use super::unary_expr::UnaryExprExecutor;
-use super::value::ValueIter;
+use super::value::ExprValueIter;
 use super::vector::VectorSelectorExecutor;
 use crate::common::time::TimeRange;
 use crate::error::Result;
@@ -110,13 +110,16 @@ impl Executor {
         // println!("Executor::execute {:#?}", query);
 
         for value in self.create_value_iter(query.root) {
+            // TODO: if value iter is scalar, we need to wrap it into
+            //       something that would produce a (timestamp, scalar) tuples
+            //       instead.
             self.output.borrow_mut().write(&value)?;
         }
         // self.output.flush();
         Ok(())
     }
 
-    fn create_value_iter(&self, node: Expr) -> ValueIter {
+    fn create_value_iter(&self, node: Expr) -> Box<dyn ExprValueIter> {
         match node {
             Expr::UnaryExpr(op, expr) => {
                 Box::new(UnaryExprExecutor::new(op, self.create_value_iter(*expr)))
@@ -127,14 +130,19 @@ impl Executor {
                     expr.into_inner();
                 let lhs = self.create_value_iter(*lhs);
                 let rhs = self.create_value_iter(*rhs);
-                Box::new(BinaryExprExecutor::new(
-                    lhs,
-                    op,
-                    rhs,
-                    bool_modifier,
-                    vector_matching,
-                    group_modifier,
-                ))
+
+                if op.is_arithmetic() {
+                    return Box::new(ArithmeticExprExecutor::new(
+                        lhs,
+                        op,
+                        rhs,
+                        bool_modifier,
+                        vector_matching,
+                        group_modifier,
+                    ));
+                }
+
+                unimplemented!();
             }
 
             // leaf node

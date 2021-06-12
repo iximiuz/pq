@@ -1,8 +1,8 @@
-use super::value::ValueKind;
-use crate::model::types::Value;
+use super::value::{ExprValue, ExprValueIter, ExprValueKind};
+use crate::model::types::SampleValue;
 
 enum Inner {
-    Scalar(Value),
+    Scalar(SampleValue),
     // String(String),
 }
 
@@ -11,7 +11,7 @@ pub struct IdentityExecutor {
 }
 
 impl IdentityExecutor {
-    pub fn scalar(val: Value) -> Self {
+    pub fn scalar(val: SampleValue) -> Self {
         Self {
             val: Inner::Scalar(val),
         }
@@ -19,11 +19,19 @@ impl IdentityExecutor {
 }
 
 impl std::iter::Iterator for IdentityExecutor {
-    type Item = ValueKind;
+    type Item = ExprValue;
 
     fn next(&mut self) -> Option<Self::Item> {
         match self.val {
-            Inner::Scalar(val) => Some(ValueKind::Scalar(val)),
+            Inner::Scalar(val) => Some(ExprValue::Scalar(val)),
+        }
+    }
+}
+
+impl ExprValueIter for IdentityExecutor {
+    fn value_kind(&self) -> ExprValueKind {
+        match self.val {
+            Inner::Scalar(_) => ExprValueKind::Scalar,
         }
     }
 }

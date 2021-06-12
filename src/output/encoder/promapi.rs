@@ -3,7 +3,7 @@ use serde_json;
 use std::collections::BTreeMap;
 
 use super::encoder::Encoder;
-use crate::engine::{InstantVector, RangeVector, ValueKind};
+use crate::engine::{ExprValue, InstantVector, RangeVector};
 use crate::error::Result;
 
 // Instant query - instant vector
@@ -66,11 +66,26 @@ impl Vector {
 // #[derive(Serialize, Deserialize)]
 // struct Matrix {}
 
-// TODO: Instant query - scalar
+// Instant query - scalar
 // {
 //   "resultType": "scalar",
 //   "result": [1622104500, "42"]
 // }
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+struct Scalar {
+    result_type: &'static str,
+    result: (f64, String),
+}
+
+impl Scalar {
+    fn new(n: f64) -> Self {
+        Self {
+            result_type: "scalar",
+            result: (0.0, n.to_string()),
+        }
+    }
+}
 
 // TODO: Instant query - string
 // {
@@ -135,14 +150,19 @@ impl PromApiEncoder {
     fn encode_range_vector(&self, vector: &RangeVector) -> Result<Vec<u8>> {
         Ok(format!("OUTPUT VALUE {:?}", vector).bytes().collect())
     }
+
+    fn encode_scalar(&self, number: f64) -> Result<Vec<u8>> {
+        Ok(serde_json::to_vec(&Scalar::new(number))
+            .map_err(|e| ("JSON serialization failed", e))?)
+    }
 }
 
 impl Encoder for PromApiEncoder {
-    fn encode(&self, value: &ValueKind) -> Result<Vec<u8>> {
+    fn encode(&self, value: &ExprValue) -> Result<Vec<u8>> {
         match value {
-            ValueKind::InstantVector(v) => self.encode_instant_vector(v),
-            ValueKind::RangeVector(v) => self.encode_range_vector(v),
-            _ => unimplemented!(),
+            ExprValue::InstantVector(v) => self.encode_instant_vector(v),
+            ExprValue::RangeVector(v) => self.encode_range_vector(v),
+            ExprValue::Scalar(v) => self.encode_scalar(*v),
         }
     }
 }

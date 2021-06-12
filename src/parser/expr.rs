@@ -12,6 +12,7 @@ use super::ast::{
 use super::common::{label_identifier, maybe_lpadded, separated_list};
 use super::result::{IResult, ParseError, Span};
 use super::vector::vector_selector;
+use crate::model::types::LabelName;
 
 pub fn expr<'a>(min_prec: Option<Precedence>) -> impl FnMut(Span<'a>) -> IResult<Expr> {
     move |input: Span| {
@@ -163,7 +164,7 @@ fn group_modifier(input: Span) -> IResult<GroupModifier> {
     }
 }
 
-fn grouping_labels(input: Span) -> IResult<Vec<String>> {
+fn grouping_labels(input: Span) -> IResult<Vec<LabelName>> {
     separated_list(
         '(',
         ')',

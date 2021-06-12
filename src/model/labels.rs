@@ -1,21 +1,23 @@
 use regex::Regex;
 
+use super::types::{LabelName, LabelValue};
 use crate::error::{Error, Result};
 
 const LABEL_NAME: &str = "__name__";
 
 #[derive(Debug)]
 pub struct LabelMatcher {
-    label: String,
+    label: LabelName,
     match_op: MatchOp,
-    value: String,
+    value: LabelValue,
     re: Option<Regex>,
 }
 
 impl LabelMatcher {
-    pub fn new<S>(label: S, match_op: MatchOp, value: S) -> Result<Self>
+    pub fn new<N, V>(label: N, match_op: MatchOp, value: V) -> Result<Self>
     where
-        S: Into<String>,
+        N: Into<LabelName>,
+        V: Into<LabelValue>,
     {
         let label = label.into();
         let value = value.into();
@@ -37,9 +39,9 @@ impl LabelMatcher {
         })
     }
 
-    pub fn name_matcher<S>(name: S) -> Self
+    pub fn name_matcher<V>(name: V) -> Self
     where
-        S: Into<String>,
+        V: Into<LabelValue>,
     {
         let name = name.into();
         assert!(name.len() > 0);
@@ -52,7 +54,7 @@ impl LabelMatcher {
         }
     }
 
-    pub fn label(&self) -> &String {
+    pub fn label(&self) -> &LabelName {
         &self.label
     }
 
@@ -60,7 +62,7 @@ impl LabelMatcher {
         &self.match_op
     }
 
-    pub fn value(&self) -> &String {
+    pub fn value(&self) -> &LabelValue {
         &self.value
     }
 

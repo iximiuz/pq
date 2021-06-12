@@ -1,9 +1,9 @@
 use std::collections::HashMap;
 
 use crate::error::Result;
-use crate::model::types::{Labels, Timestamp, Value};
+use crate::model::types::{Labels, MetricName, SampleValue, Timestamp};
 
-pub type Values = HashMap<String, Value>;
+pub type Values = HashMap<MetricName, SampleValue>;
 
 #[derive(Debug)]
 pub struct Record(pub Timestamp, pub Labels, pub Values);

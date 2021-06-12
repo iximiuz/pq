@@ -2,10 +2,10 @@ use std::collections::{HashMap, VecDeque};
 use std::rc::Rc;
 use std::time::Duration;
 
-use super::value::{InstantVector, ValueKind};
+use super::value::{ExprValue, ExprValueIter, ExprValueKind, InstantVector};
 use crate::common::time::TimeRange;
 use crate::input::{Cursor, Sample};
-use crate::model::types::{Instant, Labels, Timestamp, Value};
+use crate::model::types::{Instant, Labels, SampleValue, Timestamp};
 use crate::parser::ast::VectorSelector;
 
 pub(super) struct VectorSelectorExecutor {
@@ -70,7 +70,7 @@ impl VectorSelectorExecutor {
 }
 
 impl std::iter::Iterator for VectorSelectorExecutor {
-    type Item = ValueKind;
+    type Item = ExprValue;
 
     fn next(&mut self) -> Option<Self::Item> {
         while self
@@ -115,12 +115,18 @@ impl std::iter::Iterator for VectorSelectorExecutor {
         self.buffer
             .purge_stale(self.next_instant.unwrap(), self.lookback);
 
-        return Some(ValueKind::InstantVector(vector));
+        return Some(ExprValue::InstantVector(vector));
+    }
+}
+
+impl ExprValueIter for VectorSelectorExecutor {
+    fn value_kind(&self) -> ExprValueKind {
+        ExprValueKind::InstantVector
     }
 }
 
 struct SampleMatrix {
-    matrix: HashMap<String, (Labels, VecDeque<(Timestamp, Value)>)>,
+    matrix: HashMap<String, (Labels, VecDeque<(Timestamp, SampleValue)>)>,
     latest_sample_timestamp: Option<Timestamp>,
 }
 

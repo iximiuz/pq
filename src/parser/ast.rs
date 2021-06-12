@@ -1,5 +1,8 @@
 use crate::error::{Error, Result};
-use crate::model::{labels::LabelMatcher, types::Value};
+use crate::model::{
+    labels::LabelMatcher,
+    types::{LabelName, MetricName, SampleValue},
+};
 
 #[derive(Debug)]
 pub struct AST {
@@ -15,7 +18,7 @@ impl AST {
 #[derive(Debug, PartialEq)]
 pub enum Expr {
     BinaryExpr(BinaryExpr),
-    NumberLiteral(Value),
+    NumberLiteral(SampleValue),
     UnaryExpr(UnaryOp, Box<Expr>),
     VectorSelector(VectorSelector),
 
@@ -32,7 +35,7 @@ pub struct VectorSelector {
 impl VectorSelector {
     pub fn new<S>(name: Option<S>, mut matchers: Vec<LabelMatcher>) -> Result<Self>
     where
-        S: Into<String>,
+        S: Into<MetricName>,
     {
         let (matches_everything, has_name_matcher) =
             matchers.iter().fold((true, false), |(me, hnm), m| {
@@ -171,19 +174,19 @@ impl std::convert::TryFrom<&str> for VectorMatchingKind {
 #[derive(Debug, PartialEq)]
 pub struct VectorMatching {
     kind: VectorMatchingKind,
-    labels: Vec<String>,
+    labels: Vec<LabelName>,
 }
 
 impl VectorMatching {
-    pub fn new(kind: VectorMatchingKind, labels: Vec<String>) -> Self {
+    pub fn new(kind: VectorMatchingKind, labels: Vec<LabelName>) -> Self {
         Self { kind, labels }
     }
 }
 
 #[derive(Debug, PartialEq)]
 pub enum GroupModifier {
-    Left(Vec<String>),
-    Right(Vec<String>),
+    Left(Vec<LabelName>),
+    Right(Vec<LabelName>),
 }
 
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -229,12 +232,12 @@ impl BinaryOp {
     }
 
     #[inline]
-    pub(super) fn is_arithmetic(self) -> bool {
+    pub fn is_arithmetic(self) -> bool {
         !(self.is_comparison() || self.is_logical())
     }
 
     #[inline]
-    pub(super) fn is_comparison(self) -> bool {
+    pub fn is_comparison(self) -> bool {
         use BinaryOp::*;
 
         match self {
@@ -244,7 +247,7 @@ impl BinaryOp {
     }
 
     #[inline]
-    pub(super) fn is_logical(self) -> bool {
+    pub fn is_logical(self) -> bool {
         use BinaryOp::*;
 
         match self {

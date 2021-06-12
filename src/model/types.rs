@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 use std::time::Duration;
 
-pub type Value = f64;
+pub type SampleValue = f64;
 
 // Unix timestamp in milliseconds.
 pub type Timestamp = i64;
@@ -31,4 +31,8 @@ impl Instant for Timestamp {
     }
 }
 
-pub type Labels = HashMap<String, String>;
+pub type LabelName = String;
+pub type LabelValue = String;
+pub type Labels = HashMap<LabelName, LabelValue>;
+
+pub type MetricName = String;

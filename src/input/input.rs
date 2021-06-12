@@ -4,7 +4,7 @@ use std::rc::{Rc, Weak};
 
 use super::decoder::{Decoder, Record};
 use super::reader::Reader;
-use crate::model::types::{Labels, Timestamp, Value};
+use crate::model::types::{Labels, MetricName, SampleValue, Timestamp};
 
 pub struct Input {
     reader: Box<dyn Reader>,
@@ -96,13 +96,13 @@ impl Cursor {
 
 #[derive(Debug)]
 pub struct Sample {
-    value: Value,
+    value: SampleValue,
     timestamp: Timestamp,
     labels: Labels,
 }
 
 impl Sample {
-    fn new(name: String, value: Value, timestamp: Timestamp, mut labels: Labels) -> Self {
+    fn new(name: MetricName, value: SampleValue, timestamp: Timestamp, mut labels: Labels) -> Self {
         labels.insert("__name__".into(), name);
         Self {
             value,
@@ -112,7 +112,7 @@ impl Sample {
     }
 
     #[inline]
-    pub fn value(&self) -> Value {
+    pub fn value(&self) -> SampleValue {
         self.value
     }
 
@@ -126,7 +126,7 @@ impl Sample {
         &self.labels
     }
 
-    pub fn label(&self, name: &str) -> Option<&String> {
+    pub fn label(&self, name: &str) -> Option<&MetricName> {
         self.labels.get(name)
     }
 }

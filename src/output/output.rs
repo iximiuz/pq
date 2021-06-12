@@ -1,6 +1,6 @@
 use super::encoder::Encoder;
 use super::writer::Writer;
-use crate::engine::ValueKind;
+use crate::engine::ExprValue;
 use crate::error::Result;
 
 pub struct Output {
@@ -13,7 +13,7 @@ impl Output {
         Self { writer, encoder }
     }
 
-    pub fn write(&mut self, value: &ValueKind) -> Result<()> {
+    pub fn write(&mut self, value: &ExprValue) -> Result<()> {
         let buf = self.encoder.encode(value)?;
 
         self.writer

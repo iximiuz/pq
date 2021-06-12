@@ -6,4 +6,4 @@ mod value;
 mod vector;
 
 pub use executor::Executor;
-pub use value::{InstantVector, RangeVector, ValueKind};
+pub use value::{ExprValue, InstantVector, RangeVector};

@@ -8,23 +8,24 @@ use nom::{
 };
 
 use super::result::{IResult, ParseError, Span};
+use crate::model::types::{LabelName, MetricName};
 
-pub fn label_identifier(input: Span) -> IResult<String> {
+pub fn label_identifier(input: Span) -> IResult<LabelName> {
     // [a-zA-Z_][a-zA-Z0-9_]*
     let (rest, m) = recognize(pair(
         alt((alpha1, tag("_"))),
         many0(alt((alphanumeric1, tag("_")))),
     ))(input)?;
-    Ok((rest, String::from(*m.fragment())))
+    Ok((rest, LabelName::from(*m.fragment())))
 }
 
-pub fn metric_identifier(input: Span) -> IResult<String> {
+pub fn metric_identifier(input: Span) -> IResult<MetricName> {
     // [a-zA-Z_:][a-zA-Z0-9_:]*
     let (rest, m) = recognize(pair(
         alt((alpha1, tag("_"), tag(":"))),
         many0(alt((alphanumeric1, tag("_"), tag(":")))),
     ))(input)?;
-    Ok((rest, String::from(*m)))
+    Ok((rest, MetricName::from(*m)))
 }
 
 pub fn separated_list<'a, F, O>(

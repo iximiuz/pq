@@ -1,24 +1,32 @@
-use crate::model::types::{Labels, Timestamp, Value};
+use crate::model::types::{LabelName, Labels, SampleValue, Timestamp};
 
-// Every Expr can be evaluated to a Value.
+// Every Expr can be evaluated to a value.
 #[derive(Debug)]
-pub enum ValueKind {
+pub enum ExprValue {
     InstantVector(InstantVector),
     RangeVector(RangeVector),
-    Scalar(Value),
-    // String(String),
+    Scalar(SampleValue),
+    // String(String)
 }
 
-pub(super) type ValueIter = Box<dyn std::iter::Iterator<Item = ValueKind>>;
+pub(super) enum ExprValueKind {
+    InstantVector,
+    RangeVector,
+    Scalar,
+}
+
+pub(super) trait ExprValueIter: std::iter::Iterator<Item = ExprValue> {
+    fn value_kind(&self) -> ExprValueKind;
+}
 
 #[derive(Debug)]
 pub struct InstantVector {
     instant: Timestamp,
-    samples: Vec<(Labels, Value)>,
+    samples: Vec<(Labels, SampleValue)>,
 }
 
 impl InstantVector {
-    pub fn new(instant: Timestamp, samples: Vec<(Labels, Value)>) -> Self {
+    pub fn new(instant: Timestamp, samples: Vec<(Labels, SampleValue)>) -> Self {
         Self { instant, samples }
     }
 
@@ -28,20 +36,20 @@ impl InstantVector {
     }
 
     #[inline]
-    pub fn samples(&self) -> &[(Labels, Value)] {
+    pub fn samples(&self) -> &[(Labels, SampleValue)] {
         return &self.samples;
     }
 
-    pub fn mutate_values(&mut self, f: impl FnMut(&mut (Labels, Value))) {
+    pub fn mutate_values(&mut self, f: impl FnMut(&mut (Labels, SampleValue))) {
         self.samples.iter_mut().for_each(f)
     }
 
     pub fn match_vector(
         &self,
         other: &InstantVector,
-        _on: Vec<String>,
-        _ignoring: Vec<String>,
-        f: impl Fn(Value, Value) -> Value,
+        _on: Vec<LabelName>,
+        _ignoring: Vec<LabelName>,
+        f: impl Fn(SampleValue, SampleValue) -> SampleValue,
     ) -> Self {
         // println!("match vector {:?} {:?}", self, other);
         assert!(self.instant == other.instant);
