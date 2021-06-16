@@ -1,6 +1,6 @@
 use super::super::value::{ExprValue, ExprValueIter, ExprValueKind, InstantVector as Vector};
 use crate::model::types::SampleValue;
-use crate::parser::ast::{BinaryOp, BinaryOpKind};
+use crate::parser::ast::{BinaryOp, BinaryOpKind, GroupModifier, LabelMatching};
 
 /// ArithmeticExprExecutorScalarScalar
 /// Ex:
@@ -27,7 +27,6 @@ impl std::iter::Iterator for ArithmeticExprExecutorScalarScalar {
     type Item = ExprValue;
 
     fn next(&mut self) -> Option<Self::Item> {
-        use BinaryOp::*;
         use ExprValue::*;
 
         let lv = match self.left.next() {
@@ -42,15 +41,7 @@ impl std::iter::Iterator for ArithmeticExprExecutorScalarScalar {
             _ => unreachable!(),
         };
 
-        Some(Scalar(match self.op {
-            Add => lv + rv,
-            Div => lv / rv,
-            Mul => lv * rv,
-            Mod => lv % rv,
-            Pow => SampleValue::powf(lv, rv),
-            Sub => lv - rv,
-            _ => unimplemented!(),
-        }))
+        Some(Scalar(scalar_op_scalar(self.op, lv, rv)))
     }
 }
 
@@ -83,7 +74,6 @@ impl std::iter::Iterator for ArithmeticExprExecutorScalarVector {
     type Item = ExprValue;
 
     fn next(&mut self) -> Option<Self::Item> {
-        use BinaryOp::*;
         use ExprValue::*;
 
         let lv = match self.left.next() {
@@ -98,15 +88,9 @@ impl std::iter::Iterator for ArithmeticExprExecutorScalarVector {
             _ => unreachable!(),
         };
 
-        match self.op {
-            Add => rv.mutate_values(|(_, val)| *val = lv + *val),
-            Div => rv.mutate_values(|(_, val)| *val = lv / *val),
-            Mul => rv.mutate_values(|(_, val)| *val = lv * *val),
-            Mod => rv.mutate_values(|(_, val)| *val = lv % *val),
-            Pow => rv.mutate_values(|(_, val)| *val = SampleValue::powf(lv, *val)),
-            Sub => rv.mutate_values(|(_, val)| *val = lv - *val),
-            _ => unimplemented!(),
-        }
+        rv.mutate_values(|(_, val)| {
+            *val = scalar_op_scalar(self.op, lv, *val);
+        });
         Some(InstantVector(rv))
     }
 }
@@ -140,7 +124,6 @@ impl std::iter::Iterator for ArithmeticExprExecutorVectorScalar {
     type Item = ExprValue;
 
     fn next(&mut self) -> Option<Self::Item> {
-        use BinaryOp::*;
         use ExprValue::*;
 
         let mut lv = match self.left.next() {
@@ -155,16 +138,9 @@ impl std::iter::Iterator for ArithmeticExprExecutorVectorScalar {
             _ => unreachable!(),
         };
 
-        match self.op {
-            Add => lv.mutate_values(|(_, val)| *val = *val + rv),
-            Div => lv.mutate_values(|(_, val)| *val = *val / rv),
-            Mul => lv.mutate_values(|(_, val)| *val = *val * rv),
-            Mod => lv.mutate_values(|(_, val)| *val = *val % rv),
-            Pow => lv.mutate_values(|(_, val)| *val = SampleValue::powf(*val, rv)),
-            Sub => lv.mutate_values(|(_, val)| *val = *val - rv),
-            _ => unimplemented!(),
-        }
-
+        lv.mutate_values(|(_, val)| {
+            *val = scalar_op_scalar(self.op, *val, rv);
+        });
         Some(InstantVector(lv))
     }
 }
@@ -184,10 +160,18 @@ pub(super) struct ArithmeticExprExecutorVectorVector {
     op: BinaryOp,
     left: std::iter::Peekable<Box<dyn ExprValueIter>>,
     right: std::iter::Peekable<Box<dyn ExprValueIter>>,
+    label_matching: Option<LabelMatching>,
+    group_modifier: Option<GroupModifier>,
 }
 
 impl ArithmeticExprExecutorVectorVector {
-    pub fn new(op: BinaryOp, left: Box<dyn ExprValueIter>, right: Box<dyn ExprValueIter>) -> Self {
+    pub fn new(
+        op: BinaryOp,
+        left: Box<dyn ExprValueIter>,
+        right: Box<dyn ExprValueIter>,
+        label_matching: Option<LabelMatching>,
+        group_modifier: Option<GroupModifier>,
+    ) -> Self {
         assert!(op.kind() == BinaryOpKind::Arithmetic);
         assert!(left.value_kind() == ExprValueKind::InstantVector);
         assert!(right.value_kind() == ExprValueKind::InstantVector);
@@ -195,6 +179,8 @@ impl ArithmeticExprExecutorVectorVector {
             op,
             left: left.peekable(),
             right: right.peekable(),
+            label_matching: label_matching,
+            group_modifier: group_modifier,
         }
     }
 }
@@ -203,7 +189,6 @@ impl std::iter::Iterator for ArithmeticExprExecutorVectorVector {
     type Item = ExprValue;
 
     fn next(&mut self) -> Option<Self::Item> {
-        use BinaryOp::*;
         use ExprValue::*;
 
         // Only aligned in time vectors can be matched.
@@ -239,25 +224,46 @@ impl std::iter::Iterator for ArithmeticExprExecutorVectorVector {
             )));
         };
 
-        Some(InstantVector(lv.match_vector(
-            &rv,
-            vec![],
-            vec![],
-            |lval, rval| match self.op {
-                Add => lval + rval,
-                Div => lval / rval,
-                Mul => lval * rval,
-                Mod => lval % rval,
-                Pow => SampleValue::powf(lval, rval),
-                Sub => lval - rval,
-                _ => unimplemented!(),
-            },
-        )))
+        Some(InstantVector(match self.group_modifier {
+            Some(GroupModifier::Left(ref include)) => lv.vector_match_many_to_one(
+                &rv,
+                false,
+                self.label_matching.as_ref(),
+                include,
+                |ls, rs| Some(scalar_op_scalar(self.op, ls, rs)),
+            ),
+            Some(GroupModifier::Right(ref include)) => lv.vector_match_one_to_many(
+                &rv,
+                false,
+                self.label_matching.as_ref(),
+                include,
+                |ls, rs| Some(scalar_op_scalar(self.op, ls, rs)),
+            ),
+            None => {
+                lv.vector_match_one_to_one(&rv, false, self.label_matching.as_ref(), |ls, rs| {
+                    Some(scalar_op_scalar(self.op, ls, rs))
+                })
+            }
+        }))
     }
 }
 
 impl ExprValueIter for ArithmeticExprExecutorVectorVector {
     fn value_kind(&self) -> ExprValueKind {
         ExprValueKind::InstantVector
+    }
+}
+
+fn scalar_op_scalar(op: BinaryOp, lv: SampleValue, rv: SampleValue) -> SampleValue {
+    use BinaryOp::*;
+
+    match op {
+        Add => lv + rv,
+        Div => lv / rv,
+        Mul => lv * rv,
+        Mod => lv % rv,
+        Pow => SampleValue::powf(lv, rv),
+        Sub => lv - rv,
+        _ => unimplemented!(),
     }
 }

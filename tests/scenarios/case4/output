@@ -1,2 +1,1 @@
-{"resultType":"vector","result":[{"metric":{"__name__":"content_length","method":"GET"},"value":[1623037143.0,"15406"]}]}
-{"resultType":"vector","result":[{"metric":{"__name__":"content_length","method":"GET"},"value":[1623037144.0,"3500"]}]}
+{"resultType":"vector","result":[{"metric":{"__name__":"content_length","method":"GET"},"value":[1623037143.0,"16406"]}]}

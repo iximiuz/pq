@@ -5,7 +5,10 @@ use std::time::Duration;
 use super::value::{ExprValue, ExprValueIter, ExprValueKind, InstantVector};
 use crate::common::time::TimeRange;
 use crate::input::{Cursor, Sample};
-use crate::model::types::{Instant, Labels, SampleValue, Timestamp};
+use crate::model::{
+    labels::Labels,
+    types::{Instant, SampleValue, Timestamp},
+};
 use crate::parser::ast::VectorSelector;
 
 pub(super) struct VectorSelectorExecutor {

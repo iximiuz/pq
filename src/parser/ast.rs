@@ -1,7 +1,9 @@
+use std::collections::HashSet;
+
 use crate::error::{Error, Result};
 use crate::model::{
-    labels::LabelMatcher,
-    types::{LabelName, MetricName, SampleValue},
+    labels::{LabelMatcher, LabelName},
+    types::{MetricName, SampleValue},
 };
 
 #[derive(Debug)]
@@ -70,7 +72,7 @@ pub struct BinaryExpr {
     rhs: Box<Expr>,
     op: BinaryOp,
     bool_modifier: bool,
-    vector_matching: Option<VectorMatching>,
+    label_matching: Option<LabelMatching>,
     group_modifier: Option<GroupModifier>,
 }
 
@@ -84,11 +86,11 @@ impl BinaryExpr {
         op: BinaryOp,
         rhs: Expr,
         bool_modifier: bool,
-        vector_matching: Option<VectorMatching>,
+        label_matching: Option<LabelMatching>,
         group_modifier: Option<GroupModifier>,
     ) -> Self {
         assert!(!bool_modifier || op.kind() == BinaryOpKind::Comparison);
-        assert!(group_modifier.is_none() || vector_matching.is_some());
+        assert!(group_modifier.is_none() || label_matching.is_some());
         assert!(group_modifier.is_none() || op.kind() != BinaryOpKind::Logical);
 
         Self {
@@ -96,7 +98,7 @@ impl BinaryExpr {
             rhs: Box::new(rhs),
             op,
             bool_modifier,
-            vector_matching,
+            label_matching,
             group_modifier,
         }
     }
@@ -124,7 +126,7 @@ impl BinaryExpr {
         Box<Expr>,
         Box<Expr>,
         bool,
-        Option<VectorMatching>,
+        Option<LabelMatching>,
         Option<GroupModifier>,
     ) {
         (
@@ -132,55 +134,16 @@ impl BinaryExpr {
             self.lhs,
             self.rhs,
             self.bool_modifier,
-            self.vector_matching,
+            self.label_matching,
             self.group_modifier,
         )
     }
 }
 
-#[derive(Copy, Clone, Debug, PartialEq)]
-pub enum VectorMatchingKind {
-    On,
-    Ignoring,
-}
-
-/// Try to parse a string into a VectorMatchingKind.
-///
-/// ```
-/// # use std::convert::TryFrom;
-/// # use pq::parser::ast::VectorMatchingKind;
-/// #
-/// # fn main() {
-/// let kind = VectorMatchingKind::try_from("on");
-/// assert_eq!(VectorMatchingKind::On, kind.unwrap());
-///
-/// let kind = VectorMatchingKind::try_from("iGnOrInG");
-/// assert_eq!(VectorMatchingKind::Ignoring, kind.unwrap());
-/// # }
-impl std::convert::TryFrom<&str> for VectorMatchingKind {
-    type Error = Error;
-
-    fn try_from(s: &str) -> Result<Self> {
-        use VectorMatchingKind::*;
-
-        match s.to_lowercase().as_str() {
-            "on" => Ok(On),
-            "ignoring" => Ok(Ignoring),
-            _ => Err(Error::new("Unexpected vector matching kind")),
-        }
-    }
-}
-
 #[derive(Debug, PartialEq)]
-pub struct VectorMatching {
-    kind: VectorMatchingKind,
-    labels: Vec<LabelName>,
-}
-
-impl VectorMatching {
-    pub fn new(kind: VectorMatchingKind, labels: Vec<LabelName>) -> Self {
-        Self { kind, labels }
-    }
+pub enum LabelMatching {
+    On(HashSet<LabelName>),
+    Ignoring(HashSet<LabelName>),
 }
 
 #[derive(Debug, PartialEq)]
@@ -250,30 +213,6 @@ impl BinaryOp {
         }
     }
 }
-
-// impl fmt::Display for BinaryOp {
-//     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-//         use BinaryOp::*;
-//
-//         match self {
-//             Add => write!(f, "+"),
-//             Div => write!(f, "/"),
-//             Mul => write!(f, "*"),
-//             Mod => write!(f, "%"),
-//             Pow => write!(f, "^"),
-//             Sub => write!(f, "-"),
-//             Eql => write!(f, "=="),
-//             Gte => write!(f, ">="),
-//             Gtr => write!(f, ">"),
-//             Lss => write!(f, "<"),
-//             Lte => write!(f, "<="),
-//             Neq => write!(f, "!="),
-//             And => write!(f, "and"),
-//             Unless => write!(f, "unless"),
-//             Or => write!(f, "or"),
-//         }
-//     }
-// }
 
 /// Try to parse a string into a binary op.
 ///

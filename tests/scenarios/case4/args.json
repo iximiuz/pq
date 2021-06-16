@@ -1,10 +1,11 @@
 [
   "pq",
-  "-d", "[^\\[]+\\[([^\\]]+)]\\s+\"([^\\s]+)[^\"]*?\"\\s+\\d+\\s+(\\d+).*",
+  "-d", "([^\\s]+)[^\\[]+\\[([^\\]]+)]\\s+\"([^\\s]+)[^\"]*?\"\\s+\\d+\\s+(\\d+).*",
   "-t", "0:%d/%b/%Y:%H:%M:%S",
-  "-l", "1:method",
-  "-m", "2:content_length",
+  "-l", "1:ip",
+  "-l", "2:method",
+  "-m", "3:content_length",
   "--",
-  "content_length{method=\"GET\"} + content_length{method=\"POST\"}"
+  "content_length{method=\"GET\"} + ignoring(method,ip) content_length{method=\"POST\"}"
 ]
 

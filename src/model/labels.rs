@@ -1,9 +1,46 @@
+use std::collections::{BTreeSet, HashMap, HashSet};
+
 use regex::Regex;
 
-use super::types::{LabelName, LabelValue};
 use crate::error::{Error, Result};
 
-const LABEL_NAME: &str = "__name__";
+const NAME_LABEL: &str = "__name__";
+
+pub type LabelName = String;
+
+pub type LabelValue = String;
+
+pub type Labels = HashMap<LabelName, LabelValue>;
+
+// TODO: use BTree* everywhere.
+
+pub trait LabelsTrait {
+    fn with(&self, names: &HashSet<LabelName>) -> Self;
+    fn without(&self, names: &HashSet<LabelName>) -> Self;
+    fn to_vec(&self) -> Vec<u8>;
+}
+
+impl LabelsTrait for Labels {
+    fn with(&self, names: &HashSet<LabelName>) -> Self {
+        let mut labels = self.clone();
+        labels.retain(|name, _| names.contains(name));
+        labels
+    }
+
+    fn without(&self, names: &HashSet<LabelName>) -> Self {
+        let mut labels = self.clone();
+        labels.retain(|name, _| !names.contains(name));
+        labels
+    }
+
+    fn to_vec(&self) -> Vec<u8> {
+        let sorted: BTreeSet<_> = self.clone().into_iter().collect();
+        sorted
+            .into_iter()
+            .flat_map(|(name, value)| [name.as_bytes(), &[b'.'], value.as_bytes()].concat())
+            .collect()
+    }
+}
 
 #[derive(Debug)]
 pub struct LabelMatcher {
@@ -47,7 +84,7 @@ impl LabelMatcher {
         assert!(name.len() > 0);
 
         Self {
-            label: LABEL_NAME.to_string(),
+            label: NAME_LABEL.to_string(),
             match_op: MatchOp::Eql,
             value: name,
             re: None,
@@ -67,7 +104,7 @@ impl LabelMatcher {
     }
 
     pub fn is_name_matcher(&self) -> bool {
-        self.label == LABEL_NAME
+        self.label == NAME_LABEL
     }
 
     pub fn matches(&self, v: &str) -> bool {

@@ -1,5 +1,9 @@
-use std::collections::HashMap;
 use std::time::Duration;
+
+// FIXME: Ugly hack to avoid changing imports everywhere.
+pub use super::labels::{LabelName, LabelValue, Labels};
+
+pub type MetricName = String;
 
 pub type SampleValue = f64;
 
@@ -30,9 +34,3 @@ impl Instant for Timestamp {
         (((*self - 1) as f64 / 1000.0) as i64 + 1) * 1000
     }
 }
-
-pub type LabelName = String;
-pub type LabelValue = String;
-pub type Labels = HashMap<LabelName, LabelValue>;
-
-pub type MetricName = String;

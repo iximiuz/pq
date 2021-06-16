@@ -5,10 +5,7 @@ use nom::{
     sequence::pair,
 };
 
-use super::ast::{
-    BinaryExpr, BinaryOp, Expr, GroupModifier, Precedence, UnaryOp, VectorMatching,
-    VectorMatchingKind,
-};
+use super::ast::{BinaryExpr, BinaryOp, Expr, GroupModifier, LabelMatching, Precedence, UnaryOp};
 use super::common::{label_identifier, maybe_lpadded, separated_list};
 use super::result::{IResult, ParseError, Span};
 use super::vector::vector_selector;
@@ -61,7 +58,7 @@ pub fn expr<'a>(min_prec: Option<Precedence>) -> impl FnMut(Span<'a>) -> IResult
 
             // TODO: validate - bool_modifier can only be used with a comparison binary op.
 
-            let (tmp_rest, vector_matching) = match maybe_lpadded(vector_matching)(rest) {
+            let (tmp_rest, label_matching) = match maybe_lpadded(label_matching)(rest) {
                 Ok((r, vm)) => (r, Some(vm)),
                 Err(nom::Err::Error(_)) => (rest, None),
                 Err(e) => return Err(e),
@@ -76,10 +73,10 @@ pub fn expr<'a>(min_prec: Option<Precedence>) -> impl FnMut(Span<'a>) -> IResult
             rest = tmp_rest;
 
             // TODO: validate
-            //   - if group_modifier is present, vector_matching must be present
+            //   - if group_modifier is present, label_matching must be present
             //   - if group_modifier is present, op must not be AND, OR, or UNLESS
-            //   - if vector_matching is 'on', vector_matching & group_modifier intersection
-            //     must result in empty set.
+            //   - if label_matching_kind is 'on', label_matching & group_modifier
+            //     intersection must be an empty set.
 
             let (tmp_rest, rhs) = match maybe_lpadded(expr(Some(op.precedence())))(rest) {
                 Ok((r, e)) => (r, e),
@@ -96,7 +93,7 @@ pub fn expr<'a>(min_prec: Option<Precedence>) -> impl FnMut(Span<'a>) -> IResult
             // TODO: validate
             //   - rhs is an instant vector selector or scalar
             //   - if (lhs, op, rhs) is (scalar, comparison, scalar), the bool_modifier must be present.
-            //   - if vector_matching is present, lhs and rhs must be instant vectors.
+            //   - if label_matching is present, lhs and rhs must be instant vectors.
 
             rest = tmp_rest;
             lhs = Expr::BinaryExpr(BinaryExpr::new_ex(
@@ -104,7 +101,7 @@ pub fn expr<'a>(min_prec: Option<Precedence>) -> impl FnMut(Span<'a>) -> IResult
                 op,
                 rhs,
                 bool_modifier,
-                vector_matching,
+                label_matching,
                 group_modifier,
             ));
         }
@@ -139,13 +136,16 @@ fn bool_modifier(input: Span) -> IResult<()> {
     Ok((rest, ()))
 }
 
-fn vector_matching(input: Span) -> IResult<VectorMatching> {
+fn label_matching(input: Span) -> IResult<LabelMatching> {
     let (rest, kind) = alt((tag_no_case("on"), tag_no_case("ignoring")))(input)?;
 
-    let kind = VectorMatchingKind::try_from(*kind).unwrap();
     let (rest, labels) = maybe_lpadded(grouping_labels)(rest)?;
 
-    Ok((rest, VectorMatching::new(kind, labels)))
+    if kind.to_lowercase() == "on" {
+        Ok((rest, LabelMatching::On(labels.into_iter().collect())))
+    } else {
+        Ok((rest, LabelMatching::Ignoring(labels.into_iter().collect())))
+    }
 }
 
 fn group_modifier(input: Span) -> IResult<GroupModifier> {
@@ -401,8 +401,7 @@ mod tests {
     }
 
     #[test]
-    fn test_binary_expr_vector_matching() -> std::result::Result<(), nom::Err<ParseError<'static>>>
-    {
+    fn test_binary_expr_label_matching() -> std::result::Result<(), nom::Err<ParseError<'static>>> {
         #[rustfmt::skip]
          let tests = [
              ("foo * on() bar", "foo"),
