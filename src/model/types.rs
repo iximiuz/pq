@@ -10,13 +10,13 @@ pub type SampleValue = f64;
 // Unix timestamp in milliseconds.
 pub type Timestamp = i64;
 
-pub trait Instant {
+pub trait TimestampTrait {
     fn add(&self, d: Duration) -> Self;
     fn sub(&self, d: Duration) -> Self;
     fn round_up_to_secs(&self) -> Self;
 }
 
-impl Instant for Timestamp {
+impl TimestampTrait for Timestamp {
     #[inline]
     fn add(&self, d: Duration) -> Self {
         // TODO: check for i64 overflow

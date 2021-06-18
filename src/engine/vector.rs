@@ -1,4 +1,4 @@
-use std::collections::{HashMap, VecDeque};
+use std::collections::{BTreeMap, VecDeque};
 use std::rc::Rc;
 use std::time::Duration;
 
@@ -6,8 +6,8 @@ use super::value::{ExprValue, ExprValueIter, ExprValueKind, InstantVector};
 use crate::common::time::TimeRange;
 use crate::input::{Cursor, Sample};
 use crate::model::{
-    labels::Labels,
-    types::{Instant, SampleValue, Timestamp},
+    labels::{Labels, LabelsTrait},
+    types::{SampleValue, Timestamp, TimestampTrait},
 };
 use crate::parser::ast::VectorSelector;
 
@@ -129,7 +129,7 @@ impl ExprValueIter for VectorSelectorExecutor {
 }
 
 struct SampleMatrix {
-    matrix: HashMap<String, (Labels, VecDeque<(Timestamp, SampleValue)>)>,
+    matrix: BTreeMap<Vec<u8>, (Labels, VecDeque<(Timestamp, SampleValue)>)>,
     latest_sample_timestamp: Option<Timestamp>,
 }
 
@@ -138,7 +138,7 @@ struct SampleMatrix {
 impl SampleMatrix {
     fn new() -> Self {
         Self {
-            matrix: HashMap::new(),
+            matrix: BTreeMap::new(),
             latest_sample_timestamp: None,
         }
     }
@@ -154,15 +154,8 @@ impl SampleMatrix {
     }
 
     fn push(&mut self, sample: Rc<Sample>) {
-        let key = sample
-            .labels()
-            .iter()
-            .map(|(k, v)| format!("{}={}", k, v))
-            .collect::<Vec<String>>()
-            .join(";");
-
         self.matrix
-            .entry(key)
+            .entry(sample.labels().to_vec())
             .or_insert((sample.labels().clone(), VecDeque::new()))
             .1
             .push_back((sample.timestamp(), sample.value()));

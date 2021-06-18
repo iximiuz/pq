@@ -56,6 +56,7 @@ impl InstantVector {
         &self,
         other: &InstantVector,
         bool_modifier: bool,
+        drop_name: bool,
         label_matching: Option<&LabelMatching>,
         op: impl Fn(SampleValue, SampleValue) -> Option<SampleValue>,
     ) -> Self {
@@ -68,11 +69,6 @@ impl InstantVector {
                 Some(LabelMatching::Ignoring(names)) => labels.without(names),
                 None => labels.clone(),
             };
-            println!(
-                "MATCHED LABELS {:#?} {}",
-                matched_labels,
-                String::from_utf8(matched_labels.to_vec()).unwrap(),
-            );
 
             match rhs.insert(matched_labels.to_vec(), value) {
                 Some(duplicate) => {
@@ -89,16 +85,11 @@ impl InstantVector {
         let mut samples = Vec::new();
         let mut already_matched = HashSet::new();
         for (labels, lvalue) in self.samples.iter() {
-            let matched_labels = match label_matching {
+            let mut matched_labels = match label_matching {
                 Some(LabelMatching::On(names)) => labels.with(names),
                 Some(LabelMatching::Ignoring(names)) => labels.without(names),
                 None => labels.clone(),
             };
-            println!(
-                "MATCHED LABELS {:#?} {}",
-                matched_labels,
-                String::from_utf8(matched_labels.to_vec()).unwrap(),
-            );
 
             let signature = matched_labels.to_vec();
             let rvalue = match rhs.get(&signature) {
@@ -106,20 +97,17 @@ impl InstantVector {
                 None => continue,
             };
 
-            println!("HERE!!!");
-
             let sample = match op(*lvalue, **rvalue) {
                 Some(sample) => sample,
                 None => continue, // TODO: check bool_modifier
             };
-            println!("SAMPLE {:?} x {:?} = {:?}", *lvalue, **rvalue, sample);
+            if !already_matched.insert(signature) {
+                // TODO: replace with error
+                panic!("Many-to-one matching detected! If it's desired, use explicit group_left/group_right modifier");
+            }
 
-            match already_matched.insert(signature) {
-                true => {
-                    // TODO: replace with error
-                    panic!("Many-to-one matching detected! If it's desired, use explicit group_left/group_right modifier");
-                }
-                false => (),
+            if drop_name {
+                matched_labels.drop_name();
             }
 
             samples.push((matched_labels, sample));

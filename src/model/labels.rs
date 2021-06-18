@@ -17,6 +17,7 @@ pub type Labels = HashMap<LabelName, LabelValue>;
 pub trait LabelsTrait {
     fn with(&self, names: &HashSet<LabelName>) -> Self;
     fn without(&self, names: &HashSet<LabelName>) -> Self;
+    fn drop_name(&mut self);
     fn to_vec(&self) -> Vec<u8>;
 }
 
@@ -33,11 +34,15 @@ impl LabelsTrait for Labels {
         labels
     }
 
+    fn drop_name(&mut self) {
+        self.remove(NAME_LABEL);
+    }
+
     fn to_vec(&self) -> Vec<u8> {
         let sorted: BTreeSet<_> = self.clone().into_iter().collect();
         sorted
             .into_iter()
-            .flat_map(|(name, value)| [name.as_bytes(), &[b'.'], value.as_bytes()].concat())
+            .flat_map(|(name, value)| [name.as_bytes(), &[b'\xFF'], value.as_bytes()].concat())
             .collect()
     }
 }

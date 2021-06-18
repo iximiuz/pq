@@ -240,9 +240,15 @@ impl std::iter::Iterator for ArithmeticExprExecutorVectorVector {
                 |ls, rs| Some(scalar_op_scalar(self.op, ls, rs)),
             ),
             None => {
-                lv.vector_match_one_to_one(&rv, false, self.label_matching.as_ref(), |ls, rs| {
-                    Some(scalar_op_scalar(self.op, ls, rs))
-                })
+                let is_arithmetic = true;
+                let bool_modifier = false;
+                lv.vector_match_one_to_one(
+                    &rv,
+                    bool_modifier,
+                    is_arithmetic || bool_modifier,
+                    self.label_matching.as_ref(),
+                    |ls, rs| Some(scalar_op_scalar(self.op, ls, rs)),
+                )
             }
         }))
     }

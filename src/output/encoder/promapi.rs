@@ -11,11 +11,11 @@ use crate::error::Result;
 //   "resultType": "vector",
 //   "result": [
 //     {
-//       "metric":{"foo":"123", "bar": "qux"},
+//       "metric":{"bar":"123", "foo": "qux"},
 //       "value": [1622104500, "10"]
 //     },
 //     {
-//       "metric":{"foo":"456", "bar": "qux"},
+//       "metric":{"bar":"456", "foo": "qux"},
 //       "value": [1622104500, "20"]
 //     }
 //   ]
@@ -54,11 +54,11 @@ impl Vector {
 //   "resultType": "matrix",
 //   "result": [
 //     {
-//       "metric": {"foo": "123", "bar": "qux"},
+//       "metric": {"bar": "123", "foo": "qux"},
 //       "values": [[1622104474.588,"0.938"], [1622104489.591,"0.94"]]
 //     },
 //     {
-//       "metric": {"foo": "456", "bar": "qux"},
+//       "metric": {"bar": "456", "foo": "qux"},
 //       "values": [[1622104474.588,"0.938"], [1622104489.591,"0.97"]]
 //     }
 //   ]
@@ -133,11 +133,11 @@ impl PromApiEncoder {
     //   "resultType": "vector",
     //   "result": [
     //     {
-    //       "metric":{"foo":"123", "bar": "qux"},
+    //       "metric":{"bar":"123", "foo": "qux"},
     //       "value": [1622104500, "10"]
     //     },
     //     {
-    //       "metric":{"foo":"456", "bar": "qux"},
+    //       "metric":{"bar":"456", "foo": "qux"},
     //       "value": [1622104500, "20"]
     //     }
     //   ]
