@@ -1,20 +1,76 @@
-use super::super::value::{ExprValue, ExprValueIter, ExprValueKind, InstantVector as Vector};
+use super::value::{ExprValue, ExprValueIter, ExprValueKind, InstantVector as Vector};
 use crate::model::types::SampleValue;
 use crate::parser::ast::{BinaryOp, BinaryOpKind, GroupModifier, LabelMatching};
 
-/// ArithmeticExprExecutorScalarScalar
+pub(super) fn create_binary_expr_executor(
+    op: BinaryOp,
+    left: Box<dyn ExprValueIter>,
+    right: Box<dyn ExprValueIter>,
+    bool_modifier: bool,
+    label_matching: Option<LabelMatching>,
+    group_modifier: Option<GroupModifier>,
+) -> Box<dyn ExprValueIter> {
+    use BinaryOpKind::*;
+    use ExprValueKind::*;
+
+    match (left.value_kind(), op.kind(), right.value_kind()) {
+        (Scalar, Arithmetic | Comparison, Scalar) => {
+            assert!(Comparison != op.kind() || bool_modifier);
+            assert!(label_matching.is_none());
+            assert!(group_modifier.is_none());
+            Box::new(BinaryExprExecutorScalarScalar::new(op, left, right))
+        }
+        (Scalar, Arithmetic | Comparison, InstantVector) => {
+            assert!(!bool_modifier || Comparison == op.kind());
+            assert!(label_matching.is_none());
+            assert!(group_modifier.is_none());
+            Box::new(BinaryExprExecutorScalarVector::new(
+                op,
+                left,
+                right,
+                bool_modifier,
+            ))
+        }
+        (InstantVector, Arithmetic | Comparison, Scalar) => {
+            assert!(!bool_modifier || Comparison == op.kind());
+            assert!(label_matching.is_none());
+            assert!(group_modifier.is_none());
+            Box::new(BinaryExprExecutorVectorScalar::new(
+                op,
+                left,
+                right,
+                bool_modifier,
+            ))
+        }
+        (InstantVector, Arithmetic | Comparison | Logical, InstantVector) => {
+            assert!(!bool_modifier || Comparison == op.kind());
+            assert!(group_modifier.is_none() || label_matching.is_some());
+            Box::new(BinaryExprExecutorVectorVector::new(
+                op,
+                left,
+                right,
+                bool_modifier,
+                label_matching,
+                group_modifier,
+            ))
+        }
+        (lk, ok, rk) => unimplemented!("{:?} {:?} {:?} operation is not supported", lk, ok, rk),
+    }
+}
+
+/// BinaryExprExecutorScalarScalar
 /// Ex:
 ///   1 + 2
 ///   42 / 6
 ///   2 ^ 64
 ///   ...
-pub(super) struct ArithmeticExprExecutorScalarScalar {
+struct BinaryExprExecutorScalarScalar {
     op: BinaryOp,
     left: Box<dyn ExprValueIter>,
     right: Box<dyn ExprValueIter>,
 }
 
-impl ArithmeticExprExecutorScalarScalar {
+impl BinaryExprExecutorScalarScalar {
     pub fn new(op: BinaryOp, left: Box<dyn ExprValueIter>, right: Box<dyn ExprValueIter>) -> Self {
         assert!(op.kind() == BinaryOpKind::Arithmetic);
         assert!(left.value_kind() == ExprValueKind::Scalar);
@@ -23,7 +79,7 @@ impl ArithmeticExprExecutorScalarScalar {
     }
 }
 
-impl std::iter::Iterator for ArithmeticExprExecutorScalarScalar {
+impl std::iter::Iterator for BinaryExprExecutorScalarScalar {
     type Item = ExprValue;
 
     fn next(&mut self) -> Option<Self::Item> {
@@ -45,24 +101,29 @@ impl std::iter::Iterator for ArithmeticExprExecutorScalarScalar {
     }
 }
 
-impl ExprValueIter for ArithmeticExprExecutorScalarScalar {
+impl ExprValueIter for BinaryExprExecutorScalarScalar {
     fn value_kind(&self) -> ExprValueKind {
         ExprValueKind::Scalar
     }
 }
 
-/// ArithmeticExprExecutorScalarVector
+/// BinaryExprExecutorScalarVector
 /// Ex:
 ///   2 * http_requests_total{}
 ///   42 - http_requests_total{method="GET"}
-pub(super) struct ArithmeticExprExecutorScalarVector {
+struct BinaryExprExecutorScalarVector {
     op: BinaryOp,
     left: Box<dyn ExprValueIter>,
     right: Box<dyn ExprValueIter>,
 }
 
-impl ArithmeticExprExecutorScalarVector {
-    pub fn new(op: BinaryOp, left: Box<dyn ExprValueIter>, right: Box<dyn ExprValueIter>) -> Self {
+impl BinaryExprExecutorScalarVector {
+    pub fn new(
+        op: BinaryOp,
+        left: Box<dyn ExprValueIter>,
+        right: Box<dyn ExprValueIter>,
+        bool_modifier: bool,
+    ) -> Self {
         assert!(op.kind() == BinaryOpKind::Arithmetic);
         assert!(left.value_kind() == ExprValueKind::Scalar);
         assert!(right.value_kind() == ExprValueKind::InstantVector);
@@ -70,7 +131,7 @@ impl ArithmeticExprExecutorScalarVector {
     }
 }
 
-impl std::iter::Iterator for ArithmeticExprExecutorScalarVector {
+impl std::iter::Iterator for BinaryExprExecutorScalarVector {
     type Item = ExprValue;
 
     fn next(&mut self) -> Option<Self::Item> {
@@ -95,24 +156,29 @@ impl std::iter::Iterator for ArithmeticExprExecutorScalarVector {
     }
 }
 
-impl ExprValueIter for ArithmeticExprExecutorScalarVector {
+impl ExprValueIter for BinaryExprExecutorScalarVector {
     fn value_kind(&self) -> ExprValueKind {
         ExprValueKind::InstantVector
     }
 }
 
-/// ArithmeticExprExecutorVectorScalar
+/// BinaryExprExecutorVectorScalar
 /// Ex:
 ///   http_requests_total{} % 9000
 ///   http_requests_total{method="POST"} + 8
-pub(super) struct ArithmeticExprExecutorVectorScalar {
+struct BinaryExprExecutorVectorScalar {
     op: BinaryOp,
     left: Box<dyn ExprValueIter>,
     right: Box<dyn ExprValueIter>,
 }
 
-impl ArithmeticExprExecutorVectorScalar {
-    pub fn new(op: BinaryOp, left: Box<dyn ExprValueIter>, right: Box<dyn ExprValueIter>) -> Self {
+impl BinaryExprExecutorVectorScalar {
+    pub fn new(
+        op: BinaryOp,
+        left: Box<dyn ExprValueIter>,
+        right: Box<dyn ExprValueIter>,
+        bool_modifier: bool,
+    ) -> Self {
         assert!(op.kind() == BinaryOpKind::Arithmetic);
         assert!(left.value_kind() == ExprValueKind::InstantVector);
         assert!(right.value_kind() == ExprValueKind::Scalar);
@@ -120,7 +186,7 @@ impl ArithmeticExprExecutorVectorScalar {
     }
 }
 
-impl std::iter::Iterator for ArithmeticExprExecutorVectorScalar {
+impl std::iter::Iterator for BinaryExprExecutorVectorScalar {
     type Item = ExprValue;
 
     fn next(&mut self) -> Option<Self::Item> {
@@ -145,18 +211,18 @@ impl std::iter::Iterator for ArithmeticExprExecutorVectorScalar {
     }
 }
 
-impl ExprValueIter for ArithmeticExprExecutorVectorScalar {
+impl ExprValueIter for BinaryExprExecutorVectorScalar {
     fn value_kind(&self) -> ExprValueKind {
         ExprValueKind::InstantVector
     }
 }
 
-/// ArithmeticExprExecutorVectorVector
+/// BinaryExprExecutorVectorVector
 /// Ex:
 ///   http_requests_total{method="GET"} + http_requests_total{method="POST"}
 ///   http_requests_total{} + http_requests_content_length_bytes{} on (method, job)
 ///   http_requests_total{} + http_requests_content_length_bytes{} on (instance)
-pub(super) struct ArithmeticExprExecutorVectorVector {
+struct BinaryExprExecutorVectorVector {
     op: BinaryOp,
     left: std::iter::Peekable<Box<dyn ExprValueIter>>,
     right: std::iter::Peekable<Box<dyn ExprValueIter>>,
@@ -164,11 +230,12 @@ pub(super) struct ArithmeticExprExecutorVectorVector {
     group_modifier: Option<GroupModifier>,
 }
 
-impl ArithmeticExprExecutorVectorVector {
+impl BinaryExprExecutorVectorVector {
     pub fn new(
         op: BinaryOp,
         left: Box<dyn ExprValueIter>,
         right: Box<dyn ExprValueIter>,
+        bool_modifier: bool,
         label_matching: Option<LabelMatching>,
         group_modifier: Option<GroupModifier>,
     ) -> Self {
@@ -185,7 +252,7 @@ impl ArithmeticExprExecutorVectorVector {
     }
 }
 
-impl std::iter::Iterator for ArithmeticExprExecutorVectorVector {
+impl std::iter::Iterator for BinaryExprExecutorVectorVector {
     type Item = ExprValue;
 
     fn next(&mut self) -> Option<Self::Item> {
@@ -254,7 +321,7 @@ impl std::iter::Iterator for ArithmeticExprExecutorVectorVector {
     }
 }
 
-impl ExprValueIter for ArithmeticExprExecutorVectorVector {
+impl ExprValueIter for BinaryExprExecutorVectorVector {
     fn value_kind(&self) -> ExprValueKind {
         ExprValueKind::InstantVector
     }
@@ -264,12 +331,21 @@ fn scalar_op_scalar(op: BinaryOp, lv: SampleValue, rv: SampleValue) -> SampleVal
     use BinaryOp::*;
 
     match op {
+        // Arithmetic
         Add => lv + rv,
         Div => lv / rv,
         Mul => lv * rv,
         Mod => lv % rv,
         Pow => SampleValue::powf(lv, rv),
         Sub => lv - rv,
+
+        // Comparison
+        Eql => (lv == rv) as i64 as SampleValue,
+        Gte => (lv >= rv) as i64 as SampleValue,
+        Gtr => (lv > rv) as i64 as SampleValue,
+        Lss => (lv < rv) as i64 as SampleValue,
+        Lte => (lv <= rv) as i64 as SampleValue,
+        Neq => (lv != rv) as i64 as SampleValue,
         _ => unimplemented!(),
     }
 }
