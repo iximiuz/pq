@@ -1,4 +1,48 @@
-# pq - query textual streams with PromQL
+# pq - query textual streams with PromQL-like language
+
+Project is actively being developed!
+
+## Why
+
+I often find myself staring at some Nginx or Envoy access logs `tail`ed to my screen
+in real time.  My only wish at that moment is to be able to aggregate the lines
+somehow and analyze the output at a slower pace.
+
+Something like:
+
+```bash
+tail -f access.log | pq -d '...' -q 'rate(requests{method="GET", status_code=~"5"}[1s])'
+```
+
+##  How
+
+The idea is pretty straightforward:
+
+**Turn an input text stream into structured time series data
+and then filter/transform/aggregate it with PromQL-like syntax.**
+
+For that, we need to read the input line by line, parse each line (e.g. using a regex)
+into fields and sort out fields into labels, metrics, and a timestamp. The resulting
+stream of samples can be queried with PromQL-like language. And that's what `pq`
+does - it implements the decoder, the query parser and executor, and the
+encoder, to output the query result.
+
+For more use cases, see [tests/scenarios folder](tests/scenarios).
+
+
+## Development
+
+```bash
+# Build it with
+make
+
+# Test it with
+make test-all
+make test-e2e
+
+# Run a certain e2e test
+E2E_CASE=vector_matching_one_to_one_010 make test-e2e
+```
 
 ## Glossary
 
@@ -12,23 +56,3 @@
 - Scalar and string - two other expression evaluation results.
 - Vector selector - expression of a form `<metric_name>[{label1=value1[, label2=value2, ...]}][[time_duration]]`.
 
-## Run
-
-```bash
-$ cargo test
-
-$ cat | cargo run -- -d '([^\s]+)\s(\w+)\s(\d+)' -t '0:%Y-%m-%dT%H:%M:%S' -l 1:name -m 2:age -- '-age{name=~"(bob|sarah)", name!~"b.*"}' <<EOF
-2021-01-01T05:40:41 bob 42
-2021-01-01T23:59:58 sarah 25
-2021-01-02T00:00:02 bob 42
-2021-01-02T00:00:03 sarah 26
-EOF
-
-# Expected output:
-InstantVector(InstantVector { instant: 1609545598000, samples: [({"name": "sarah", "__name__": "age"}, -25.0)] })
-InstantVector(InstantVector { instant: 1609545599000, samples: [] })
-InstantVector(InstantVector { instant: 1609545600000, samples: [] })
-InstantVector(InstantVector { instant: 1609545601000, samples: [] })
-InstantVector(InstantVector { instant: 1609545602000, samples: [] })
-InstantVector(InstantVector { instant: 1609545603000, samples: [({"name": "sarah", "__name__": "age"}, -26.0)] })
-```

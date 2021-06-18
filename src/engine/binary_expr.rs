@@ -72,7 +72,6 @@ struct BinaryExprExecutorScalarScalar {
 
 impl BinaryExprExecutorScalarScalar {
     pub fn new(op: BinaryOp, left: Box<dyn ExprValueIter>, right: Box<dyn ExprValueIter>) -> Self {
-        assert!(op.kind() == BinaryOpKind::Arithmetic);
         assert!(left.value_kind() == ExprValueKind::Scalar);
         assert!(right.value_kind() == ExprValueKind::Scalar);
         Self { op, left, right }
@@ -124,7 +123,6 @@ impl BinaryExprExecutorScalarVector {
         right: Box<dyn ExprValueIter>,
         bool_modifier: bool,
     ) -> Self {
-        assert!(op.kind() == BinaryOpKind::Arithmetic);
         assert!(left.value_kind() == ExprValueKind::Scalar);
         assert!(right.value_kind() == ExprValueKind::InstantVector);
         Self { op, left, right }
@@ -179,7 +177,6 @@ impl BinaryExprExecutorVectorScalar {
         right: Box<dyn ExprValueIter>,
         bool_modifier: bool,
     ) -> Self {
-        assert!(op.kind() == BinaryOpKind::Arithmetic);
         assert!(left.value_kind() == ExprValueKind::InstantVector);
         assert!(right.value_kind() == ExprValueKind::Scalar);
         Self { op, left, right }
@@ -239,7 +236,6 @@ impl BinaryExprExecutorVectorVector {
         label_matching: Option<LabelMatching>,
         group_modifier: Option<GroupModifier>,
     ) -> Self {
-        assert!(op.kind() == BinaryOpKind::Arithmetic);
         assert!(left.value_kind() == ExprValueKind::InstantVector);
         assert!(right.value_kind() == ExprValueKind::InstantVector);
         Self {

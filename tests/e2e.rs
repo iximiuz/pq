@@ -25,6 +25,12 @@ fn e2e() -> Result<(), Box<dyn std::error::Error>> {
     for test_dir in fs::read_dir(&root_test_dir)? {
         let test_dir = test_dir?.path();
 
+        if let Ok(filter) = std::env::var("E2E_CASE") {
+            if !test_dir.as_os_str().to_string_lossy().ends_with(&filter) {
+                continue;
+            }
+        }
+
         let cli_args: Vec<String> =
             serde_json::from_str(&fs::read_to_string(test_dir.join("args.json"))?)?;
 
