@@ -8,4 +8,4 @@ test-all:
 
 .PHONY:
 test-e2e:
-	cargo test --test e2e
+	cargo test --test e2e -- --nocapture 

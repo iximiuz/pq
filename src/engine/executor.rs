@@ -5,7 +5,7 @@ use std::time::Duration;
 use super::binary_expr::create_binary_expr_executor;
 use super::identity::IdentityExecutor;
 use super::unary_expr::UnaryExprExecutor;
-use super::value::ExprValueIter;
+use super::value::{ExprValueIter, ExprValueKind};
 use super::vector::VectorSelectorExecutor;
 use crate::common::time::TimeRange;
 use crate::error::Result;
@@ -109,11 +109,16 @@ impl Executor {
     pub fn execute(&self, query: AST) -> Result<()> {
         // println!("Executor::execute {:#?}", query);
 
-        for value in self.create_value_iter(query.root) {
+        let iter = self.create_value_iter(query.root);
+        let iter_value_kind = iter.value_kind();
+        for value in iter {
+            self.output.borrow_mut().write(&value)?;
             // TODO: if value iter is scalar, we need to wrap it into
             //       something that would produce a (timestamp, scalar) tuples
             //       instead.
-            self.output.borrow_mut().write(&value)?;
+            if iter_value_kind == ExprValueKind::Scalar {
+                break;
+            }
         }
         // self.output.flush();
         Ok(())
