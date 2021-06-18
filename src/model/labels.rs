@@ -24,13 +24,13 @@ pub trait LabelsTrait {
 impl LabelsTrait for Labels {
     fn with(&self, names: &HashSet<LabelName>) -> Self {
         let mut labels = self.clone();
-        labels.retain(|name, _| names.contains(name));
+        labels.retain(|name, _| name != NAME_LABEL && names.contains(name));
         labels
     }
 
     fn without(&self, names: &HashSet<LabelName>) -> Self {
         let mut labels = self.clone();
-        labels.retain(|name, _| !names.contains(name));
+        labels.retain(|name, _| name != NAME_LABEL && !names.contains(name));
         labels
     }
 

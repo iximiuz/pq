@@ -62,12 +62,15 @@ impl InstantVector {
     ) -> Self {
         assert!(self.instant == other.instant);
 
+        // println!("LEFT VECTOR {:#?}", self);
+        // println!("RIGHT VECTOR {:#?}", other);
+
         let mut rhs = HashMap::new();
         for (labels, value) in other.samples.iter() {
             let matched_labels = match label_matching {
                 Some(LabelMatching::On(names)) => labels.with(names),
                 Some(LabelMatching::Ignoring(names)) => labels.without(names),
-                None => labels.clone(),
+                None => labels.without(&HashSet::new()),
             };
 
             match rhs.insert(matched_labels.to_vec(), value) {
@@ -88,7 +91,7 @@ impl InstantVector {
             let mut matched_labels = match label_matching {
                 Some(LabelMatching::On(names)) => labels.with(names),
                 Some(LabelMatching::Ignoring(names)) => labels.without(names),
-                None => labels.clone(),
+                None => labels.without(&HashSet::new()),
             };
 
             let signature = matched_labels.to_vec();
