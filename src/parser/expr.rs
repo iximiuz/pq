@@ -27,7 +27,7 @@ pub fn expr<'a>(min_prec: Option<Precedence>) -> impl FnMut(Span<'a>) -> IResult
         // E.g.  expr = unary_expr | vector_selector | binary_expr ...
         // where binary_expr = expr <OP> expr
 
-        while *rest != "" && *rest != ")" {
+        while *rest != "" && !(*rest).starts_with(")") {
             let (tmp_rest, op) = match maybe_lpadded(binary_op)(rest) {
                 Ok((r, o)) => (r, o),
                 Err(_) => {
@@ -296,7 +296,13 @@ fn aggregate_modifier(input: Span) -> IResult<AggregateModifier> {
 
     let (rest, labels) = match maybe_lpadded(grouping_labels)(rest) {
         Ok((r, ls)) => (r, ls),
-        Err(nom::Err::Error(_)) => (rest, vec![]),
+        Err(nom::Err::Error(_)) => {
+            return Err(nom::Err::Failure(ParseError::partial(
+                "aggregation",
+                "label list",
+                rest,
+            )))
+        }
         Err(e) => return Err(e),
     };
 
@@ -348,7 +354,7 @@ mod tests {
     use crate::parser::result::ParseError;
 
     #[test]
-    fn test_valid_expressions() -> std::result::Result<(), nom::Err<ParseError<'static>>> {
+    fn test_valid_expressions() -> std::result::Result<(), String> {
         #[rustfmt::skip]
         let tests = [
             "foo{}",
@@ -372,7 +378,8 @@ mod tests {
         ];
 
         for input in &tests {
-            expr(None)(Span::new(input))?;
+            expr(None)(Span::new(input))
+                .map_err(|e| format!("Got {:?} while parsing {}", e, input))?;
         }
         Ok(())
     }
