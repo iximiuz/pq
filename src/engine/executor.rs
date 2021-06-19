@@ -2,6 +2,7 @@ use std::cell::RefCell;
 use std::rc::Rc;
 use std::time::Duration;
 
+use super::aggregate_expr::AggregateExprExecutor;
 use super::binary_expr::create_binary_expr_executor;
 use super::identity::IdentityExecutor;
 use super::unary_expr::UnaryExprExecutor;
@@ -127,6 +128,16 @@ impl Executor {
     fn create_value_iter(&self, node: Expr) -> Box<dyn ExprValueIter> {
         match node {
             Expr::Parentheses(expr) => self.create_value_iter(*expr),
+
+            Expr::AggregateExpr(expr) => {
+                let (op, inner, modifier, parameter) = expr.into_inner();
+                Box::new(AggregateExprExecutor::new(
+                    op,
+                    self.create_value_iter(*inner),
+                    modifier,
+                    parameter,
+                ))
+            }
 
             Expr::UnaryExpr(op, expr) => {
                 Box::new(UnaryExprExecutor::new(op, self.create_value_iter(*expr)))

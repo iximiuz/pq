@@ -1,0 +1,5 @@
+{"resultType":"vector","result":[{"metric":{"name":"bob"},"value":[1609545598.0,"42"]},{"metric":{"name":"sarah"},"value":[1609545598.0,"25"]}]}
+{"resultType":"vector","result":[]}
+{"resultType":"vector","result":[]}
+{"resultType":"vector","result":[]}
+{"resultType":"vector","result":[{"metric":{"name":"bob"},"value":[1609545602.0,"42"]},{"metric":{"name":"sarah"},"value":[1609545602.0,"26"]}]}

@@ -57,6 +57,17 @@ impl AggregateExpr {
             parameter,
         }
     }
+
+    pub fn into_inner(
+        self,
+    ) -> (
+        AggregateOp,
+        Box<Expr>,
+        Option<AggregateModifier>,
+        Option<AggregateParameter>,
+    ) {
+        (self.op, self.expr, self.modifier, self.parameter)
+    }
 }
 
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -101,8 +112,8 @@ impl std::convert::TryFrom<&str> for AggregateOp {
 
 #[derive(Debug, PartialEq)]
 pub enum AggregateModifier {
-    By(Vec<LabelName>),
-    Without(Vec<LabelName>),
+    By(HashSet<LabelName>),
+    Without(HashSet<LabelName>),
 }
 
 #[derive(Debug, PartialEq)]

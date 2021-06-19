@@ -310,9 +310,12 @@ fn aggregate_modifier(input: Span) -> IResult<AggregateModifier> {
     };
 
     if modifier.to_lowercase() == "by" {
-        Ok((rest, AggregateModifier::By(labels)))
+        Ok((rest, AggregateModifier::By(labels.into_iter().collect())))
     } else {
-        Ok((rest, AggregateModifier::Without(labels)))
+        Ok((
+            rest,
+            AggregateModifier::Without(labels.into_iter().collect()),
+        ))
     }
 }
 

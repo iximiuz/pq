@@ -1,3 +1,4 @@
+mod aggregate_expr;
 mod binary_expr;
 mod executor;
 mod identity;
