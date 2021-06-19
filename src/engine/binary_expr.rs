@@ -154,7 +154,7 @@ impl std::iter::Iterator for BinaryExprExecutorScalarVector {
         };
 
         Some(InstantVector(rv.apply_scalar_op(
-            |s| scalar_op_scalar_ex(self.op, self.bool_modifier, lv, s),
+            |s| scalar_op_scalar_ex(self.op, lv, s, self.bool_modifier, s),
             self.op.kind() == BinaryOpKind::Comparison && !self.bool_modifier,
         )))
     }
@@ -214,7 +214,7 @@ impl std::iter::Iterator for BinaryExprExecutorVectorScalar {
         };
 
         Some(InstantVector(lv.apply_scalar_op(
-            |s| scalar_op_scalar_ex(self.op, self.bool_modifier, s, rv),
+            |s| scalar_op_scalar_ex(self.op, s, rv, self.bool_modifier, s),
             self.op.kind() == BinaryOpKind::Comparison && !self.bool_modifier,
         )))
     }
@@ -303,19 +303,19 @@ impl std::iter::Iterator for BinaryExprExecutorVectorVector {
 
         Some(InstantVector(match self.group_modifier {
             None => lv.apply_vector_op_one_to_one(
-                |ls, rs| scalar_op_scalar_ex(self.op, self.bool_modifier, ls, rs),
+                |ls, rs| scalar_op_scalar_ex(self.op, ls, rs, self.bool_modifier, ls),
                 &rv,
                 self.label_matching.as_ref(),
                 self.op.kind() == BinaryOpKind::Comparison && !self.bool_modifier,
             ),
             Some(GroupModifier::Left(ref include)) => lv.apply_vector_op_many_to_one(
-                |ls, rs| Some(scalar_op_scalar(self.op, ls, rs)),
+                |ls, rs| scalar_op_scalar_ex(self.op, ls, rs, self.bool_modifier, ls),
                 &rv,
                 self.label_matching.as_ref(),
                 include,
             ),
             Some(GroupModifier::Right(ref include)) => lv.apply_vector_op_one_to_many(
-                |ls, rs| Some(scalar_op_scalar(self.op, ls, rs)),
+                |ls, rs| scalar_op_scalar_ex(self.op, ls, rs, self.bool_modifier, ls),
                 &rv,
                 self.label_matching.as_ref(),
                 include,
@@ -355,12 +355,14 @@ fn scalar_op_scalar(op: BinaryOp, lv: SampleValue, rv: SampleValue) -> SampleVal
 
 fn scalar_op_scalar_ex(
     op: BinaryOp,
-    bool_modifier: bool,
     lv: SampleValue,
     rv: SampleValue,
+    bool_modifier: bool,
+    comp_value: SampleValue,
 ) -> Option<SampleValue> {
     match (op.kind(), bool_modifier, scalar_op_scalar(op, lv, rv)) {
         (BinaryOpKind::Comparison, false, val) if val == 0.0 => None,
+        (BinaryOpKind::Comparison, false, val) if val == 1.0 => Some(comp_value),
         (_, _, val) => Some(val),
     }
 }
