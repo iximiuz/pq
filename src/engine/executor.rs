@@ -126,6 +126,8 @@ impl Executor {
 
     fn create_value_iter(&self, node: Expr) -> Box<dyn ExprValueIter> {
         match node {
+            Expr::Parentheses(expr) => self.create_value_iter(*expr),
+
             Expr::UnaryExpr(op, expr) => {
                 Box::new(UnaryExprExecutor::new(op, self.create_value_iter(*expr)))
             }
