@@ -13,14 +13,15 @@ use crate::model::types::LabelName;
 pub fn expr<'a>(min_prec: Option<Precedence>) -> impl FnMut(Span<'a>) -> IResult<Expr> {
     move |input: Span| {
         let (mut rest, mut lhs) = alt((
+            // Order matters here!
             expr_aggregate,
-            // expr_function_call
-            // expr_paren
+            expr_paren,
             expr_number_literal,
             expr_unary,
             expr_vector_selector,
-            // expr_matrix_selector  <-- consider merging with vector_selector
-            // expr_offset           <-- consider merging with vector_selector
+            // TODO: expr_function_call
+            // TODO: expr_matrix_selector  <-- consider merging with vector_selector
+            // TODO: expr_offset           <-- consider merging with vector_selector
         ))(input)?;
 
         // The rest is dealing with the left-recursive grammar.
@@ -237,12 +238,14 @@ fn expr_aggregate(input: Span) -> IResult<Expr> {
         Err(nom::Err::Error(_)) => {
             return Err(nom::Err::Failure(ParseError::partial(
                 "aggregate operator",
-                "expression",
+                "valid expression",
                 rest,
             )))
         }
         Err(e) => return Err(e),
     };
+
+    // TODO: validate that inner_expr evaluates to instant vector.
 
     // Finalizing operator's body.
     let (rest, _) = match maybe_lpadded(char(')'))(rest) {
@@ -324,7 +327,38 @@ fn grouping_labels(input: Span) -> IResult<Vec<LabelName>> {
     )(input)
 }
 
-/// Parses unary expressions like -<expr> or +<expr>.
+/// Parse parenthesized expression like '(' <expr> ')'.
+fn expr_paren(input: Span) -> IResult<Expr> {
+    let (rest, _) = char('(')(input)?;
+
+    let (rest, inner_expr) = match maybe_lpadded(expr(None))(rest) {
+        Ok((rest, ex)) => (rest, ex),
+        Err(nom::Err::Error(_)) => {
+            return Err(nom::Err::Failure(ParseError::partial(
+                "parentheses",
+                "valid expression",
+                rest,
+            )))
+        }
+        Err(e) => return Err(e),
+    };
+
+    let (rest, _) = match maybe_lpadded(char(')'))(rest) {
+        Ok((rest, _)) => (rest, '_'),
+        Err(nom::Err::Error(_)) => {
+            return Err(nom::Err::Failure(ParseError::partial(
+                "parentheses",
+                ")",
+                rest,
+            )))
+        }
+        Err(e) => return Err(e),
+    };
+
+    Ok((rest, Expr::Parentheses(Box::new(inner_expr))))
+}
+
+/// Parse unary expression like '-' <expr> or '+' <expr>.
 fn expr_unary(input: Span) -> IResult<Expr> {
     let (rest, (op, expr)) = pair(
         unary_op,
@@ -375,6 +409,8 @@ mod tests {
             "quantile(0.95, foo)",
             "topk(3, foo)",
             "bottomk(1.0, foo)",
+            "(foo)",
+            "(1 + 2) * 3",
         ];
 
         for input in &tests {

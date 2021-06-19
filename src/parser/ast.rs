@@ -22,6 +22,7 @@ pub enum Expr {
     AggregateExpr(AggregateExpr),
     BinaryExpr(BinaryExpr),
     NumberLiteral(SampleValue),
+    Parentheses(Box<Expr>),
     UnaryExpr(UnaryOp, Box<Expr>),
     VectorSelector(VectorSelector),
 
