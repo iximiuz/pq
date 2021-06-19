@@ -1,20 +1,19 @@
 use std::convert::TryFrom;
 
-use nom::{
-    branch::alt, bytes::complete::tag_no_case, character::complete::char, number::complete::double,
-    sequence::pair,
-};
+use nom::{branch::alt, bytes::complete::tag_no_case, character::complete::char, sequence::pair};
 
-use super::ast::{BinaryExpr, BinaryOp, Expr, GroupModifier, LabelMatching, Precedence, UnaryOp};
+use super::ast::*;
 use super::common::{label_identifier, maybe_lpadded, separated_list};
+use super::number::{expr_number_literal, number_literal};
 use super::result::{IResult, ParseError, Span};
-use super::vector::vector_selector;
+use super::string::string_literal;
+use super::vector::expr_vector_selector;
 use crate::model::types::LabelName;
 
 pub fn expr<'a>(min_prec: Option<Precedence>) -> impl FnMut(Span<'a>) -> IResult<Expr> {
     move |input: Span| {
         let (mut rest, mut lhs) = alt((
-            // expr_aggregate
+            expr_aggregate,
             // expr_function_call
             // expr_paren
             expr_number_literal,
@@ -28,7 +27,7 @@ pub fn expr<'a>(min_prec: Option<Precedence>) -> impl FnMut(Span<'a>) -> IResult
         // E.g.  expr = unary_expr | vector_selector | binary_expr ...
         // where binary_expr = expr <OP> expr
 
-        while *rest != "" {
+        while *rest != "" && *rest != ")" {
             let (tmp_rest, op) = match maybe_lpadded(binary_op)(rest) {
                 Ok((r, o)) => (r, o),
                 Err(_) => {
@@ -164,6 +163,150 @@ fn group_modifier(input: Span) -> IResult<GroupModifier> {
     }
 }
 
+fn expr_aggregate(input: Span) -> IResult<Expr> {
+    // First, parse the operator type.
+    let (rest, op) = aggregate_op(input)?;
+
+    // Then maybe parse a modifier.
+    let (rest, modifier) = match maybe_lpadded(aggregate_modifier)(rest) {
+        Ok((rest, modifier)) => (rest, Some(modifier)),
+        Err(nom::Err::Error(_)) => (rest, None),
+        Err(e) => return Err(e),
+    };
+
+    // Then mandatory operator's body (...).
+    let (rest, _) = match maybe_lpadded(char('('))(rest) {
+        Ok((rest, _)) => (rest, '_'),
+        Err(nom::Err::Error(_)) => {
+            return Err(nom::Err::Failure(ParseError::partial(
+                "aggregate expression",
+                "(",
+                rest,
+            )))
+        }
+        Err(e) => return Err(e),
+    };
+
+    // Some operators have a mandatory parameter, try parsing it.
+    use AggregateOp::*;
+    let (rest, parameter) = match op {
+        CountValues => match maybe_lpadded(string_literal)(rest) {
+            Ok((rest, s)) => (rest, Some(AggregateParameter::String(s))),
+            Err(nom::Err::Error(_)) => {
+                return Err(nom::Err::Failure(ParseError::partial(
+                    "count_values operator",
+                    "string literal",
+                    rest,
+                )))
+            }
+            Err(e) => return Err(e),
+        },
+        Quantile | TopK | BottomK => match maybe_lpadded(number_literal)(rest) {
+            Ok((rest, n)) => (rest, Some(AggregateParameter::Number(n))),
+            Err(nom::Err::Error(_)) => {
+                return Err(nom::Err::Failure(ParseError::partial(
+                    "quantile, topk, or bottomk operator",
+                    "number literal",
+                    rest,
+                )))
+            }
+            Err(e) => return Err(e),
+        },
+        _ => (rest, None),
+    };
+
+    // If parameter is there, it should be followed by a comma.
+    let (rest, _) = match parameter {
+        Some(_) => match maybe_lpadded(char(','))(rest) {
+            Ok((rest, _)) => (rest, '_'),
+            Err(nom::Err::Error(_)) => {
+                return Err(nom::Err::Failure(ParseError::partial(
+                    "count_values, quantile, topk, or bottomk operator",
+                    ",",
+                    rest,
+                )))
+            }
+            Err(e) => return Err(e),
+        },
+        None => (rest, '_'),
+    };
+
+    // Finally, parse the inner expression.
+    let (rest, inner_expr) = match maybe_lpadded(expr(None))(rest) {
+        Ok((rest, ex)) => (rest, ex),
+        Err(nom::Err::Error(_)) => {
+            return Err(nom::Err::Failure(ParseError::partial(
+                "aggregate operator",
+                "expression",
+                rest,
+            )))
+        }
+        Err(e) => return Err(e),
+    };
+
+    // Finalizing operator's body.
+    let (rest, _) = match maybe_lpadded(char(')'))(rest) {
+        Ok((rest, _)) => (rest, '_'),
+        Err(nom::Err::Error(_)) => {
+            return Err(nom::Err::Failure(ParseError::partial(
+                "aggregate expression",
+                ")",
+                rest,
+            )))
+        }
+        Err(e) => return Err(e),
+    };
+
+    // If modifier wasn't found in the prefix, agg op may have a trailing modifier.
+    let (rest, modifier) = match modifier {
+        Some(m) => (rest, Some(m)),
+        None => match maybe_lpadded(aggregate_modifier)(rest) {
+            Ok((rest, modifier)) => (rest, Some(modifier)),
+            Err(nom::Err::Error(_)) => (rest, None),
+            Err(e) => return Err(e),
+        },
+    };
+
+    Ok((
+        rest,
+        Expr::AggregateExpr(AggregateExpr::new(op, inner_expr, modifier, parameter)),
+    ))
+}
+
+fn aggregate_op(input: Span) -> IResult<AggregateOp> {
+    let (rest, op) = alt((
+        tag_no_case("avg"),
+        tag_no_case("bottomk"),
+        tag_no_case("count"),
+        tag_no_case("count_values"),
+        tag_no_case("group"),
+        tag_no_case("max"),
+        tag_no_case("min"),
+        tag_no_case("quantile"),
+        tag_no_case("stddev"),
+        tag_no_case("stdvar"),
+        tag_no_case("sum"),
+        tag_no_case("topk"),
+    ))(input)?;
+    Ok((rest, AggregateOp::try_from(*op).unwrap()))
+}
+
+fn aggregate_modifier(input: Span) -> IResult<AggregateModifier> {
+    let (rest, modifier) = alt((tag_no_case("by"), tag_no_case("without")))(input)?;
+
+    let (rest, labels) = match maybe_lpadded(grouping_labels)(rest) {
+        Ok((r, ls)) => (r, ls),
+        Err(nom::Err::Error(_)) => (rest, vec![]),
+        Err(e) => return Err(e),
+    };
+
+    if modifier.to_lowercase() == "by" {
+        Ok((rest, AggregateModifier::By(labels)))
+    } else {
+        Ok((rest, AggregateModifier::Without(labels)))
+    }
+}
+
 fn grouping_labels(input: Span) -> IResult<Vec<LabelName>> {
     separated_list(
         '(',
@@ -175,6 +318,7 @@ fn grouping_labels(input: Span) -> IResult<Vec<LabelName>> {
     )(input)
 }
 
+/// Parses unary expressions like -<expr> or +<expr>.
 fn expr_unary(input: Span) -> IResult<Expr> {
     let (rest, (op, expr)) = pair(
         unary_op,
@@ -198,16 +342,6 @@ fn unary_op(input: Span) -> IResult<UnaryOp> {
     ))
 }
 
-fn expr_vector_selector(input: Span) -> IResult<Expr> {
-    let (rest, vs) = vector_selector(input)?;
-    Ok((rest, Expr::VectorSelector(vs)))
-}
-
-fn expr_number_literal(input: Span) -> IResult<Expr> {
-    let (rest, n) = double(input)?;
-    Ok((rest, Expr::NumberLiteral(n)))
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -225,6 +359,16 @@ mod tests {
             "foo and bar",
             "foo unless bar",
             "foo or bar",
+            "sum(foo)",
+            "sum(foo) by(job)",
+            "bar{} + sum(foo) by(job)",
+            "avg(foo) without(job,instanse)",
+            "sum by(job) (foo)",
+            "avg without(job,instanse) (foo)",
+            "124 % avg without(job,instanse) (foo)",
+            "quantile(0.95, foo)",
+            "topk(3, foo)",
+            "bottomk(1.0, foo)",
         ];
 
         for input in &tests {
@@ -239,13 +383,6 @@ mod tests {
         use Expr::*;
 
         let tests = [
-            ("1", NumberLiteral(1.0)),
-            ("1.", NumberLiteral(1.0)),
-            (".1", NumberLiteral(0.1)),
-            ("2e-5", NumberLiteral(0.00002)),
-            ("Inf", NumberLiteral(f64::INFINITY)),
-            ("+Inf", NumberLiteral(f64::INFINITY)),
-            ("-Inf", NumberLiteral(f64::NEG_INFINITY)),
             (
                 "-1 + 2",
                 BinaryExpr(BinaryExprInner::new(
@@ -384,13 +521,13 @@ mod tests {
         //   - scalar & vector
         //   - vector & vector
         #[rustfmt::skip]
-         let tests = [
-             ("1 >  bool 1", "foo"),
-             ("1 == bool 1", "foo"),
-             ("1 < bool 2 - 1 * 2", "foo"),
-             ("foo != bool 1", "foo"),
-             ("foo != bool bar", "foo"),
-         ];
+        let tests = [
+            ("1 >  bool 1", "foo"),
+            ("1 == bool 1", "foo"),
+            ("1 < bool 2 - 1 * 2", "foo"),
+            ("foo != bool 1", "foo"),
+            ("foo != bool bar", "foo"),
+        ];
 
         for (input, _expected_ops) in &tests {
             let (_, ex) = expr(None)(Span::new(input))?;
@@ -403,14 +540,14 @@ mod tests {
     #[test]
     fn test_binary_expr_label_matching() -> std::result::Result<(), nom::Err<ParseError<'static>>> {
         #[rustfmt::skip]
-         let tests = [
-             ("foo * on() bar", "foo"),
-             ("foo % ignoring() bar", "foo"),
-             ("foo + on(abc) bar", "foo"),
-             ("foo != on(abc,def) bar", "foo"),
-             ("foo > on(abc,def,) bar", "foo"),
-             ("foo - on(abc) bar / on(qux, lol) baz", "foo"),
-         ];
+        let tests = [
+            ("foo * on() bar", "foo"),
+            ("foo % ignoring() bar", "foo"),
+            ("foo + on(abc) bar", "foo"),
+            ("foo != on(abc,def) bar", "foo"),
+            ("foo > on(abc,def,) bar", "foo"),
+            ("foo - on(abc) bar / on(qux, lol) baz", "foo"),
+        ];
 
         for (input, _expected_ops) in &tests {
             let (_, ex) = expr(None)(Span::new(input))?;
@@ -423,12 +560,12 @@ mod tests {
     #[test]
     fn test_group_modifier() -> std::result::Result<(), nom::Err<ParseError<'static>>> {
         #[rustfmt::skip]
-         let tests = [
-             ("foo * on(test) group_left bar", "foo"),
-             ("foo * on(test,blub) group_left() bar", "foo"),
-             ("foo + ignoring(abc) group_right (qux) bar", "foo"),
-             ("foo + ignoring(abc) group_right(def,qux,) bar", "foo"),
-         ];
+        let tests = [
+            ("foo * on(test) group_left bar", "foo"),
+            ("foo * on(test,blub) group_left() bar", "foo"),
+            ("foo + ignoring(abc) group_right (qux) bar", "foo"),
+            ("foo + ignoring(abc) group_right(def,qux,) bar", "foo"),
+        ];
 
         for (input, _expected_ops) in &tests {
             let (_, ex) = expr(None)(Span::new(input))?;

@@ -19,6 +19,7 @@ impl AST {
 
 #[derive(Debug, PartialEq)]
 pub enum Expr {
+    AggregateExpr(AggregateExpr),
     BinaryExpr(BinaryExpr),
     NumberLiteral(SampleValue),
     UnaryExpr(UnaryOp, Box<Expr>),
@@ -30,40 +31,83 @@ pub enum Expr {
 }
 
 #[derive(Debug, PartialEq)]
-pub struct VectorSelector {
-    matchers: Vec<LabelMatcher>,
+pub struct AggregateExpr {
+    op: AggregateOp,
+    expr: Box<Expr>,
+    modifier: Option<AggregateModifier>,
+    parameter: Option<AggregateParameter>,
 }
 
-impl VectorSelector {
-    pub fn new<S>(name: Option<S>, mut matchers: Vec<LabelMatcher>) -> Result<Self>
-    where
-        S: Into<MetricName>,
-    {
-        let (matches_everything, has_name_matcher) =
-            matchers.iter().fold((true, false), |(me, hnm), m| {
-                (me && m.matches(""), hnm || m.is_name_matcher())
-            });
-
-        if name.is_some() && has_name_matcher {
-            return Err(Error::new("potentially ambiguous metric name match"));
+impl AggregateExpr {
+    pub(super) fn new(
+        op: AggregateOp,
+        expr: Expr,
+        modifier: Option<AggregateModifier>,
+        parameter: Option<AggregateParameter>,
+    ) -> Self {
+        assert!(op != AggregateOp::CountValues || parameter.is_some()); // TODO: parameter is string
+        assert!(op != AggregateOp::TopK || parameter.is_some()); // TODO: parameter is number
+        assert!(op != AggregateOp::BottomK || parameter.is_some()); // TODO: parameter is number
+        assert!(op != AggregateOp::Quantile || parameter.is_some()); // TODO: parameter is number
+        Self {
+            op,
+            expr: Box::new(expr),
+            modifier,
+            parameter,
         }
-
-        if name.is_none() && matches_everything {
-            return Err(Error::new(
-                "vector selector must contain at least one non-empty matcher",
-            ));
-        }
-
-        if let Some(name) = name {
-            matchers.push(LabelMatcher::name_matcher(name));
-        }
-
-        Ok(Self { matchers })
     }
+}
 
-    pub fn matchers(&self) -> &Vec<LabelMatcher> {
-        &self.matchers
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub enum AggregateOp {
+    Avg,
+    BottomK,
+    Count,
+    CountValues,
+    Group,
+    Max,
+    Min,
+    Quantile,
+    StdDev,
+    StdVar,
+    Sum,
+    TopK,
+}
+
+impl std::convert::TryFrom<&str> for AggregateOp {
+    type Error = Error;
+
+    fn try_from(op: &str) -> Result<Self> {
+        use AggregateOp::*;
+
+        match op.to_lowercase().as_str() {
+            "avg" => Ok(Avg),
+            "bottomk" => Ok(BottomK),
+            "count" => Ok(Count),
+            "count_values" => Ok(CountValues),
+            "group" => Ok(Group),
+            "max" => Ok(Max),
+            "min" => Ok(Min),
+            "quantile" => Ok(Quantile),
+            "stddev" => Ok(StdDev),
+            "stdvar" => Ok(StdVar),
+            "sum" => Ok(Sum),
+            "topk" => Ok(TopK),
+            _ => Err(Error::new("Unknown aggregate op")),
+        }
     }
+}
+
+#[derive(Debug, PartialEq)]
+pub enum AggregateModifier {
+    By(Vec<LabelName>),
+    Without(Vec<LabelName>),
+}
+
+#[derive(Debug, PartialEq)]
+pub enum AggregateParameter {
+    String(LabelName),
+    Number(f64),
 }
 
 #[derive(Debug, PartialEq)]
@@ -77,11 +121,11 @@ pub struct BinaryExpr {
 }
 
 impl BinaryExpr {
-    pub fn new(lhs: Expr, op: BinaryOp, rhs: Expr) -> Self {
+    pub(super) fn new(lhs: Expr, op: BinaryOp, rhs: Expr) -> Self {
         Self::new_ex(lhs, op, rhs, false, None, None)
     }
 
-    pub fn new_ex(
+    pub(super) fn new_ex(
         lhs: Expr,
         op: BinaryOp,
         rhs: Expr,
@@ -252,7 +296,44 @@ impl std::convert::TryFrom<&str> for BinaryOp {
             "and" => Ok(And),
             "unless" => Ok(Unless),
             "or" => Ok(Or),
-            _ => Err(Error::new("Unexpected binary op literal")),
+            _ => Err(Error::new("Unknown binary op")),
         }
+    }
+}
+
+#[derive(Debug, PartialEq)]
+pub struct VectorSelector {
+    matchers: Vec<LabelMatcher>,
+}
+
+impl VectorSelector {
+    pub fn new<S>(name: Option<S>, mut matchers: Vec<LabelMatcher>) -> Result<Self>
+    where
+        S: Into<MetricName>,
+    {
+        let (matches_everything, has_name_matcher) =
+            matchers.iter().fold((true, false), |(me, hnm), m| {
+                (me && m.matches(""), hnm || m.is_name_matcher())
+            });
+
+        if name.is_some() && has_name_matcher {
+            return Err(Error::new("potentially ambiguous metric name match"));
+        }
+
+        if name.is_none() && matches_everything {
+            return Err(Error::new(
+                "vector selector must contain at least one non-empty matcher",
+            ));
+        }
+
+        if let Some(name) = name {
+            matchers.push(LabelMatcher::name_matcher(name));
+        }
+
+        Ok(Self { matchers })
+    }
+
+    pub fn matchers(&self) -> &Vec<LabelMatcher> {
+        &self.matchers
     }
 }

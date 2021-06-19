@@ -1,6 +1,6 @@
 use super::ast::AST;
 use super::expr::expr;
-use super::result::Span;
+use super::result::{ParseError, Span};
 use crate::error::{Error, Result};
 
 pub fn parse_query(input: &str) -> Result<AST> {
@@ -12,6 +12,11 @@ pub fn parse_query(input: &str) -> Result<AST> {
         Err(nom::Err::Incomplete(_)) => unreachable!(),
     };
 
-    assert!(rest.len() == 0);
-    Ok(AST::new(ex))
+    if rest.len() == 0 {
+        Ok(AST::new(ex))
+    } else {
+        Err(Error::from(
+            ParseError::partial("query", "EOF", rest).message(),
+        ))
+    }
 }
