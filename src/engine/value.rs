@@ -47,23 +47,36 @@ impl InstantVector {
         return &self.samples;
     }
 
-    // Used in scalar-to-vector binary op and in unary op.
-    pub fn mutate_values(&mut self, f: impl FnMut(&mut (Labels, SampleValue))) {
-        self.samples.iter_mut().for_each(f)
+    pub fn apply_scalar_op(
+        &mut self,
+        op: impl Fn(SampleValue) -> Option<SampleValue>,
+        keep_name: bool,
+    ) -> Self {
+        let samples = self
+            .samples
+            .iter()
+            .cloned()
+            .filter_map(|(mut labels, value)| match op(value) {
+                Some(value) => {
+                    if !keep_name {
+                        labels.drop_name();
+                    }
+                    Some((labels, value))
+                }
+                None => None,
+            })
+            .collect();
+        InstantVector::new(self.instant, samples)
     }
 
-    pub fn vector_match_one_to_one(
+    pub fn apply_vector_op_one_to_one(
         &self,
-        other: &InstantVector,
-        bool_modifier: bool,
-        drop_name: bool,
-        label_matching: Option<&LabelMatching>,
         op: impl Fn(SampleValue, SampleValue) -> Option<SampleValue>,
+        other: &InstantVector,
+        label_matching: Option<&LabelMatching>,
+        keep_name: bool,
     ) -> Self {
         assert!(self.instant == other.instant);
-
-        // println!("LEFT VECTOR {:#?}", self);
-        // println!("RIGHT VECTOR {:#?}", other);
 
         let mut rhs = HashMap::new();
         for (labels, value) in other.samples.iter() {
@@ -102,15 +115,17 @@ impl InstantVector {
 
             let sample = match op(*lvalue, **rvalue) {
                 Some(sample) => sample,
-                None => continue, // TODO: check bool_modifier
+                None => continue,
             };
             if !already_matched.insert(signature) {
                 // TODO: replace with error
                 panic!("Many-to-one matching detected! If it's desired, use explicit group_left/group_right modifier");
             }
 
-            if drop_name {
-                matched_labels.drop_name();
+            if keep_name {
+                if let Some(name) = labels.name() {
+                    matched_labels.set_name(name.to_string());
+                }
             }
 
             samples.push((matched_labels, sample));
@@ -119,33 +134,25 @@ impl InstantVector {
         InstantVector::new(self.instant, samples)
     }
 
-    pub fn vector_match_one_to_many(
+    pub fn apply_vector_op_one_to_many(
         &self,
+        _op: impl Fn(SampleValue, SampleValue) -> Option<SampleValue>,
         other: &InstantVector,
-        _bool_modifier: bool,
         _label_matching: Option<&LabelMatching>,
         _include_labels: &Vec<LabelName>,
-        _op: impl Fn(SampleValue, SampleValue) -> Option<SampleValue>,
     ) -> Self {
         assert!(self.instant == other.instant);
         unimplemented!();
     }
 
-    pub fn vector_match_many_to_one(
+    pub fn apply_vector_op_many_to_one(
         &self,
+        op: impl Fn(SampleValue, SampleValue) -> Option<SampleValue>,
         other: &InstantVector,
-        bool_modifier: bool,
         label_matching: Option<&LabelMatching>,
         include_labels: &Vec<LabelName>,
-        op: impl Fn(SampleValue, SampleValue) -> Option<SampleValue>,
     ) -> Self {
-        other.vector_match_one_to_many(
-            self,
-            bool_modifier,
-            label_matching,
-            include_labels,
-            |l, r| op(r, l),
-        )
+        other.apply_vector_op_one_to_many(|l, r| op(r, l), self, label_matching, include_labels)
     }
 }
 

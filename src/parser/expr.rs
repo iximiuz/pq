@@ -34,7 +34,7 @@ pub fn expr<'a>(min_prec: Option<Precedence>) -> impl FnMut(Span<'a>) -> IResult
                 Err(_) => {
                     return Err(nom::Err::Failure(ParseError::partial(
                         "binary expression",
-                        "symbol(s)",
+                        "binary operator",
                         rest,
                     )))
                 }
@@ -83,7 +83,7 @@ pub fn expr<'a>(min_prec: Option<Precedence>) -> impl FnMut(Span<'a>) -> IResult
                 Err(nom::Err::Error(_)) => {
                     return Err(nom::Err::Failure(ParseError::partial(
                         "binary expression",
-                        "symbol(s)",
+                        "right-hand expression",
                         rest,
                     )))
                 }
@@ -121,8 +121,8 @@ fn binary_op(input: Span) -> IResult<BinaryOp> {
         tag_no_case("=="),
         tag_no_case(">="),
         tag_no_case(">"),
-        tag_no_case("<"),
         tag_no_case("<="),
+        tag_no_case("<"),
         tag_no_case("!="),
         tag_no_case("and"),
         tag_no_case("unless"),

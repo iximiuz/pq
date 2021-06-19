@@ -1,0 +1,7 @@
+{"resultType":"vector","result":[]}
+{"resultType":"vector","result":[]}
+{"resultType":"vector","result":[{"metric":{"__name__":"age","name":"sarah"},"value":[1609545599.0,"1"]}]}
+{"resultType":"vector","result":[]}
+{"resultType":"vector","result":[]}
+{"resultType":"vector","result":[]}
+{"resultType":"vector","result":[{"metric":{"__name__":"age","name":"sarah"},"value":[1609545603.0,"1"]}]}

@@ -114,6 +114,7 @@ struct BinaryExprExecutorScalarVector {
     op: BinaryOp,
     left: Box<dyn ExprValueIter>,
     right: Box<dyn ExprValueIter>,
+    bool_modifier: bool,
 }
 
 impl BinaryExprExecutorScalarVector {
@@ -125,7 +126,12 @@ impl BinaryExprExecutorScalarVector {
     ) -> Self {
         assert!(left.value_kind() == ExprValueKind::Scalar);
         assert!(right.value_kind() == ExprValueKind::InstantVector);
-        Self { op, left, right }
+        Self {
+            op,
+            left,
+            right,
+            bool_modifier,
+        }
     }
 }
 
@@ -147,10 +153,17 @@ impl std::iter::Iterator for BinaryExprExecutorScalarVector {
             _ => unreachable!(),
         };
 
-        rv.mutate_values(|(_, val)| {
-            *val = scalar_op_scalar(self.op, lv, *val);
-        });
-        Some(InstantVector(rv))
+        Some(InstantVector(rv.apply_scalar_op(
+            |val| match (
+                self.op.kind(),
+                self.bool_modifier,
+                scalar_op_scalar(self.op, lv, val),
+            ) {
+                (BinaryOpKind::Comparison, false, val) if val == 0.0 => None,
+                (_, _, val) => Some(val),
+            },
+            !self.bool_modifier,
+        )))
     }
 }
 
@@ -168,6 +181,7 @@ struct BinaryExprExecutorVectorScalar {
     op: BinaryOp,
     left: Box<dyn ExprValueIter>,
     right: Box<dyn ExprValueIter>,
+    bool_modifier: bool,
 }
 
 impl BinaryExprExecutorVectorScalar {
@@ -179,7 +193,12 @@ impl BinaryExprExecutorVectorScalar {
     ) -> Self {
         assert!(left.value_kind() == ExprValueKind::InstantVector);
         assert!(right.value_kind() == ExprValueKind::Scalar);
-        Self { op, left, right }
+        Self {
+            op,
+            left,
+            right,
+            bool_modifier,
+        }
     }
 }
 
@@ -201,10 +220,17 @@ impl std::iter::Iterator for BinaryExprExecutorVectorScalar {
             _ => unreachable!(),
         };
 
-        lv.mutate_values(|(_, val)| {
-            *val = scalar_op_scalar(self.op, *val, rv);
-        });
-        Some(InstantVector(lv))
+        Some(InstantVector(lv.apply_scalar_op(
+            |val| match (
+                self.op.kind(),
+                self.bool_modifier,
+                scalar_op_scalar(self.op, val, rv),
+            ) {
+                (BinaryOpKind::Comparison, false, val) if val == 0.0 => None,
+                (_, _, val) => Some(val),
+            },
+            !self.bool_modifier,
+        )))
     }
 }
 
@@ -223,6 +249,7 @@ struct BinaryExprExecutorVectorVector {
     op: BinaryOp,
     left: std::iter::Peekable<Box<dyn ExprValueIter>>,
     right: std::iter::Peekable<Box<dyn ExprValueIter>>,
+    bool_modifier: bool,
     label_matching: Option<LabelMatching>,
     group_modifier: Option<GroupModifier>,
 }
@@ -242,8 +269,9 @@ impl BinaryExprExecutorVectorVector {
             op,
             left: left.peekable(),
             right: right.peekable(),
-            label_matching: label_matching,
-            group_modifier: group_modifier,
+            bool_modifier,
+            label_matching,
+            group_modifier,
         }
     }
 }
@@ -288,31 +316,24 @@ impl std::iter::Iterator for BinaryExprExecutorVectorVector {
         };
 
         Some(InstantVector(match self.group_modifier {
-            Some(GroupModifier::Left(ref include)) => lv.vector_match_many_to_one(
+            Some(GroupModifier::Left(ref include)) => lv.apply_vector_op_many_to_one(
+                |ls, rs| Some(scalar_op_scalar(self.op, ls, rs)),
                 &rv,
-                false,
                 self.label_matching.as_ref(),
                 include,
-                |ls, rs| Some(scalar_op_scalar(self.op, ls, rs)),
             ),
-            Some(GroupModifier::Right(ref include)) => lv.vector_match_one_to_many(
+            Some(GroupModifier::Right(ref include)) => lv.apply_vector_op_one_to_many(
+                |ls, rs| Some(scalar_op_scalar(self.op, ls, rs)),
                 &rv,
-                false,
                 self.label_matching.as_ref(),
                 include,
-                |ls, rs| Some(scalar_op_scalar(self.op, ls, rs)),
             ),
-            None => {
-                let is_arithmetic = true;
-                let bool_modifier = false;
-                lv.vector_match_one_to_one(
-                    &rv,
-                    bool_modifier,
-                    is_arithmetic || bool_modifier,
-                    self.label_matching.as_ref(),
-                    |ls, rs| Some(scalar_op_scalar(self.op, ls, rs)),
-                )
-            }
+            None => lv.apply_vector_op_one_to_one(
+                |ls, rs| Some(scalar_op_scalar(self.op, ls, rs)),
+                &rv,
+                self.label_matching.as_ref(),
+                self.op.kind() == BinaryOpKind::Comparison && !self.bool_modifier,
+            ),
         }))
     }
 }

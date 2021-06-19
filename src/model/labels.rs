@@ -17,6 +17,8 @@ pub type Labels = HashMap<LabelName, LabelValue>;
 pub trait LabelsTrait {
     fn with(&self, names: &HashSet<LabelName>) -> Self;
     fn without(&self, names: &HashSet<LabelName>) -> Self;
+    fn name(&self) -> Option<&LabelName>;
+    fn set_name(&mut self, name: LabelName);
     fn drop_name(&mut self);
     fn to_vec(&self) -> Vec<u8>;
 }
@@ -32,6 +34,14 @@ impl LabelsTrait for Labels {
         let mut labels = self.clone();
         labels.retain(|name, _| name != NAME_LABEL && !names.contains(name));
         labels
+    }
+
+    fn name(&self) -> Option<&LabelValue> {
+        self.get(NAME_LABEL)
+    }
+
+    fn set_name(&mut self, name: LabelName) {
+        self.insert(NAME_LABEL.to_string(), name);
     }
 
     fn drop_name(&mut self) {

@@ -13,7 +13,7 @@ impl UnaryExprExecutor {
 
     fn next_instant_vector(&self, mut v: InstantVector) -> ExprValue {
         if self.op == UnaryOp::Sub {
-            v.mutate_values(|(_, val)| *val = -*val);
+            v = v.apply_scalar_op(|v| Some(-v), true);
         }
         ExprValue::InstantVector(v)
     }

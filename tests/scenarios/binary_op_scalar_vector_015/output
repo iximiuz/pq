@@ -1,0 +1,7 @@
+{"resultType":"vector","result":[{"metric":{"name":"bob"},"value":[1609545597.0,"0"]}]}
+{"resultType":"vector","result":[]}
+{"resultType":"vector","result":[{"metric":{"name":"sarah"},"value":[1609545599.0,"1"]}]}
+{"resultType":"vector","result":[]}
+{"resultType":"vector","result":[{"metric":{"name":"bob"},"value":[1609545601.0,"0"]}]}
+{"resultType":"vector","result":[]}
+{"resultType":"vector","result":[{"metric":{"name":"sarah"},"value":[1609545603.0,"1"]}]}
