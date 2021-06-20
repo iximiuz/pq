@@ -1,4 +1,5 @@
 use std::collections::HashSet;
+use std::time::Duration;
 
 use crate::error::{Error, Result};
 use crate::model::{
@@ -316,10 +317,15 @@ impl std::convert::TryFrom<&str> for BinaryOp {
 #[derive(Debug, PartialEq)]
 pub struct VectorSelector {
     matchers: Vec<LabelMatcher>,
+    duration: Option<Duration>,
 }
 
 impl VectorSelector {
-    pub fn new<S>(name: Option<S>, mut matchers: Vec<LabelMatcher>) -> Result<Self>
+    pub fn new<S>(
+        name: Option<S>,
+        mut matchers: Vec<LabelMatcher>,
+        duration: Option<Duration>,
+    ) -> Result<Self>
     where
         S: Into<MetricName>,
     {
@@ -342,7 +348,7 @@ impl VectorSelector {
             matchers.push(LabelMatcher::name_matcher(name));
         }
 
-        Ok(Self { matchers })
+        Ok(Self { matchers, duration })
     }
 
     pub fn matchers(&self) -> &Vec<LabelMatcher> {

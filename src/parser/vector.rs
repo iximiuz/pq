@@ -4,6 +4,7 @@ use nom::{branch::alt, bytes::complete::tag};
 
 use super::ast::{Expr, VectorSelector};
 use super::common::{label_identifier, maybe_lpadded, metric_identifier, separated_list};
+use super::duration::duration;
 use super::result::{IResult, ParseError, Span};
 use super::string::string_literal;
 use crate::model::labels::{LabelMatcher, MatchOp};
@@ -29,7 +30,13 @@ fn vector_selector(input: Span) -> IResult<VectorSelector> {
         Err(e) => return Err(e),
     };
 
-    let selector = VectorSelector::new(metric, matchers)
+    let (rest, duration) = match maybe_lpadded(duration)(rest) {
+        Ok((r, d)) => (r, Some(d)),
+        Err(nom::Err::Error(_)) => (rest, None),
+        Err(e) => return Err(e),
+    };
+
+    let selector = VectorSelector::new(metric, matchers, duration)
         .map_err(|e| nom::Err::Failure(ParseError::new(e.to_string(), input)))?;
     Ok((rest, selector))
 }
@@ -115,7 +122,7 @@ mod tests {
                 Err(e) => panic!("Got error {} while testing input {}", e, input),
             };
             assert_eq!(
-                VectorSelector::new(*metric, _matchers(labels)).expect("bad test case"),
+                VectorSelector::new(*metric, _matchers(labels), None).expect("bad test case"),
                 actual_selector,
                 "while testing input {}",
                 input,

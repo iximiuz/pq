@@ -23,7 +23,6 @@ pub(super) fn duration(input: Span) -> IResult<Duration> {
     Ok((rest, duration))
 }
 
-#[derive(PartialEq, PartialOrd)]
 enum Unit {
     Millisecond,
     Second, // 1000 milliseconds
@@ -81,7 +80,7 @@ impl std::convert::TryFrom<&str> for Unit {
     }
 }
 
-fn duration_inner(input: Span, max_unit: Unit) -> IResult<Duration> {
+fn duration_inner(input: Span, max_allowed_unit: Unit) -> IResult<Duration> {
     let (rest, multiplier) = digit1(input)?;
 
     let (rest, unit) = alt((
@@ -95,7 +94,7 @@ fn duration_inner(input: Span, max_unit: Unit) -> IResult<Duration> {
     ))(rest)?;
 
     let unit = Unit::try_from(*unit).unwrap();
-    if unit > max_unit {
+    if unit.milliseconds() > max_allowed_unit.milliseconds() {
         return Err(nom::Err::Failure(ParseError::new(
             "invalid duration literal".to_owned(),
             input,
