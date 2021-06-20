@@ -1,5 +1,6 @@
 pub mod ast;
 mod common;
+mod duration;
 mod expr;
 mod number;
 mod parser;
