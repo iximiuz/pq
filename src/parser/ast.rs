@@ -20,8 +20,9 @@ impl AST {
 
 #[derive(Debug, PartialEq)]
 pub enum Expr {
-    AggregateExpr(AggregateExpr),
-    BinaryExpr(BinaryExpr),
+    AggregateExpr(AggregateExpr), // Remove Expr part of the name
+    BinaryExpr(BinaryExpr),       // Remove Expr part of the name
+    FunctionCall(FunctionCall),
     NumberLiteral(SampleValue),
     Parentheses(Box<Expr>),
     UnaryExpr(UnaryOp, Box<Expr>),
@@ -312,6 +313,11 @@ impl std::convert::TryFrom<&str> for BinaryOp {
             _ => Err(Error::new("Unknown binary op")),
         }
     }
+}
+
+#[derive(Debug, PartialEq)]
+pub enum FunctionCall {
+    CountOverTime(VectorSelector),
 }
 
 #[derive(Debug, PartialEq)]

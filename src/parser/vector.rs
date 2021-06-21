@@ -10,12 +10,12 @@ use super::result::{IResult, ParseError, Span};
 use super::string::string_literal;
 use crate::model::labels::{LabelMatcher, MatchOp};
 
-pub fn expr_vector_selector(input: Span) -> IResult<Expr> {
+pub(super) fn expr_vector_selector(input: Span) -> IResult<Expr> {
     let (rest, vs) = vector_selector(input)?;
     Ok((rest, Expr::VectorSelector(vs)))
 }
 
-fn vector_selector(input: Span) -> IResult<VectorSelector> {
+pub(super) fn vector_selector(input: Span) -> IResult<VectorSelector> {
     //   metric_identifier label_matchers
     // | metric_identifier
     // | label_matchers

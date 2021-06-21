@@ -4,6 +4,7 @@ use nom::{branch::alt, bytes::complete::tag_no_case, character::complete::char, 
 
 use super::ast::*;
 use super::common::{label_identifier, maybe_lpadded, separated_list};
+use super::function::expr_function_call;
 use super::number::{expr_number_literal, number_literal};
 use super::result::{IResult, ParseError, Span};
 use super::string::string_literal;
@@ -19,8 +20,7 @@ pub fn expr<'a>(min_prec: Option<Precedence>) -> impl FnMut(Span<'a>) -> IResult
             expr_number_literal,
             expr_unary,
             expr_vector_selector,
-            // TODO: expr_function_call
-            // TODO: expr_matrix_selector  <-- consider merging with vector_selector
+            expr_function_call,
             // TODO: expr_offset           <-- consider merging with vector_selector
         ))(input)?;
 
