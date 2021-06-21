@@ -2,7 +2,7 @@ use std::collections::{BTreeMap, VecDeque};
 use std::rc::Rc;
 use std::time::Duration;
 
-use super::value::{ExprValue, ExprValueIter, ExprValueKind, InstantVector};
+use super::value::{ExprValue, ExprValueIter, ExprValueKind, InstantVector, RangeVector};
 use crate::common::time::TimeRange;
 use crate::input::{Cursor, Sample};
 use crate::model::{
@@ -22,7 +22,7 @@ pub(super) struct VectorSelectorExecutor {
 }
 
 impl VectorSelectorExecutor {
-    pub fn new(
+    pub(super) fn new(
         cursor: Rc<Cursor>,
         selector: VectorSelector,
         range: TimeRange,
@@ -90,15 +90,23 @@ impl std::iter::Iterator for VectorSelectorExecutor {
             if self.next_instant.is_none() {
                 // Maybe fixup next_instant. Can happen only on the very first next() call.
                 // FIXME: round_up_to_secs doesn't play well with sub-secondly lookbacks.
-                //        To supported sub-secondly lookbacks, the round up should be till
+                //        To support sub-secondly lookbacks, the round up should be till
                 //        the next even lookback.
                 self.next_instant = Some(sample.timestamp().round_up_to_secs());
                 assert!(self.next_instant.unwrap() <= self.last_instant.unwrap_or(Timestamp::MAX));
             }
 
-            // The sample's timestamp check is more an optimization than a necessity.
+            // This sample timestamp check is more an optimization than a necessity.
             if sample.timestamp() > self.next_instant.unwrap().sub(self.lookback) {
-                self.buffer.push(sample);
+                // This sample timestamp is mandatory though!
+                if self
+                    .buffer
+                    .latest_sample_timestamp_per_series(sample.labels())
+                    .unwrap_or(Timestamp::MIN)
+                    < sample.timestamp()
+                {
+                    self.buffer.push(sample);
+                }
             }
         }
 
@@ -108,28 +116,41 @@ impl std::iter::Iterator for VectorSelectorExecutor {
 
         // Here we have a sample after the current next_instant.
         // Hence, we can create (a potentially empty) vector from the current buffer.
-        let vector = self
-            .buffer
-            .instant_vector(self.next_instant.unwrap(), self.lookback);
+        let vector = match self.selector.duration() {
+            None => ExprValue::InstantVector(
+                self.buffer
+                    .instant_vector(self.next_instant.unwrap(), self.lookback),
+            ),
+            Some(duration) => ExprValue::RangeVector(
+                self.buffer
+                    .range_vector(self.next_instant.unwrap(), duration),
+            ),
+        };
 
         // Advance next_instant for the next iteration.
         self.next_instant = Some(self.next_instant.unwrap().add(self.interval));
 
-        self.buffer
-            .purge_stale(self.next_instant.unwrap(), self.lookback);
+        let keep_since = self.next_instant.unwrap().sub(std::cmp::max(
+            self.selector.duration().unwrap_or(self.lookback),
+            self.lookback,
+        ));
+        self.buffer.purge_before(keep_since);
 
-        return Some(ExprValue::InstantVector(vector));
+        return Some(vector);
     }
 }
 
 impl ExprValueIter for VectorSelectorExecutor {
     fn value_kind(&self) -> ExprValueKind {
-        ExprValueKind::InstantVector
+        match self.selector.duration() {
+            None => ExprValueKind::InstantVector,
+            Some(_) => ExprValueKind::RangeVector,
+        }
     }
 }
 
 struct SampleMatrix {
-    matrix: BTreeMap<Vec<u8>, (Labels, VecDeque<(Timestamp, SampleValue)>)>,
+    matrix: BTreeMap<Vec<u8>, (Labels, VecDeque<(SampleValue, Timestamp)>)>,
     latest_sample_timestamp: Option<Timestamp>,
 }
 
@@ -153,56 +174,39 @@ impl SampleMatrix {
         self.latest_sample_timestamp
     }
 
+    fn latest_sample_timestamp_per_series(&self, labels: &Labels) -> Option<Timestamp> {
+        match self.matrix.get(&labels.to_vec()) {
+            Some((_, series)) => match series.back() {
+                Some((_, ts)) => Some(*ts),
+                None => None,
+            },
+            None => None,
+        }
+    }
+
     fn push(&mut self, sample: Rc<Sample>) {
         self.matrix
             .entry(sample.labels().to_vec())
             .or_insert((sample.labels().clone(), VecDeque::new()))
             .1
-            .push_back((sample.timestamp(), sample.value()));
+            .push_back((sample.value(), sample.timestamp()));
 
         self.latest_sample_timestamp = Some(sample.timestamp());
     }
 
-    /// Returns samples in the (instant - lookback, instant] time range.
-    fn instant_vector(&self, instant: Timestamp, lookback: Duration) -> InstantVector {
-        let stale_instant = instant.sub(lookback);
-
-        let samples = self
-            .matrix
-            .values()
-            .filter_map(|(labels, series)| {
-                series
-                    .iter()
-                    .rev()
-                    .find_map(|(ts, val)| {
-                        if stale_instant < *ts && *ts <= instant {
-                            Some(*val)
-                        } else {
-                            None
-                        }
-                    })
-                    .map(|val| (labels.clone(), val))
-            })
-            .collect();
-
-        InstantVector::new(instant, samples)
-    }
-
-    /// Purges samples up until and including `next_instant - lookback` duration.
-    fn purge_stale(&mut self, next_instant: Timestamp, lookback: Duration) {
-        let keep_after = next_instant.sub(lookback);
-
+    /// Purges samples up until and including `instant`.
+    fn purge_before(&mut self, instant: Timestamp) {
         self.matrix.retain(|_, (_, series)| {
             // Tiny optimization - maybe we can clean up the whole key in one go.
-            if let Some((ts, _)) = series.back() {
-                if *ts <= keep_after {
+            if let Some((_, ts)) = series.back() {
+                if *ts <= instant {
                     series.clear();
                 }
             }
 
             loop {
                 match series.front() {
-                    Some((ts, _)) if *ts <= keep_after => {
+                    Some((_, ts)) if *ts <= instant => {
                         series.pop_front();
                     }
                     _ => break,
@@ -215,5 +219,50 @@ impl SampleMatrix {
         if self.matrix.len() == 0 {
             self.latest_sample_timestamp = None;
         }
+    }
+
+    /// Returns samples in the (instant - lookback, instant] time range.
+    fn instant_vector(&self, instant: Timestamp, lookback: Duration) -> InstantVector {
+        let stale_instant = instant.sub(lookback);
+
+        let samples = self
+            .matrix
+            .values()
+            .filter_map(|(labels, series)| {
+                series.iter().rev().find_map(|(val, ts)| {
+                    if stale_instant < *ts && *ts <= instant {
+                        Some((labels.clone(), *val))
+                    } else {
+                        None
+                    }
+                })
+            })
+            .collect();
+
+        InstantVector::new(instant, samples)
+    }
+
+    /// Returns samples in the (instant - range, instant] time range.
+    fn range_vector(&self, instant: Timestamp, duration: Duration) -> RangeVector {
+        let from_instant = instant.sub(duration);
+
+        let samples = self
+            .matrix
+            .values()
+            .filter_map(|(labels, series)| {
+                let range_samples: Vec<(SampleValue, Timestamp)> = series
+                    .iter()
+                    .cloned()
+                    .rev()
+                    .filter(|(_, ts)| from_instant < *ts && *ts <= instant)
+                    .collect();
+                match range_samples.len() {
+                    0 => None,
+                    _ => Some((labels.clone(), range_samples)),
+                }
+            })
+            .collect();
+
+        RangeVector::new(instant, samples)
     }
 }

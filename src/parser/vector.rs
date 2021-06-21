@@ -1,6 +1,7 @@
 use std::convert::TryFrom;
+use std::time::Duration;
 
-use nom::{branch::alt, bytes::complete::tag};
+use nom::{branch::alt, bytes::complete::tag, character::complete::char};
 
 use super::ast::{Expr, VectorSelector};
 use super::common::{label_identifier, maybe_lpadded, metric_identifier, separated_list};
@@ -30,7 +31,7 @@ fn vector_selector(input: Span) -> IResult<VectorSelector> {
         Err(e) => return Err(e),
     };
 
-    let (rest, duration) = match maybe_lpadded(duration)(rest) {
+    let (rest, duration) = match maybe_lpadded(range_duration)(rest) {
         Ok((r, d)) => (r, Some(d)),
         Err(nom::Err::Error(_)) => (rest, None),
         Err(e) => return Err(e),
@@ -95,6 +96,36 @@ fn match_op(input: Span) -> IResult<MatchOp> {
         rest,
         MatchOp::try_from(*m.fragment()).expect("unreachable!"),
     ))
+}
+
+fn range_duration(input: Span) -> IResult<Duration> {
+    let (rest, _) = char('[')(input)?;
+
+    let (rest, d) = match duration(rest) {
+        Ok((rest, d)) => (rest, d),
+        Err(nom::Err::Error(_)) => {
+            return Err(nom::Err::Failure(ParseError::partial(
+                "range vector selector",
+                "duration literal",
+                rest,
+            )));
+        }
+        Err(e) => return Err(e),
+    };
+
+    let (rest, _) = match char(']')(rest) {
+        Ok((rest, _)) => (rest, '_'),
+        Err(nom::Err::Error(_)) => {
+            return Err(nom::Err::Failure(ParseError::partial(
+                "range vector selector",
+                "]",
+                rest,
+            )));
+        }
+        Err(e) => return Err(e),
+    };
+
+    Ok((rest, d))
 }
 
 #[cfg(test)]

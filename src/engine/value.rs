@@ -157,4 +157,23 @@ impl InstantVector {
 }
 
 #[derive(Debug)]
-pub struct RangeVector {}
+pub struct RangeVector {
+    instant: Timestamp,
+    samples: Vec<(Labels, Vec<(SampleValue, Timestamp)>)>,
+}
+
+impl RangeVector {
+    pub fn new(instant: Timestamp, samples: Vec<(Labels, Vec<(SampleValue, Timestamp)>)>) -> Self {
+        Self { instant, samples }
+    }
+
+    #[inline]
+    pub fn timestamp(&self) -> Timestamp {
+        self.instant
+    }
+
+    #[inline]
+    pub fn samples(&self) -> &[(Labels, Vec<(SampleValue, Timestamp)>)] {
+        return &self.samples;
+    }
+}

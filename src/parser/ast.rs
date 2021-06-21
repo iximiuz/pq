@@ -351,7 +351,13 @@ impl VectorSelector {
         Ok(Self { matchers, duration })
     }
 
+    #[inline]
     pub fn matchers(&self) -> &Vec<LabelMatcher> {
         &self.matchers
+    }
+
+    #[inline]
+    pub fn duration(&self) -> Option<Duration> {
+        self.duration
     }
 }
