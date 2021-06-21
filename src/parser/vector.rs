@@ -135,25 +135,28 @@ mod tests {
     #[test]
     fn test_vector_selector_valid() {
         #[rustfmt::skip]
-        let tests = [
-            (r#"foo"#, Some("foo"), vec![]),
-            (r#"foo or bar"#, Some("foo"), vec![]),
-            (r#"foo{}"#, Some("foo"), vec![]),
-            (r#"foo {}"#, Some("foo"), vec![]),
-            (r#"foo  {   }"#, Some("foo"), vec![]),
-            (r#"{__name__="foo"}"#, None, vec![("__name__", "=", "foo")]),
-            (r#"{__name__=~"foo"}"#, None, vec![("__name__", "=~", "foo")]),
-            (r#"{__name__=~"foo",__name__=~"bar"}"#, None, vec![("__name__", "=~", "foo"), ("__name__", "=~", "bar")]),
-            (r#"foo{name=~"bar"}"#, Some("foo"), vec![("name", "=~", "bar")]),
+        let tests = &[
+            (r#"foo"#, Some("foo"), None, vec![]),
+            (r#"foo[1h5m]"#, Some("foo"), Some(Duration::from_secs(3900)), vec![]),
+            (r#"foo or bar"#, Some("foo"), None, vec![]),
+            (r#"foo{}"#, Some("foo"), None, vec![]),
+            (r#"foo {}"#, Some("foo"), None, vec![]),
+            (r#"foo {}[5ms]"#, Some("foo"), Some(Duration::from_millis(5)), vec![]),
+            (r#"foo {}  [1m3s]"#, Some("foo"), Some(Duration::from_secs(63)), vec![]),
+            (r#"foo  {   }"#, Some("foo"), None, vec![]),
+            (r#"{__name__="foo"}"#, None, None, vec![("__name__", "=", "foo")]),
+            (r#"{__name__=~"foo"}"#, None, None, vec![("__name__", "=~", "foo")]),
+            (r#"{__name__=~"foo",__name__=~"bar"}"#, None, None, vec![("__name__", "=~", "foo"), ("__name__", "=~", "bar")]),
+            (r#"foo{name=~"bar"}"#, Some("foo"), None, vec![("name", "=~", "bar")]),
         ];
 
-        for (input, metric, labels) in &tests {
+        for (input, metric, duration, labels) in tests {
             let actual_selector = match vector_selector(Span::new(input)) {
                 Ok((_, s)) => s,
                 Err(e) => panic!("Got error {} while testing input {}", e, input),
             };
             assert_eq!(
-                VectorSelector::new(*metric, _matchers(labels), None).expect("bad test case"),
+                VectorSelector::new(*metric, _matchers(labels), *duration).expect("bad test case"),
                 actual_selector,
                 "while testing input {}",
                 input,
