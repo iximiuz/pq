@@ -1,4 +1,4 @@
-# pq - **p**arse and **q**uery textual streams
+# pq - __p__arse and __q__uery textual streams
 
 Project is actively being developed!
 
