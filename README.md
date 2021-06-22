@@ -1,4 +1,4 @@
-# pq - __p__arse and __q__uery textual streams
+# pq - Parse and Query textual streams
 
 Project is actively being developed!
 
