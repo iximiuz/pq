@@ -1,4 +1,4 @@
-# pq - Parse and Query textual streams
+# pq - Parse and Query files with PromQL-like language
 
 Project is actively being developed!
 
@@ -18,8 +18,8 @@ tail -f access.log | pq -d '...' -q 'rate(requests{method="GET", status_code=~"5
 
 The idea is pretty straightforward:
 
-**Turn an input text stream into structured time series data
-and then filter/transform/aggregate it with PromQL-like syntax.**
+**Parse an input stream into structured time series data
+and then filter/transform/aggregate it with PromQL-like expression.**
 
 For that, we need to read the input line by line, parse each line (e.g. using a regex)
 into fields and sort out fields into labels, metrics, and a timestamp. The resulting
