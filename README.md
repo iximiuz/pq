@@ -1,4 +1,4 @@
-# pq - query textual streams with PromQL-like language
+# pq - **p**arse and **q**uery textual streams
 
 Project is actively being developed!
 
@@ -6,7 +6,7 @@ Project is actively being developed!
 
 I often find myself staring at some Nginx or Envoy access logs `tail`ed to my screen
 in real time.  My only wish at that moment is to be able to aggregate the lines
-somehow and analyze the output at a slower pace.
+somehow and analyze the output at a slower pace using a PromQL-like query language.
 
 Something like:
 

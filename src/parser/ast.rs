@@ -368,6 +368,13 @@ pub struct FunctionCall {
 
 impl FunctionCall {
     pub(super) fn new(name: FunctionName, args: Vec<FunctionArg>) -> Self {
+        use FunctionName::*;
+
+        match name {
+            Vector => assert!(args.len() == 1), // TODO: assert args[0] is number
+            _ => (),                            // TODO: check all functions
+        };
+
         Self { name, args }
     }
 
@@ -375,12 +382,8 @@ impl FunctionCall {
         self.name
     }
 
-    pub fn arg(&self, pos: usize) -> Option<&FunctionArg> {
-        self.args.get(pos)
-    }
-
-    pub fn arg_count(&self) -> usize {
-        self.args.len()
+    pub fn args(self) -> Vec<FunctionArg> {
+        self.args
     }
 }
 

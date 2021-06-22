@@ -156,9 +156,17 @@ impl Executor {
                 )
             }
 
-            // Expr::FunctionCall(FunctionCall::CountOverTime(expr)) => {
-            // create_func_call_expr_executor(self.create_value_iter(*expr))
-            // }
+            // Expr::FunctionCall(call) => create_func_call_expr_executor(
+            //     call.function_name(),
+            //     call.args()
+            //         .iter()
+            //         .map(|arg| match arg {
+            //             &FunctionArg::Number(n) => Foo::Number(n),
+            //             &FunctionArg::String(s) => Foo::String(s),
+            //             &FunctionArg::Expr(expr) => Foo::ValueIter(self.create_value_iter(*expr)),
+            //         })
+            //         .collect(),
+            // ),
 
             // leaf node
             Expr::NumberLiteral(val) => Box::new(IdentityExecutor::scalar(val)),

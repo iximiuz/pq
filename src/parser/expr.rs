@@ -450,16 +450,26 @@ where
     let mut args = Vec::new();
     let mut rest = input;
 
-    let mut iter = arg_parsers.iter().peekable();
-    loop {
-        let parse = match iter.next() {
-            Some(parse) => parse,
-            None => break,
-        };
-
+    let num_args = arg_parsers.len();
+    for (i, parse) in arg_parsers.iter().enumerate() {
         let (tmp_rest, arg) = parse(rest)?;
         args.push(arg);
         rest = tmp_rest;
+
+        if i != num_args - 1 {
+            let (tmp_rest, _) = match maybe_lpadded(char(','))(rest) {
+                Ok((rest, c)) => (rest, c),
+                Err(nom::Err::Error(_)) => {
+                    return Err(nom::Err::Failure(ParseError::partial(
+                        "function call",
+                        ",",
+                        rest,
+                    )))
+                }
+                Err(e) => return Err(e),
+            };
+            rest = tmp_rest;
+        }
     }
 
     // TODO: check for trailing comma explicitly.
