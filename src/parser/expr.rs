@@ -431,7 +431,7 @@ fn function_call(func_name: FunctionName, input: Span) -> IResult<FunctionCall> 
 
     let arg_parsers: Vec<fn(Span) -> IResult<FunctionCallArg>> = match func_name {
         CountOverTime | LastOverTime | MaxOverTime | MinOverTime | SumOverTime => {
-            vec![call_arg_instant_vector]
+            vec![call_arg_range_vector]
         }
         Clamp => vec![call_arg_instant_vector, call_arg_number, call_arg_number],
         ClampMax | ClampMin => vec![call_arg_instant_vector, call_arg_number],
