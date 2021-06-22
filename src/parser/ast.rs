@@ -38,7 +38,7 @@ pub struct AggregateExpr {
     op: AggregateOp,
     expr: Box<Expr>,
     modifier: Option<AggregateModifier>,
-    parameter: Option<AggregateParameter>,
+    argument: Option<AggregateArgument>,
 }
 
 impl AggregateExpr {
@@ -46,17 +46,17 @@ impl AggregateExpr {
         op: AggregateOp,
         expr: Expr,
         modifier: Option<AggregateModifier>,
-        parameter: Option<AggregateParameter>,
+        argument: Option<AggregateArgument>,
     ) -> Self {
-        assert!(op != AggregateOp::CountValues || parameter.is_some()); // TODO: parameter is string
-        assert!(op != AggregateOp::TopK || parameter.is_some()); // TODO: parameter is number
-        assert!(op != AggregateOp::BottomK || parameter.is_some()); // TODO: parameter is number
-        assert!(op != AggregateOp::Quantile || parameter.is_some()); // TODO: parameter is number
+        assert!(op != AggregateOp::CountValues || argument.is_some()); // TODO: arg is string
+        assert!(op != AggregateOp::TopK || argument.is_some()); // TODO: arg is number
+        assert!(op != AggregateOp::BottomK || argument.is_some()); // TODO: arg is number
+        assert!(op != AggregateOp::Quantile || argument.is_some()); // TODO: arg is number
         Self {
             op,
             expr: Box::new(expr),
             modifier,
-            parameter,
+            argument,
         }
     }
 
@@ -66,9 +66,9 @@ impl AggregateExpr {
         AggregateOp,
         Box<Expr>,
         Option<AggregateModifier>,
-        Option<AggregateParameter>,
+        Option<AggregateArgument>,
     ) {
-        (self.op, self.expr, self.modifier, self.parameter)
+        (self.op, self.expr, self.modifier, self.argument)
     }
 }
 
@@ -119,7 +119,7 @@ pub enum AggregateModifier {
 }
 
 #[derive(Debug, PartialEq)]
-pub enum AggregateParameter {
+pub enum AggregateArgument {
     String(LabelName),
     Number(f64),
 }
@@ -135,6 +135,7 @@ pub struct BinaryExpr {
 }
 
 impl BinaryExpr {
+    #[allow(dead_code)] // It's used in tests.
     pub(super) fn new(lhs: Expr, op: BinaryOp, rhs: Expr) -> Self {
         Self::new_ex(lhs, op, rhs, false, None, None)
     }
@@ -315,9 +316,72 @@ impl std::convert::TryFrom<&str> for BinaryOp {
     }
 }
 
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub enum FunctionName {
+    Clamp,
+    ClampMax,
+    ClampMin,
+    Vector,
+
+    // agg over time
+    CountOverTime,
+    LastOverTime,
+    MaxOverTime,
+    MinOverTime,
+    SumOverTime,
+}
+
+impl std::convert::TryFrom<&str> for FunctionName {
+    type Error = Error;
+
+    fn try_from(name: &str) -> Result<Self> {
+        use FunctionName::*;
+
+        match name.to_lowercase().as_str() {
+            "clamp" => Ok(Clamp),
+            "clamp_max" => Ok(ClampMax),
+            "clamp_min" => Ok(ClampMin),
+            "vector" => Ok(Vector),
+            // agg over time
+            "count_over_time" => Ok(CountOverTime),
+            "last_over_time" => Ok(LastOverTime),
+            "max_over_time" => Ok(MaxOverTime),
+            "min_over_time" => Ok(MinOverTime),
+            "sum_over_time" => Ok(SumOverTime),
+            _ => Err(Error::new("Unknown function")),
+        }
+    }
+}
+
 #[derive(Debug, PartialEq)]
-pub enum FunctionCall {
-    CountOverTime(VectorSelector),
+pub enum FunctionArg {
+    Expr(Box<Expr>),
+    Number(f64),
+    String(LabelName),
+}
+
+#[derive(Debug, PartialEq)]
+pub struct FunctionCall {
+    name: FunctionName,
+    args: Vec<FunctionArg>,
+}
+
+impl FunctionCall {
+    pub(super) fn new(name: FunctionName, args: Vec<FunctionArg>) -> Self {
+        Self { name, args }
+    }
+
+    pub fn function_name(&self) -> FunctionName {
+        self.name
+    }
+
+    pub fn arg(&self, pos: usize) -> Option<&FunctionArg> {
+        self.args.get(pos)
+    }
+
+    pub fn arg_count(&self) -> usize {
+        self.args.len()
+    }
 }
 
 #[derive(Debug, PartialEq)]

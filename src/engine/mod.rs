@@ -1,6 +1,7 @@
 mod aggregate_expr;
 mod binary_expr;
 mod executor;
+mod functions;
 mod identity;
 mod unary_expr;
 mod value;

@@ -2,13 +2,13 @@ use std::collections::{BTreeMap, HashSet};
 
 use super::value::{ExprValue, ExprValueIter, ExprValueKind, InstantVector};
 use crate::model::{labels::LabelsTrait, types::SampleValue};
-use crate::parser::ast::{AggregateModifier, AggregateOp, AggregateParameter};
+use crate::parser::ast::{AggregateArgument, AggregateModifier, AggregateOp};
 
 pub(super) struct AggregateExprExecutor {
     op: AggregateOp,
     inner: Box<dyn ExprValueIter>,
     modifier: Option<AggregateModifier>,
-    parameter: Option<AggregateParameter>,
+    argument: Option<AggregateArgument>,
 }
 
 impl AggregateExprExecutor {
@@ -16,14 +16,14 @@ impl AggregateExprExecutor {
         op: AggregateOp,
         inner: Box<dyn ExprValueIter>,
         modifier: Option<AggregateModifier>,
-        parameter: Option<AggregateParameter>,
+        argument: Option<AggregateArgument>,
     ) -> Self {
         assert!(inner.value_kind() == ExprValueKind::InstantVector);
         Self {
             op,
             inner,
             modifier,
-            parameter,
+            argument,
         }
     }
 

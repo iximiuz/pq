@@ -156,6 +156,10 @@ impl Executor {
                 )
             }
 
+            // Expr::FunctionCall(FunctionCall::CountOverTime(expr)) => {
+            // create_func_call_expr_executor(self.create_value_iter(*expr))
+            // }
+
             // leaf node
             Expr::NumberLiteral(val) => Box::new(IdentityExecutor::scalar(val)),
 

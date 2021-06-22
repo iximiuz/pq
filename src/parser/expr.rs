@@ -1,10 +1,14 @@
 use std::convert::TryFrom;
 
-use nom::{branch::alt, bytes::complete::tag_no_case, character::complete::char, sequence::pair};
+use nom::{
+    branch::alt,
+    bytes::complete::tag_no_case,
+    character::complete::char,
+    sequence::{pair, terminated},
+};
 
 use super::ast::*;
 use super::common::{label_identifier, maybe_lpadded, separated_list};
-use super::function::expr_function_call;
 use super::number::{expr_number_literal, number_literal};
 use super::result::{IResult, ParseError, Span};
 use super::string::string_literal;
@@ -188,11 +192,11 @@ fn expr_aggregate(input: Span) -> IResult<Expr> {
         Err(e) => return Err(e),
     };
 
-    // Some operators have a mandatory parameter, try parsing it.
+    // Some operators have a mandatory argument, try parsing it.
     use AggregateOp::*;
-    let (rest, parameter) = match op {
+    let (rest, argument) = match op {
         CountValues => match maybe_lpadded(string_literal)(rest) {
-            Ok((rest, s)) => (rest, Some(AggregateParameter::String(s))),
+            Ok((rest, s)) => (rest, Some(AggregateArgument::String(s))),
             Err(nom::Err::Error(_)) => {
                 return Err(nom::Err::Failure(ParseError::partial(
                     "count_values operator",
@@ -203,7 +207,7 @@ fn expr_aggregate(input: Span) -> IResult<Expr> {
             Err(e) => return Err(e),
         },
         Quantile | TopK | BottomK => match maybe_lpadded(number_literal)(rest) {
-            Ok((rest, n)) => (rest, Some(AggregateParameter::Number(n))),
+            Ok((rest, n)) => (rest, Some(AggregateArgument::Number(n))),
             Err(nom::Err::Error(_)) => {
                 return Err(nom::Err::Failure(ParseError::partial(
                     "quantile, topk, or bottomk operator",
@@ -216,8 +220,8 @@ fn expr_aggregate(input: Span) -> IResult<Expr> {
         _ => (rest, None),
     };
 
-    // If parameter is there, it should be followed by a comma.
-    let (rest, _) = match parameter {
+    // If argument is there, it should be followed by a comma.
+    let (rest, _) = match argument {
         Some(_) => match maybe_lpadded(char(','))(rest) {
             Ok((rest, _)) => (rest, '_'),
             Err(nom::Err::Error(_)) => {
@@ -272,7 +276,7 @@ fn expr_aggregate(input: Span) -> IResult<Expr> {
 
     Ok((
         rest,
-        Expr::AggregateExpr(AggregateExpr::new(op, inner_expr, modifier, parameter)),
+        Expr::AggregateExpr(AggregateExpr::new(op, inner_expr, modifier, argument)),
     ))
 }
 
@@ -383,6 +387,138 @@ fn unary_op(input: Span) -> IResult<UnaryOp> {
             _ => unreachable!(),
         },
     ))
+}
+
+fn expr_function_call(input: Span) -> IResult<Expr> {
+    let (rest, func_name) = terminated(function_name, maybe_lpadded(char('(')))(input)?;
+
+    // function_call() should never return nom::Err::Error.
+    let (rest, func_call) = function_call(func_name, rest)?;
+
+    let (rest, _) = match maybe_lpadded(char(')'))(rest) {
+        Ok((rest, c)) => (rest, c),
+        Err(nom::Err::Error(_)) => {
+            return Err(nom::Err::Failure(ParseError::partial(
+                "function call",
+                ")",
+                rest,
+            )))
+        }
+        Err(e) => return Err(e),
+    };
+
+    Ok((rest, Expr::FunctionCall(func_call)))
+}
+
+fn function_name(input: Span) -> IResult<FunctionName> {
+    let (rest, name) = alt((
+        tag_no_case("clamp"),
+        tag_no_case("clamp_max"),
+        tag_no_case("clamp_min"),
+        tag_no_case("count_over_time"),
+        tag_no_case("last_over_time"),
+        tag_no_case("max_over_time"),
+        tag_no_case("min_over_time"),
+        tag_no_case("sum_over_time"),
+    ))(input)?;
+    Ok((rest, FunctionName::try_from(*name).unwrap()))
+}
+
+/// It should never return nom::Err::Error. Only success or total failure.
+fn function_call(func_name: FunctionName, input: Span) -> IResult<FunctionCall> {
+    use FunctionName::*;
+
+    let arg_parsers: Vec<fn(Span) -> IResult<FunctionArg>> = match func_name {
+        CountOverTime | LastOverTime | MaxOverTime | MinOverTime | SumOverTime => {
+            vec![func_arg_instant_vector]
+        }
+        Clamp => vec![func_arg_instant_vector, func_arg_number, func_arg_number],
+        ClampMax | ClampMin => vec![func_arg_instant_vector, func_arg_number],
+        Vector => vec![func_arg_number],
+    };
+
+    let (rest, args) = func_args(&arg_parsers, input)?;
+
+    Ok((rest, FunctionCall::new(func_name, args)))
+}
+
+/// It should never return nom::Err::Error. Only success or total failure.
+fn func_args<'a, F>(arg_parsers: &[F], input: Span<'a>) -> IResult<'a, Vec<FunctionArg>>
+where
+    F: Fn(Span<'a>) -> IResult<FunctionArg>,
+{
+    let mut args = Vec::new();
+    let mut rest = input;
+
+    let mut iter = arg_parsers.iter().peekable();
+    loop {
+        let parse = match iter.next() {
+            Some(parse) => parse,
+            None => break,
+        };
+
+        let (tmp_rest, arg) = parse(rest)?;
+        args.push(arg);
+        rest = tmp_rest;
+    }
+
+    // TODO: check for trailing comma explicitly.
+
+    Ok((rest, args))
+}
+
+/// It should never return nom::Err::Error. Only success or total failure.
+fn func_arg_number(input: Span) -> IResult<FunctionArg> {
+    match number_literal(input) {
+        Ok((rest, n)) => Ok((rest, FunctionArg::Number(n))),
+        Err(nom::Err::Failure(e)) => Err(nom::Err::Failure(e)),
+        _ => Err(nom::Err::Failure(ParseError::partial(
+            "function call",
+            "number literal",
+            input,
+        ))),
+    }
+}
+
+/// It should never return nom::Err::Error. Only success or total failure.
+fn func_arg_string(input: Span) -> IResult<FunctionArg> {
+    match string_literal(input) {
+        Ok((rest, s)) => Ok((rest, FunctionArg::String(s))),
+        Err(nom::Err::Failure(e)) => Err(nom::Err::Failure(e)),
+        _ => Err(nom::Err::Failure(ParseError::partial(
+            "function call",
+            "string literal",
+            input,
+        ))),
+    }
+}
+
+/// It should never return nom::Err::Error. Only success or total failure.
+fn func_arg_instant_vector(input: Span) -> IResult<FunctionArg> {
+    match expr(None)(input) {
+        // TODO: check that expr evaluates to an instant vector.
+        Ok((rest, expr)) => Ok((rest, FunctionArg::Expr(Box::new(expr)))),
+        Err(nom::Err::Failure(e)) => Err(nom::Err::Failure(e)),
+        _ => Err(nom::Err::Failure(ParseError::partial(
+            "function call",
+            "instant vector",
+            input,
+        ))),
+    }
+}
+
+/// It should never return nom::Err::Error. Only success or total failure.
+fn func_arg_range_vector(input: Span) -> IResult<FunctionArg> {
+    match expr(None)(input) {
+        // TODO: check that expr evaluates to a range vector.
+        Ok((rest, expr)) => Ok((rest, FunctionArg::Expr(Box::new(expr)))),
+        Err(nom::Err::Failure(e)) => Err(nom::Err::Failure(e)),
+        _ => Err(nom::Err::Failure(ParseError::partial(
+            "function call",
+            "range vector",
+            input,
+        ))),
+    }
 }
 
 #[cfg(test)]
