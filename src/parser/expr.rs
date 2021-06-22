@@ -19,12 +19,12 @@ pub fn expr<'a>(min_prec: Option<Precedence>) -> impl FnMut(Span<'a>) -> IResult
     move |input: Span| {
         let (mut rest, mut lhs) = alt((
             // Order matters here!
+            expr_function_call,
             expr_aggregate,
             expr_paren,
             expr_number_literal,
             expr_unary,
             expr_vector_selector,
-            expr_function_call,
             // TODO: expr_offset           <-- consider merging with vector_selector
         ))(input)?;
 
@@ -32,7 +32,7 @@ pub fn expr<'a>(min_prec: Option<Precedence>) -> impl FnMut(Span<'a>) -> IResult
         // E.g.  expr = unary_expr | vector_selector | binary_expr ...
         // where binary_expr = expr <OP> expr
 
-        while *rest != "" && !(*rest).starts_with(")") {
+        while *rest != "" && !(*rest).starts_with(")") && !(*rest).starts_with(",") {
             let (tmp_rest, op) = match maybe_lpadded(binary_op)(rest) {
                 Ok((r, o)) => (r, o),
                 Err(_) => {
@@ -420,6 +420,7 @@ fn function_name(input: Span) -> IResult<FunctionName> {
         tag_no_case("max_over_time"),
         tag_no_case("min_over_time"),
         tag_no_case("sum_over_time"),
+        tag_no_case("vector"),
     ))(input)?;
     Ok((rest, FunctionName::try_from(*name).unwrap()))
 }
@@ -428,31 +429,34 @@ fn function_name(input: Span) -> IResult<FunctionName> {
 fn function_call(func_name: FunctionName, input: Span) -> IResult<FunctionCall> {
     use FunctionName::*;
 
-    let arg_parsers: Vec<fn(Span) -> IResult<FunctionArg>> = match func_name {
+    let arg_parsers: Vec<fn(Span) -> IResult<FunctionCallArg>> = match func_name {
         CountOverTime | LastOverTime | MaxOverTime | MinOverTime | SumOverTime => {
-            vec![func_arg_instant_vector]
+            vec![call_arg_instant_vector]
         }
-        Clamp => vec![func_arg_instant_vector, func_arg_number, func_arg_number],
-        ClampMax | ClampMin => vec![func_arg_instant_vector, func_arg_number],
-        Vector => vec![func_arg_number],
+        Clamp => vec![call_arg_instant_vector, call_arg_number, call_arg_number],
+        ClampMax | ClampMin => vec![call_arg_instant_vector, call_arg_number],
+        Vector => vec![call_arg_number],
     };
 
-    let (rest, args) = func_args(&arg_parsers, input)?;
+    let (rest, args) = function_call_args(&arg_parsers, input)?;
 
     Ok((rest, FunctionCall::new(func_name, args)))
 }
 
 /// It should never return nom::Err::Error. Only success or total failure.
-fn func_args<'a, F>(arg_parsers: &[F], input: Span<'a>) -> IResult<'a, Vec<FunctionArg>>
+fn function_call_args<'a, F>(
+    arg_parsers: &[F],
+    input: Span<'a>,
+) -> IResult<'a, Vec<FunctionCallArg>>
 where
-    F: Fn(Span<'a>) -> IResult<FunctionArg>,
+    F: Fn(Span<'a>) -> IResult<FunctionCallArg>,
 {
     let mut args = Vec::new();
     let mut rest = input;
 
     let num_args = arg_parsers.len();
     for (i, parse) in arg_parsers.iter().enumerate() {
-        let (tmp_rest, arg) = parse(rest)?;
+        let (tmp_rest, arg) = maybe_lpadded(parse)(rest)?;
         args.push(arg);
         rest = tmp_rest;
 
@@ -462,7 +466,7 @@ where
                 Err(nom::Err::Error(_)) => {
                     return Err(nom::Err::Failure(ParseError::partial(
                         "function call",
-                        ",",
+                        "more argument(s)",
                         rest,
                     )))
                 }
@@ -478,9 +482,9 @@ where
 }
 
 /// It should never return nom::Err::Error. Only success or total failure.
-fn func_arg_number(input: Span) -> IResult<FunctionArg> {
+fn call_arg_number(input: Span) -> IResult<FunctionCallArg> {
     match number_literal(input) {
-        Ok((rest, n)) => Ok((rest, FunctionArg::Number(n))),
+        Ok((rest, n)) => Ok((rest, FunctionCallArg::Number(n))),
         Err(nom::Err::Failure(e)) => Err(nom::Err::Failure(e)),
         _ => Err(nom::Err::Failure(ParseError::partial(
             "function call",
@@ -491,9 +495,9 @@ fn func_arg_number(input: Span) -> IResult<FunctionArg> {
 }
 
 /// It should never return nom::Err::Error. Only success or total failure.
-fn func_arg_string(input: Span) -> IResult<FunctionArg> {
+fn call_arg_string(input: Span) -> IResult<FunctionCallArg> {
     match string_literal(input) {
-        Ok((rest, s)) => Ok((rest, FunctionArg::String(s))),
+        Ok((rest, s)) => Ok((rest, FunctionCallArg::String(s))),
         Err(nom::Err::Failure(e)) => Err(nom::Err::Failure(e)),
         _ => Err(nom::Err::Failure(ParseError::partial(
             "function call",
@@ -504,10 +508,10 @@ fn func_arg_string(input: Span) -> IResult<FunctionArg> {
 }
 
 /// It should never return nom::Err::Error. Only success or total failure.
-fn func_arg_instant_vector(input: Span) -> IResult<FunctionArg> {
+fn call_arg_instant_vector(input: Span) -> IResult<FunctionCallArg> {
     match expr(None)(input) {
         // TODO: check that expr evaluates to an instant vector.
-        Ok((rest, expr)) => Ok((rest, FunctionArg::Expr(Box::new(expr)))),
+        Ok((rest, expr)) => Ok((rest, FunctionCallArg::Expr(Box::new(expr)))),
         Err(nom::Err::Failure(e)) => Err(nom::Err::Failure(e)),
         _ => Err(nom::Err::Failure(ParseError::partial(
             "function call",
@@ -518,10 +522,10 @@ fn func_arg_instant_vector(input: Span) -> IResult<FunctionArg> {
 }
 
 /// It should never return nom::Err::Error. Only success or total failure.
-fn func_arg_range_vector(input: Span) -> IResult<FunctionArg> {
+fn call_arg_range_vector(input: Span) -> IResult<FunctionCallArg> {
     match expr(None)(input) {
         // TODO: check that expr evaluates to a range vector.
-        Ok((rest, expr)) => Ok((rest, FunctionArg::Expr(Box::new(expr)))),
+        Ok((rest, expr)) => Ok((rest, FunctionCallArg::Expr(Box::new(expr)))),
         Err(nom::Err::Failure(e)) => Err(nom::Err::Failure(e)),
         _ => Err(nom::Err::Failure(ParseError::partial(
             "function call",
@@ -560,6 +564,7 @@ mod tests {
             "bottomk(1.0, foo)",
             "(foo)",
             "(1 + 2) * 3",
+            "vector(3) + count_over_time(clamp(foo{qux!~\"42\"}, -100, 100500))",
         ];
 
         for input in &tests {
@@ -572,6 +577,7 @@ mod tests {
     #[test]
     fn test_valid_expressions_ex() -> std::result::Result<(), nom::Err<ParseError<'static>>> {
         use super::BinaryExpr as BinaryExprInner;
+        use super::FunctionCall as FuncCallInner;
         use Expr::*;
 
         let tests = [
@@ -658,6 +664,13 @@ mod tests {
                     )),
                     BinaryOp::Sub,
                     NumberLiteral(5.0),
+                )),
+            ),
+            (
+                "vector(3)",
+                FunctionCall(FuncCallInner::new(
+                    FunctionName::Vector,
+                    vec![FunctionCallArg::Number(3.0)],
                 )),
             ),
         ];

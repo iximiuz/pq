@@ -71,7 +71,7 @@ struct BinaryExprExecutorScalarScalar {
 }
 
 impl BinaryExprExecutorScalarScalar {
-    pub fn new(op: BinaryOp, left: Box<dyn ExprValueIter>, right: Box<dyn ExprValueIter>) -> Self {
+    fn new(op: BinaryOp, left: Box<dyn ExprValueIter>, right: Box<dyn ExprValueIter>) -> Self {
         assert!(left.value_kind() == ExprValueKind::Scalar);
         assert!(right.value_kind() == ExprValueKind::Scalar);
         Self { op, left, right }
@@ -118,7 +118,7 @@ struct BinaryExprExecutorScalarVector {
 }
 
 impl BinaryExprExecutorScalarVector {
-    pub fn new(
+    fn new(
         op: BinaryOp,
         left: Box<dyn ExprValueIter>,
         right: Box<dyn ExprValueIter>,
@@ -178,7 +178,7 @@ struct BinaryExprExecutorVectorScalar {
 }
 
 impl BinaryExprExecutorVectorScalar {
-    pub fn new(
+    fn new(
         op: BinaryOp,
         left: Box<dyn ExprValueIter>,
         right: Box<dyn ExprValueIter>,
@@ -241,7 +241,7 @@ struct BinaryExprExecutorVectorVector {
 }
 
 impl BinaryExprExecutorVectorVector {
-    pub fn new(
+    fn new(
         op: BinaryOp,
         left: Box<dyn ExprValueIter>,
         right: Box<dyn ExprValueIter>,

@@ -27,10 +27,6 @@ pub enum Expr {
     Parentheses(Box<Expr>),
     UnaryExpr(UnaryOp, Box<Expr>),
     VectorSelector(VectorSelector),
-
-    /// Never appears in the query language. Used in the engine for some
-    /// optimization.
-    Noop,
 }
 
 #[derive(Debug, PartialEq)]
@@ -354,7 +350,7 @@ impl std::convert::TryFrom<&str> for FunctionName {
 }
 
 #[derive(Debug, PartialEq)]
-pub enum FunctionArg {
+pub enum FunctionCallArg {
     Expr(Box<Expr>),
     Number(f64),
     String(LabelName),
@@ -363,11 +359,11 @@ pub enum FunctionArg {
 #[derive(Debug, PartialEq)]
 pub struct FunctionCall {
     name: FunctionName,
-    args: Vec<FunctionArg>,
+    args: Vec<FunctionCallArg>,
 }
 
 impl FunctionCall {
-    pub(super) fn new(name: FunctionName, args: Vec<FunctionArg>) -> Self {
+    pub(super) fn new(name: FunctionName, args: Vec<FunctionCallArg>) -> Self {
         use FunctionName::*;
 
         match name {
@@ -382,7 +378,7 @@ impl FunctionCall {
         self.name
     }
 
-    pub fn args(self) -> Vec<FunctionArg> {
+    pub fn args(self) -> Vec<FunctionCallArg> {
         self.args
     }
 }

@@ -4,6 +4,7 @@ use std::time::Duration;
 
 use super::aggregate_expr::AggregateExprExecutor;
 use super::binary_expr::create_binary_expr_executor;
+use super::function::{create_func_call_executor, FuncCallArg};
 use super::identity::IdentityExecutor;
 use super::unary_expr::UnaryExprExecutor;
 use super::value::{ExprValueIter, ExprValueKind};
@@ -156,17 +157,19 @@ impl Executor {
                 )
             }
 
-            // Expr::FunctionCall(call) => create_func_call_expr_executor(
-            //     call.function_name(),
-            //     call.args()
-            //         .iter()
-            //         .map(|arg| match arg {
-            //             &FunctionArg::Number(n) => Foo::Number(n),
-            //             &FunctionArg::String(s) => Foo::String(s),
-            //             &FunctionArg::Expr(expr) => Foo::ValueIter(self.create_value_iter(*expr)),
-            //         })
-            //         .collect(),
-            // ),
+            Expr::FunctionCall(call) => create_func_call_executor(
+                call.function_name(),
+                call.args()
+                    .into_iter()
+                    .map(|arg| match arg {
+                        FunctionCallArg::Number(n) => FuncCallArg::Number(n),
+                        FunctionCallArg::String(s) => FuncCallArg::String(s),
+                        FunctionCallArg::Expr(expr) => {
+                            FuncCallArg::ValueIter(self.create_value_iter(*expr))
+                        }
+                    })
+                    .collect(),
+            ),
 
             // leaf node
             Expr::NumberLiteral(val) => Box::new(IdentityExecutor::scalar(val)),
@@ -179,8 +182,6 @@ impl Executor {
                 self.interval,
                 self.lookback,
             )),
-
-            _ => unimplemented!(),
         }
 
         // Alternative iterative implementation to consider:
