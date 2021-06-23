@@ -20,7 +20,7 @@ pub(super) fn create_func_call_executor(
     use FunctionName::*;
 
     match func_name {
-        CountOverTime | MinOverTime | MaxOverTime | SumOverTime => {
+        AvgOverTime | CountOverTime | LastOverTime | MinOverTime | MaxOverTime | SumOverTime => {
             assert!(args.len() == 1);
             if let Some(FuncCallArg::ValueIter(inner)) = args.pop() {
                 return Box::new(AggOverTimeFuncExecutor::new(func_name, inner));
@@ -41,7 +41,7 @@ impl AggOverTimeFuncExecutor {
         Self { func_name, inner }
     }
 
-    fn next_simple(&self, v: RangeVector) -> InstantVector {
+    fn do_next(&self, v: RangeVector) -> InstantVector {
         use FunctionName::*;
 
         let samples = v
@@ -49,9 +49,14 @@ impl AggOverTimeFuncExecutor {
             .into_iter()
             .map(|(labels, values)| {
                 (
-                    labels.without(&HashSet::new()),
+                    labels.without(&HashSet::new()), // trick to remove __name__
                     match self.func_name {
+                        AvgOverTime => {
+                            values.iter().map(|(v, _)| *v).sum::<SampleValue>()
+                                / values.len() as SampleValue
+                        }
                         CountOverTime => values.len() as SampleValue,
+                        LastOverTime => values.iter().last().unwrap().0,
                         MinOverTime => values
                             .iter()
                             .map(|(v, _)| *v)
@@ -83,9 +88,8 @@ impl std::iter::Iterator for AggOverTimeFuncExecutor {
         };
 
         match self.func_name {
-            CountOverTime | MinOverTime | MaxOverTime | SumOverTime => {
-                Some(ExprValue::InstantVector(self.next_simple(v)))
-            }
+            AvgOverTime | CountOverTime | LastOverTime | MinOverTime | MaxOverTime
+            | SumOverTime => Some(ExprValue::InstantVector(self.do_next(v))),
             _ => unreachable!(),
         }
     }

@@ -320,6 +320,7 @@ pub enum FunctionName {
     Vector,
 
     // agg over time
+    AvgOverTime,
     CountOverTime,
     LastOverTime,
     MaxOverTime,
@@ -339,6 +340,7 @@ impl std::convert::TryFrom<&str> for FunctionName {
             "clamp_min" => Ok(ClampMin),
             "vector" => Ok(Vector),
             // agg over time
+            "avg_over_time" => Ok(AvgOverTime),
             "count_over_time" => Ok(CountOverTime),
             "last_over_time" => Ok(LastOverTime),
             "max_over_time" => Ok(MaxOverTime),
