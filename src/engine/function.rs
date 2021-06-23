@@ -41,11 +41,30 @@ impl AggOverTimeFuncExecutor {
         Self { func_name, inner }
     }
 
-    fn next_count(&self, v: RangeVector) -> InstantVector {
+    fn next_simple(&self, v: RangeVector) -> InstantVector {
+        use FunctionName::*;
+
         let samples = v
             .samples()
             .into_iter()
-            .map(|(labels, values)| (labels.without(&HashSet::new()), values.len() as SampleValue))
+            .map(|(labels, values)| {
+                (
+                    labels.without(&HashSet::new()),
+                    match self.func_name {
+                        CountOverTime => values.len() as SampleValue,
+                        MinOverTime => values
+                            .iter()
+                            .map(|(v, _)| *v)
+                            .fold(SampleValue::INFINITY, |m, c| SampleValue::min(m, c)),
+                        MaxOverTime => values
+                            .iter()
+                            .map(|(v, _)| *v)
+                            .fold(SampleValue::NEG_INFINITY, |m, c| SampleValue::max(m, c)),
+                        SumOverTime => values.iter().map(|(v, _)| *v).sum(),
+                        _ => unreachable!("bug"),
+                    },
+                )
+            })
             .collect();
         InstantVector::new(v.timestamp(), samples)
     }
@@ -64,8 +83,10 @@ impl std::iter::Iterator for AggOverTimeFuncExecutor {
         };
 
         match self.func_name {
-            CountOverTime => Some(ExprValue::InstantVector(self.next_count(v))),
-            _ => unimplemented!(),
+            CountOverTime | MinOverTime | MaxOverTime | SumOverTime => {
+                Some(ExprValue::InstantVector(self.next_simple(v)))
+            }
+            _ => unreachable!(),
         }
     }
 }
