@@ -99,11 +99,11 @@ impl std::iter::Iterator for VectorSelectorExecutor {
             // This sample timestamp check is more an optimization than a necessity.
             if sample.timestamp() > self.next_instant.unwrap().sub(self.lookback) {
                 // This sample timestamp is mandatory though!
-                if self
-                    .buffer
-                    .latest_sample_timestamp_per_series(sample.labels())
-                    .unwrap_or(Timestamp::MIN)
-                    < sample.timestamp()
+                // if self
+                //     .buffer
+                //     .latest_sample_timestamp_per_series(sample.labels())
+                //     .unwrap_or(Timestamp::MIN)
+                //     < sample.timestamp()
                 {
                     self.buffer.push(sample);
                 }

@@ -9,6 +9,7 @@ use crate::model::types::{Labels, MetricName, SampleValue, Timestamp};
 pub struct Input {
     reader: Box<dyn Reader>,
     decoder: Box<dyn Decoder>,
+    line_no: usize,
     cursors: Vec<Weak<Cursor>>,
 }
 
@@ -22,6 +23,7 @@ impl Input {
         Self {
             reader,
             decoder,
+            line_no: 0,
             cursors: vec![],
         }
     }
@@ -44,7 +46,9 @@ impl Input {
                 Ok(_) => (),
             };
 
-            let (timestamp, labels, values) = match self.decoder.decode(&mut buf) {
+            self.line_no += 1;
+
+            let (timestamp, labels, mut values) = match self.decoder.decode(&mut buf) {
                 Ok(Record(ts, ls, vs)) => (ts, ls, vs),
                 Err(err) => {
                     eprintln!(
@@ -55,6 +59,9 @@ impl Input {
                     continue;
                 }
             };
+
+            // Tiny hack...
+            values.insert("__line__".to_owned(), self.line_no as SampleValue);
 
             for (name, value) in values {
                 let sample = Rc::new(Sample::new(name, value, timestamp, labels.clone()));
