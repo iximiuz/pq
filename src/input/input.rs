@@ -72,6 +72,9 @@ impl Input {
                     }
                 }
             }
+
+            // TODO: optimize - read multiple lines at once.
+            break;
         }
     }
 }
