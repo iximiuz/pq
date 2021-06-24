@@ -14,6 +14,58 @@ Something like:
 tail -f access.log | pq -d '...' -q 'rate(requests{method="GET", status_code=~"5"}[1s])'
 ```
 
+## Demo
+
+Try it out yourself!
+
+```bash
+# Launch a test web server.
+docker run -p 55055:80 --rm --name test_server nginx 2>/dev/null
+
+# In another terminal, start pouring some well-known but diverse traffic.
+# Notice, `-q` means Query Rate and `-c` means multiplier.
+hey -n 1000000 -q 80 -c 2 -m GET http://localhost:55055/ &
+hey -n 1000000 -q 60 -c 2 -m GET http://localhost:55055/qux &
+hey -n 1000000 -q 40 -c 2 -m POST http://localhost:55055/ &
+hey -n 1000000 -q 20 -c 2 -m PUT http://localhost:55055/foob &
+hey -n 1000000 -q 10 -c 2 -m PATCH http://localhost:55055/ &
+```
+
+Access log in the first terminal looks impossible to analyze in real-time, right? `pq` to the rescue!
+
+### Secondly HTTP request rate with by (method, status_code) breakdowns
+
+```bash
+docker logs -n 1000 -f test_server 2>/dev/null | \
+    pq -d '[^\[]+\[([^\s]+).+?]\s+"([^\s]+)[^"]*?"\s+(\d+)\s+(\d+).*' \
+        -e h \
+        -t '0:%d/%b/%Y:%H:%M:%S' \
+        -l 1:method \
+        -l 2:status_code \
+        -m 3:content_len \
+        -- \
+        'count_over_time(__line__[1s])'
+```
+
+![RPS](images/rps-2000-opt.png)
+
+
+## Secondly traffic (in KB/s) aggregated by method
+
+```bash
+docker logs -n 1000 -f test_server 2>/dev/null | \
+    pq -d '[^\[]+\[([^\s]+).+?]\s+"([^\s]+)[^"]*?"\s+(\d+)\s+(\d+).*' \
+        -e h \
+        -t '0:%d/%b/%Y:%H:%M:%S' \
+        -l 1:method \
+        -l 2:status_code \
+        -m 3:content_len \
+        -- \
+        'sum(sum_over_time(content_len[1s])) by (method) / 1024'
+```
+
+![BPS](images/bps-2000-opt.png)
+
 ##  How
 
 The idea is pretty straightforward:
