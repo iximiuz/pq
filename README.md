@@ -129,7 +129,7 @@ where `-t` means _timestamp_, `-l` means _label_, and `-m` means _metric_, and t
 represent the match position in the regex.
 
 As a result, a time series called `body_bytes` is produced. Since a record in general can have
-multiple metrics, parsing stage turns a single input stream into one more time series called 
+multiple metrics, parsing stage turns a single input stream into one or more time series called 
 after the corresponding metric name.
 
 
