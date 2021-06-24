@@ -91,7 +91,7 @@ For more use cases, see [tests/scenarios folder](tests/scenarios).
 
 ### Parse input
 
-An input is considered as a stream of records. A typical record example is a single log line:
+The input is seen as a stream of records. A typical record example is a single log line:
 
 ```
 172.17.0.1 - - [24/Jun/2021:07:54:16 +0000] "GET / HTTP/1.1" 200 612 "-" "hey/0.0.1" "-"
