@@ -6,6 +6,9 @@ pub struct CliOpt {
     #[structopt(long = "decode", short = "d")]
     pub decode: String,
 
+    #[structopt(long = "encode", short = "e")]
+    pub encode: Option<String>,
+
     #[structopt(long = "timestamp", short = "t")]
     pub timestamp: String,
 

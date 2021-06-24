@@ -6,7 +6,11 @@ use structopt::StructOpt;
 use pq::cliopt::CliOpt;
 use pq::engine::Executor;
 use pq::input::{decoder::RegexDecoder, reader::LineReader, Input};
-use pq::output::{encoder::PromApiEncoder, writer::LineWriter, Output};
+use pq::output::{
+    encoder::{HumanReadableEncoder, PromApiEncoder},
+    writer::LineWriter,
+    Output,
+};
 use pq::parser;
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
@@ -24,7 +28,11 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     let output = Output::new(
         Box::new(LineWriter::new(io::stdout())),
-        Box::new(PromApiEncoder::new()),
+        match opt.encode {
+            None => Box::new(PromApiEncoder::new()),
+            Some(e) if e == "h" => Box::new(HumanReadableEncoder::new()),
+            _ => unimplemented!(),
+        },
     );
 
     let exctr = Executor::new(
