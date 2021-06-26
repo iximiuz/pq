@@ -98,15 +98,7 @@ impl std::iter::Iterator for VectorSelectorExecutor {
 
             // This sample timestamp check is more an optimization than a necessity.
             if sample.timestamp() > self.next_instant.unwrap().sub(self.lookback) {
-                // This sample timestamp is mandatory though!
-                // if self
-                //     .buffer
-                //     .latest_sample_timestamp_per_series(sample.labels())
-                //     .unwrap_or(Timestamp::MIN)
-                //     < sample.timestamp()
-                {
-                    self.buffer.push(sample);
-                }
+                self.buffer.push(sample);
             }
         }
 
@@ -172,16 +164,6 @@ impl SampleMatrix {
     fn latest_sample_timestamp(&self) -> Option<Timestamp> {
         assert!((self.matrix.len() == 0) == self.latest_sample_timestamp.is_none());
         self.latest_sample_timestamp
-    }
-
-    fn latest_sample_timestamp_per_series(&self, labels: &Labels) -> Option<Timestamp> {
-        match self.matrix.get(&labels.to_vec()) {
-            Some((_, series)) => match series.back() {
-                Some((_, ts)) => Some(*ts),
-                None => None,
-            },
-            None => None,
-        }
     }
 
     fn push(&mut self, sample: Rc<Sample>) {
