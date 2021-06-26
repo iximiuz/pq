@@ -24,8 +24,6 @@ impl RegexDecoder {
         labels: Vec<String>,
         metrics: Vec<String>,
     ) -> Result<Self> {
-        assert!(metrics.len() > 0, "at least one metric is required");
-
         let re = regex::bytes::Regex::new(re_pattern).map_err(|e| ("bad regex pattern", e))?;
 
         let timestamp_cap = CaptureTimestamp::parse(timestamp)?;
@@ -54,7 +52,7 @@ impl RegexDecoder {
         labels: &[CaptureLabel],
         metrics: &[CaptureMetric],
     ) -> Result<()> {
-        if re.captures_len() < 2 {
+        if re.captures_len() < 1 {
             return Err(Error::new(
                 "regex must have at least two captures (timestamp and metric)",
             ));

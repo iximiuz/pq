@@ -6,6 +6,14 @@ use nom::{branch::alt, bytes::complete::tag, character::complete::digit1};
 use super::result::{IResult, ParseError, Span};
 use crate::error::{Error, Result};
 
+pub fn parse_duration(s: &str) -> Result<Duration> {
+    match duration(Span::new(s)) {
+        Ok((_, d)) => Ok(d),
+        Err(nom::Err::Error(e)) | Err(nom::Err::Failure(e)) => Err(Error::from(e.message())),
+        _ => unreachable!(),
+    }
+}
+
 /// Parse Go-like duration string: `2s`, `1y3w5d7h9m`.
 /// - Only positive durations.
 /// - No fractional units.

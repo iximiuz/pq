@@ -1,9 +1,9 @@
 use std::io::{self, BufReader};
-use std::time::Duration;
 
 use structopt::StructOpt;
 
 use pq::cliopt::CliOpt;
+use pq::common::time::TimeRange;
 use pq::engine::Executor;
 use pq::input::{decoder::RegexDecoder, reader::LineReader, Input};
 use pq::output::{
@@ -24,6 +24,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             opt.labels,
             opt.metrics,
         )?),
+        opt.verbose,
     );
 
     let output = Output::new(
@@ -38,9 +39,9 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let exctr = Executor::new(
         input,
         output,
-        None,
-        Some(Duration::from_millis(1000)),
-        Some(Duration::from_millis(1000)),
+        Some(TimeRange::new(opt.since, opt.until)?),
+        opt.interval,
+        opt.lookback,
     );
 
     let query_ast = parser::parse_query(&opt.query)?;

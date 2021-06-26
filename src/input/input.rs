@@ -9,6 +9,7 @@ use crate::model::types::{Labels, MetricName, SampleValue, Timestamp};
 pub struct Input {
     reader: Box<dyn Reader>,
     decoder: Box<dyn Decoder>,
+    verbose: bool,
     line_no: usize,
     cursors: Vec<Weak<Cursor>>,
 }
@@ -19,10 +20,11 @@ pub struct Input {
 //         - main thread takes values only from the queue
 
 impl Input {
-    pub fn new(reader: Box<dyn Reader>, decoder: Box<dyn Decoder>) -> Self {
+    pub fn new(reader: Box<dyn Reader>, decoder: Box<dyn Decoder>, verbose: bool) -> Self {
         Self {
             reader,
             decoder,
+            verbose,
             line_no: 0,
             cursors: vec![],
         }
@@ -51,11 +53,13 @@ impl Input {
             let (timestamp, labels, mut values) = match self.decoder.decode(&mut buf) {
                 Ok(Record(ts, ls, vs)) => (ts, ls, vs),
                 Err(err) => {
-                    eprintln!(
-                        "Line decoding failed.\nError: {}\nLine: {}",
-                        err,
-                        String::from_utf8_lossy(&buf),
-                    );
+                    if self.verbose {
+                        eprintln!(
+                            "Line decoding failed.\nError: {}\nLine: {}",
+                            err,
+                            String::from_utf8_lossy(&buf),
+                        );
+                    }
                     continue;
                 }
             };

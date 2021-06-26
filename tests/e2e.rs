@@ -70,6 +70,7 @@ fn query<'a>(
             opt.labels,
             opt.metrics,
         )?),
+        true,
     );
 
     let writer = Rc::new(RefCell::new(LineWriter::new(

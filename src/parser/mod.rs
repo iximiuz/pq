@@ -8,4 +8,5 @@ mod result;
 mod string;
 mod vector;
 
+pub use duration::parse_duration;
 pub use parser::parse_query;
