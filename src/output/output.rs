@@ -1,7 +1,7 @@
 use super::encoder::Encoder;
 use super::writer::Writer;
-use crate::engine::ExprValue;
 use crate::error::Result;
+use crate::query::ExprValue;
 
 pub struct Output {
     writer: Box<dyn Writer>,

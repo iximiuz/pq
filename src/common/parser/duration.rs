@@ -18,7 +18,7 @@ pub fn parse_duration(s: &str) -> Result<Duration> {
 /// - Only positive durations.
 /// - No fractional units.
 /// - Units are always ordered from longest to shortest.
-pub(super) fn duration(input: Span) -> IResult<Duration> {
+pub fn duration(input: Span) -> IResult<Duration> {
     let (rest, duration) = duration_inner(input, Unit::Year)?;
 
     if duration.eq(&Duration::from_millis(0)) {

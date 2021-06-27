@@ -3,9 +3,9 @@ use std::collections::BTreeMap;
 use chrono::prelude::*;
 
 use super::encoder::Encoder;
-use crate::engine::{ExprValue, InstantVector};
 use crate::error::Result;
 use crate::model::labels::LabelsTrait;
+use crate::query::{ExprValue, InstantVector};
 
 pub struct HumanReadableEncoder {}
 

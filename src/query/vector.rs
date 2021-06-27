@@ -2,6 +2,7 @@ use std::collections::{BTreeMap, VecDeque};
 use std::rc::Rc;
 use std::time::Duration;
 
+use super::parser::ast::VectorSelector;
 use super::value::{ExprValue, ExprValueIter, ExprValueKind, InstantVector, RangeVector};
 use crate::common::time::TimeRange;
 use crate::input::{Cursor, Sample};
@@ -9,7 +10,6 @@ use crate::model::{
     labels::{Labels, LabelsTrait},
     types::{SampleValue, Timestamp, TimestampTrait},
 };
-use crate::parser::ast::VectorSelector;
 
 pub(super) struct VectorSelectorExecutor {
     cursor: Rc<Cursor>,

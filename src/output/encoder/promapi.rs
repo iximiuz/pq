@@ -4,8 +4,8 @@ use serde::Serialize;
 use serde_json;
 
 use super::encoder::Encoder;
-use crate::engine::{ExprValue, InstantVector, RangeVector};
 use crate::error::Result;
+use crate::query::{ExprValue, InstantVector, RangeVector};
 
 // TODO: Instant query - string
 // {

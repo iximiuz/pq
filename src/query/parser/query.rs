@@ -1,6 +1,6 @@
 use super::ast::AST;
 use super::expr::expr;
-use super::result::{ParseError, Span};
+use crate::common::parser::{ParseError, Span};
 use crate::error::{Error, Result};
 
 pub fn parse_query(input: &str) -> Result<AST> {

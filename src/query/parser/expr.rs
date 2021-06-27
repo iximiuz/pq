@@ -8,11 +8,11 @@ use nom::{
 };
 
 use super::ast::*;
-use super::common::{label_identifier, maybe_lpadded, separated_list};
-use super::number::{expr_number_literal, number_literal};
-use super::result::{IResult, ParseError, Span};
-use super::string::string_literal;
 use super::vector::expr_vector_selector;
+use crate::common::parser::{
+    label_identifier, maybe_lpadded, number_literal, separated_list, string_literal, IResult,
+    ParseError, Span,
+};
 use crate::model::types::LabelName;
 
 pub fn expr<'a>(min_prec: Option<Precedence>) -> impl FnMut(Span<'a>) -> IResult<Expr> {
@@ -112,6 +112,11 @@ pub fn expr<'a>(min_prec: Option<Precedence>) -> impl FnMut(Span<'a>) -> IResult
 
         Ok((rest, lhs))
     }
+}
+
+fn expr_number_literal(input: Span) -> IResult<Expr> {
+    let (rest, n) = number_literal(input)?;
+    Ok((rest, Expr::NumberLiteral(n)))
 }
 
 fn binary_op(input: Span) -> IResult<BinaryOp> {
@@ -538,7 +543,6 @@ fn call_arg_range_vector(input: Span) -> IResult<FunctionCallArg> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::parser::result::ParseError;
 
     #[test]
     fn test_valid_expressions() -> std::result::Result<(), String> {

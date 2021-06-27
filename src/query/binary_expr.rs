@@ -1,6 +1,6 @@
+use super::parser::ast::{BinaryOp, BinaryOpKind, GroupModifier, LabelMatching};
 use super::value::{ExprValue, ExprValueIter, ExprValueKind, InstantVector as Vector};
 use crate::model::types::SampleValue;
-use crate::parser::ast::{BinaryOp, BinaryOpKind, GroupModifier, LabelMatching};
 
 pub(super) fn create_binary_expr_executor(
     op: BinaryOp,

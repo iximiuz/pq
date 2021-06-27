@@ -4,10 +4,10 @@ use std::time::Duration;
 use nom::{branch::alt, bytes::complete::tag, character::complete::char};
 
 use super::ast::{Expr, VectorSelector};
-use super::common::{label_identifier, maybe_lpadded, metric_identifier, separated_list};
-use super::duration::duration;
-use super::result::{IResult, ParseError, Span};
-use super::string::string_literal;
+use crate::common::parser::{
+    duration, label_identifier, maybe_lpadded, metric_identifier, separated_list, string_literal,
+    IResult, ParseError, Span,
+};
 use crate::model::labels::{LabelMatcher, MatchOp};
 
 pub(super) fn expr_vector_selector(input: Span) -> IResult<Expr> {

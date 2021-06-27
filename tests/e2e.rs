@@ -9,14 +9,13 @@ use serde_json;
 use structopt::StructOpt;
 
 use pq::cliopt::CliOpt;
-use pq::engine::Executor;
 use pq::input::{decoder::RegexDecoder, reader::LineReader, Input};
 use pq::output::{
     encoder::PromApiEncoder,
     writer::{LineWriter, Writer},
     Output,
 };
-use pq::parser;
+use pq::query::{parse_query, Executor};
 
 #[test]
 fn e2e() -> Result<(), Box<dyn std::error::Error>> {
@@ -98,7 +97,7 @@ fn query<'a>(
         Some(Duration::from_millis(1000)),
     );
 
-    let query_ast = parser::parse_query(&opt.query)?;
+    let query_ast = parse_query(&opt.query)?;
     exctr.execute(query_ast)?;
 
     // To make Rc::try_unwrap(writer) work.

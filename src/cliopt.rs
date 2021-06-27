@@ -3,9 +3,9 @@ use std::time::Duration;
 use chrono::prelude::*;
 use structopt::StructOpt;
 
+use crate::common::parser::parse_duration;
 use crate::error::Result;
 use crate::model::types::Timestamp;
-use crate::parser::parse_duration;
 
 #[derive(Debug, StructOpt)]
 #[structopt(name = "pq", about = "pq command line arguments")]

@@ -269,22 +269,6 @@ impl BinaryOp {
     }
 }
 
-/// Try to parse a string into a binary op.
-///
-/// ```
-/// # use std::convert::TryFrom;
-/// # use pq::parser::ast::BinaryOp;
-/// #
-/// # fn main() {
-/// let op = BinaryOp::try_from("+");
-/// assert_eq!(BinaryOp::Add, op.unwrap());
-///
-/// let op = BinaryOp::try_from("==");
-/// assert_eq!(BinaryOp::Eql, op.unwrap());
-///
-/// let op = BinaryOp::try_from("uNLeSs");
-/// assert_eq!(BinaryOp::Unless, op.unwrap());
-/// # }
 impl std::convert::TryFrom<&str> for BinaryOp {
     type Error = Error;
 

@@ -6,6 +6,7 @@ use super::aggregate_expr::AggregateExprExecutor;
 use super::binary_expr::create_binary_expr_executor;
 use super::function::{create_func_call_executor, FuncCallArg};
 use super::identity::IdentityExecutor;
+use super::parser::ast::*;
 use super::unary_expr::UnaryExprExecutor;
 use super::value::{ExprValueIter, ExprValueKind};
 use super::vector::VectorSelectorExecutor;
@@ -13,7 +14,6 @@ use crate::common::time::TimeRange;
 use crate::error::Result;
 use crate::input::Input;
 use crate::output::Output;
-use crate::parser::ast::*;
 
 const DEFAULT_INTERVAL: Duration = Duration::from_millis(1000);
 const DEFAULT_LOOKBACK: Duration = DEFAULT_INTERVAL;
