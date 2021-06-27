@@ -5,6 +5,7 @@ use crate::decoder::{Decoder, Entry};
 use crate::encoder::{Encoder, Outry};
 use crate::error::Result;
 use crate::input::Reader;
+use crate::model::Record;
 use crate::output::Writer;
 
 // (Reader -> Decoder [-> Matcher [-> Querier]]) -> (Encoder -> Writer)
@@ -38,13 +39,38 @@ impl Pipeline {
         decoder: Box<dyn Decoder>,
         encoder: Box<dyn Encoder>,
         writer: Box<dyn Writer>,
-        // matcher: Option<Matcher>,
-        // querier: Option<QueryExecutor>,
+        pattern: Option<String>,
+        // query: Option<String>,
         // range: Option<TimeRange>,
     ) -> Self {
+        let consumer = Consumer::new(writer, encoder);
+        let ereader = EntryReader::new(reader, decoder);
+
+        if let Some(pattern) = pattern {
+            let rreader = RecordReader::new(ereader);
+
+            // TODO:
+            // if let Some(query) = query {
+            //     TODO: make sure matcher has a timestamp match.
+            //
+            //     return Self {
+            //         producer: Producer::ExprValueReader(QueryExecutor::new(rreader))
+            //         consumer,
+            //     }
+            // }
+
+            // TODO: compare decoder entry size and matcher pattern size.
+
+            return Self {
+                producer: Producer::RecordReader(RefCell::new(rreader)),
+                consumer,
+                // range: range.unwrap_or(TimeRange::infinity()),
+            };
+        }
+
         Self {
-            producer: Producer::EntryReader(RefCell::new(EntryReader::new(reader, decoder))),
-            consumer: Consumer::new(writer, encoder),
+            producer: Producer::EntryReader(RefCell::new(ereader)),
+            consumer,
             // range: range.unwrap_or(TimeRange::infinity()),
         }
     }
@@ -54,6 +80,10 @@ impl Pipeline {
             let outry = match &self.producer {
                 Producer::EntryReader(ereader) => match ereader.borrow_mut().read()? {
                     Some((entry, line_no)) => Outry::Entry(entry, line_no),
+                    None => break,
+                },
+                Producer::RecordReader(rreader) => match rreader.borrow_mut().read()? {
+                    Some(record) => Outry::Record(record),
                     None => break,
                 },
             };
@@ -126,17 +156,43 @@ impl EntryReader {
     }
 }
 
-// TODO: put this stuff somwhere in the RecordReader
-// Tiny hack...
-// values.insert("__line__".to_owned(), self.line_no as SampleValue);
+struct RecordReader {
+    reader: EntryReader,
+    // matcher: Box<dyn Matcher>,
+}
 
-// if sample.timestamp() > self.last_instant.unwrap_or(Timestamp::MAX) {
-//     // Input not really drained, but we've seen enough.
-//     return None;
-// }
+impl RecordReader {
+    fn new(reader: EntryReader) -> Self {
+        Self { reader }
+    }
+
+    fn read(&mut self) -> Result<Option<Record>> {
+        loop {
+            let (entry, line) = match self.reader.read() {
+                Err(e) => {
+                    return Err(("reader failed", e).into());
+                }
+                Ok(Some((entry, line))) => (entry, line),
+                Ok(None) => return Ok(None), // EOF
+            };
+
+            // TODO:
+            // Tiny hack...
+            // values.insert("__line__".to_owned(), self.line_no as SampleValue);
+
+            // if sample.timestamp() > self.last_instant.unwrap_or(Timestamp::MAX) {
+            //     // Input not really drained, but we've seen enough.
+            //     return None;
+            // }
+
+            return Ok(None);
+        }
+    }
+}
 
 enum Producer {
     EntryReader(RefCell<EntryReader>),
+    RecordReader(RefCell<RecordReader>),
 }
 
 struct Consumer {
