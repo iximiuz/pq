@@ -3,6 +3,7 @@ use std::collections::BTreeMap;
 use chrono::prelude::*;
 
 use super::encoder::{Encoder, Outry};
+use crate::decoder::Entry;
 use crate::error::Result;
 use crate::model::LabelsTrait;
 use crate::query::{ExprValue, InstantVector};
@@ -48,7 +49,12 @@ impl HumanReadableEncoder {
 impl Encoder for HumanReadableEncoder {
     fn encode(&self, value: &Outry) -> Result<Vec<u8>> {
         match value {
-            Outry::Entry(entry, line_no) => Ok(format!("{}: {:?}", line_no, entry).into_bytes()),
+            Outry::Entry(Entry::List(entry), line_no) => {
+                Ok(format!("{}: {:?}", line_no, entry).into_bytes())
+            }
+            Outry::Entry(Entry::Dict(entry), line_no) => {
+                Ok(format!("{}: {:?}", line_no, entry).into_bytes())
+            }
             Outry::Record(record) => Ok(format!("{:?}", record).into_bytes()),
             Outry::Value(ExprValue::InstantVector(v)) => self.encode_instant_vector(v),
             _ => unimplemented!("coming soon..."),

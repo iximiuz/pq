@@ -25,14 +25,14 @@ pub struct CliOpt {
     #[structopt(long = "lookback", short = "b", parse(try_from_str = parse_duration))]
     pub lookback: Option<Duration>,
 
-    #[structopt(long = "decode", short = "d")]
-    pub decode: String,
+    #[structopt(long = "parse", short = "p")]
+    pub parse: String,
 
     #[structopt(long = "encode", short = "e")]
     pub encode: Option<String>,
 
     #[structopt(long = "timestamp", short = "t")]
-    pub timestamp: String,
+    pub timestamp: Option<String>,
 
     #[structopt(long = "label", short = "l")]
     pub labels: Vec<String>,
@@ -40,7 +40,8 @@ pub struct CliOpt {
     #[structopt(long = "metric", short = "m")]
     pub metrics: Vec<String>,
 
-    pub query: String,
+    #[structopt(long = "query", short = "q")]
+    pub query: Option<String>,
 }
 
 fn parse_iso_time(s: &str) -> Result<Timestamp> {

@@ -40,7 +40,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     let mut pipeline = Pipeline::new(
         Box::new(LineReader::new(BufReader::new(io::stdin()))),
-        Box::new(RegexDecoder::new(&opt.decode)?),
+        Box::new(RegexDecoder::new(&opt.parse)?),
         Box::new(HumanReadableEncoder::new()),
         Box::new(LineWriter::new(io::stdout())),
     );

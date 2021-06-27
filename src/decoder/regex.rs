@@ -18,8 +18,10 @@ impl RegexDecoder {
 impl Decoder for RegexDecoder {
     fn decode(&self, buf: &Vec<u8>) -> Result<Entry> {
         let caps = self.re.captures(buf).ok_or("no match found")?;
+
         Ok(Entry::List(
             caps.iter()
+                .skip((self.re.captures_len() > 1) as usize)
                 .map(|c| {
                     String::from_utf8(c.unwrap().as_bytes().to_owned())
                         .expect("only UTF-8 is supported")
