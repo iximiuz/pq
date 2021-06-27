@@ -47,7 +47,7 @@ impl Pipeline {
         let ereader = EntryReader::new(reader, decoder);
 
         if let Some(pattern) = pattern {
-            let rreader = RecordReader::new(ereader);
+            let rreader = RecordReader::new(Box::new(ereader));
 
             // TODO:
             // if let Some(query) = query {
@@ -78,12 +78,14 @@ impl Pipeline {
     pub fn run(&mut self) -> Result<()> {
         loop {
             let outry = match &self.producer {
-                Producer::EntryReader(ereader) => match ereader.borrow_mut().read()? {
-                    Some((entry, line_no)) => Outry::Entry(entry, line_no),
+                Producer::EntryReader(ereader) => match ereader.borrow_mut().next() {
+                    Some(Ok((entry, line_no))) => Outry::Entry(entry, line_no),
+                    Some(Err(e)) => return Err(e),
                     None => break,
                 },
-                Producer::RecordReader(rreader) => match rreader.borrow_mut().read()? {
-                    Some(record) => Outry::Record(record),
+                Producer::RecordReader(rreader) => match rreader.borrow_mut().next() {
+                    Some(Ok(record)) => Outry::Record(record),
+                    Some(Err(e)) => return Err(e),
                     None => break,
                 },
             };
@@ -125,22 +127,26 @@ impl EntryReader {
             verbose: false,
         }
     }
+}
 
-    fn read(&mut self) -> Result<Option<(Entry, usize)>> {
+impl std::iter::Iterator for EntryReader {
+    type Item = Result<(Entry, usize)>;
+
+    fn next(&mut self) -> Option<Self::Item> {
         loop {
             let mut buf = Vec::new();
             match self.reader.read(&mut buf) {
-                Err(e) => {
-                    return Err(("reader failed", e).into());
-                }
-                Ok(0) => return Ok(None), // EOF
                 Ok(_) => (),
+                Ok(0) => return None, // EOF
+                Err(e) => {
+                    return Some(Err(("reader failed", e).into()));
+                }
             };
 
             self.line_no += 1;
 
             match self.decoder.decode(&mut buf) {
-                Ok(entry) => return Ok(Some((entry, self.line_no))),
+                Ok(entry) => return Some(Ok((entry, self.line_no))),
                 Err(err) => {
                     if self.verbose {
                         eprintln!(
@@ -157,23 +163,27 @@ impl EntryReader {
 }
 
 struct RecordReader {
-    reader: EntryReader,
+    entries: Box<dyn std::iter::Iterator<Item = Result<(Entry, usize)>>>,
     // matcher: Box<dyn Matcher>,
 }
 
 impl RecordReader {
-    fn new(reader: EntryReader) -> Self {
-        Self { reader }
+    fn new(entries: Box<dyn std::iter::Iterator<Item = Result<(Entry, usize)>>>) -> Self {
+        Self { entries }
     }
+}
 
-    fn read(&mut self) -> Result<Option<Record>> {
+impl std::iter::Iterator for RecordReader {
+    type Item = Result<Record>;
+
+    fn next(&mut self) -> Option<Self::Item> {
         loop {
-            let (entry, line) = match self.reader.read() {
-                Err(e) => {
-                    return Err(("reader failed", e).into());
+            let (entry, line) = match self.entries.next() {
+                Some(Ok((entry, line))) => (entry, line),
+                Some(Err(e)) => {
+                    return Some(Err(("reader failed", e).into()));
                 }
-                Ok(Some((entry, line))) => (entry, line),
-                Ok(None) => return Ok(None), // EOF
+                None => return None, // EOF
             };
 
             // TODO:
@@ -185,7 +195,7 @@ impl RecordReader {
             //     return None;
             // }
 
-            return Ok(None);
+            return None;
         }
     }
 }
