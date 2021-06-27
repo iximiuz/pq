@@ -42,7 +42,7 @@ impl Pipeline {
         pattern: Option<String>,
         // query: Option<String>,
         // range: Option<TimeRange>,
-    ) -> Self {
+    ) -> Result<Self> {
         let consumer = Consumer::new(writer, encoder);
         let ereader = EntryReader::new(reader, decoder);
 
@@ -61,18 +61,18 @@ impl Pipeline {
 
             // TODO: compare decoder entry size and matcher pattern size.
 
-            return Self {
+            return Ok(Self {
                 producer: Producer::RecordReader(RefCell::new(rreader)),
                 consumer,
                 // range: range.unwrap_or(TimeRange::infinity()),
-            };
+            });
         }
 
-        Self {
+        Ok(Self {
             producer: Producer::EntryReader(RefCell::new(ereader)),
             consumer,
             // range: range.unwrap_or(TimeRange::infinity()),
-        }
+        })
     }
 
     pub fn run(&mut self) -> Result<()> {

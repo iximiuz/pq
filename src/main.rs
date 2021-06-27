@@ -44,7 +44,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         Box::new(HumanReadableEncoder::new()),
         Box::new(LineWriter::new(io::stdout())),
         opt.mtch,
-    );
+    )?;
 
     pipeline.run()?;
 
