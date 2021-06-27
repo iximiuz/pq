@@ -3,13 +3,9 @@ use std::rc::Rc;
 use std::time::Duration;
 
 use super::parser::ast::VectorSelector;
+use super::samples::Cursor;
 use super::value::{ExprValue, ExprValueIter, ExprValueKind, InstantVector, RangeVector};
-use crate::common::time::TimeRange;
-use crate::input::{Cursor, Sample};
-use crate::model::{
-    labels::{Labels, LabelsTrait},
-    types::{SampleValue, Timestamp, TimestampTrait},
-};
+use crate::model::{Labels, LabelsTrait, Sample, SampleValue, Timestamp, TimestampTrait};
 
 pub(super) struct VectorSelectorExecutor {
     cursor: Rc<Cursor>,
@@ -17,7 +13,6 @@ pub(super) struct VectorSelectorExecutor {
     interval: Duration,
     lookback: Duration,
     next_instant: Option<Timestamp>,
-    last_instant: Option<Timestamp>,
     buffer: SampleMatrix,
 }
 
@@ -25,9 +20,9 @@ impl VectorSelectorExecutor {
     pub(super) fn new(
         cursor: Rc<Cursor>,
         selector: VectorSelector,
-        range: TimeRange,
         interval: Duration,
         lookback: Duration,
+        start_at: Option<Timestamp>,
     ) -> Self {
         assert!(
             lookback.as_secs() > 0,
@@ -39,8 +34,7 @@ impl VectorSelectorExecutor {
             selector,
             interval,
             lookback,
-            next_instant: range.start().map(|t| t.round_up_to_secs()),
-            last_instant: range.end().map(|t| t.round_up_to_secs()),
+            next_instant: start_at,
             buffer: SampleMatrix::new(),
         }
     }
@@ -51,11 +45,6 @@ impl VectorSelectorExecutor {
                 Some(s) => s,
                 None => return None, // drained input
             };
-
-            if sample.timestamp() > self.last_instant.unwrap_or(Timestamp::MAX) {
-                // Input not really drained, but we've seen enough.
-                return None;
-            }
 
             if self
                 .selector
@@ -93,7 +82,6 @@ impl std::iter::Iterator for VectorSelectorExecutor {
                 //        To support sub-secondly lookbacks, the round up should be till
                 //        the next even lookback.
                 self.next_instant = Some(sample.timestamp().round_up_to_secs());
-                assert!(self.next_instant.unwrap() <= self.last_instant.unwrap_or(Timestamp::MAX));
             }
 
             // This sample timestamp check is more an optimization than a necessity.

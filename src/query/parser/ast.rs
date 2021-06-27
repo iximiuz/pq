@@ -2,10 +2,7 @@ use std::collections::HashSet;
 use std::time::Duration;
 
 use crate::error::{Error, Result};
-use crate::model::{
-    labels::{LabelMatcher, LabelName},
-    types::{MetricName, SampleValue},
-};
+use crate::model::{LabelMatcher, LabelName, MetricName, SampleValue};
 
 #[derive(Debug)]
 pub struct AST {

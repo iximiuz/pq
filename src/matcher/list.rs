@@ -5,10 +5,8 @@ use chrono::prelude::*;
 use lazy_static::lazy_static;
 use regex;
 
-use super::decoder::{Decoder, Record, Values};
+use super::decoder::{Decoder, Entry};
 use crate::error::{Error, Result};
-
-// TODO: consider renaming "metric" -> "value"
 
 pub struct RegexDecoder {
     re: regex::bytes::Regex,
@@ -99,7 +97,7 @@ impl RegexDecoder {
 }
 
 impl Decoder for RegexDecoder {
-    fn decode(&self, buf: &Vec<u8>) -> Result<Record> {
+    fn decode(&self, buf: &Vec<u8>) -> Result<Entry> {
         let record_caps = self.re.captures(buf).ok_or("no match found")?;
 
         let timestamp = parse_record_timestamp(

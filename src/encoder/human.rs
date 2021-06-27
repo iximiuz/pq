@@ -2,9 +2,9 @@ use std::collections::BTreeMap;
 
 use chrono::prelude::*;
 
-use super::encoder::Encoder;
+use super::encoder::{Encoder, Outry};
 use crate::error::Result;
-use crate::model::labels::LabelsTrait;
+use crate::model::LabelsTrait;
 use crate::query::{ExprValue, InstantVector};
 
 pub struct HumanReadableEncoder {}
@@ -46,9 +46,11 @@ impl HumanReadableEncoder {
 }
 
 impl Encoder for HumanReadableEncoder {
-    fn encode(&self, value: &ExprValue) -> Result<Vec<u8>> {
+    fn encode(&self, value: &Outry) -> Result<Vec<u8>> {
         match value {
-            ExprValue::InstantVector(v) => self.encode_instant_vector(v),
+            Outry::Entry(entry, line_no) => Ok(format!("{}: {:?}", line_no, entry).into_bytes()),
+            Outry::Record(record) => Ok(format!("{:?}", record).into_bytes()),
+            Outry::Value(ExprValue::InstantVector(v)) => self.encode_instant_vector(v),
             _ => unimplemented!("coming soon..."),
         }
     }

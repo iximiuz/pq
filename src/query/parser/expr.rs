@@ -13,7 +13,7 @@ use crate::common::parser::{
     label_identifier, maybe_lpadded, number_literal, separated_list, string_literal, IResult,
     ParseError, Span,
 };
-use crate::model::types::LabelName;
+use crate::model::LabelName;
 
 pub fn expr<'a>(min_prec: Option<Precedence>) -> impl FnMut(Span<'a>) -> IResult<Expr> {
     move |input: Span| {

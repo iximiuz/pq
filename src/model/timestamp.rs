@@ -1,12 +1,5 @@
 use std::time::Duration;
 
-// FIXME: Ugly hack to avoid changing imports everywhere.
-pub use super::labels::{LabelName, LabelValue, Labels};
-
-pub type MetricName = String;
-
-pub type SampleValue = f64;
-
 // Unix timestamp in milliseconds.
 pub type Timestamp = i64;
 

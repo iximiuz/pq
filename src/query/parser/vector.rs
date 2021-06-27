@@ -8,7 +8,7 @@ use crate::common::parser::{
     duration, label_identifier, maybe_lpadded, metric_identifier, separated_list, string_literal,
     IResult, ParseError, Span,
 };
-use crate::model::labels::{LabelMatcher, MatchOp};
+use crate::model::{LabelMatcher, MatchOp};
 
 pub(super) fn expr_vector_selector(input: Span) -> IResult<Expr> {
     let (rest, vs) = vector_selector(input)?;

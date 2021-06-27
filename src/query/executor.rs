@@ -7,61 +7,39 @@ use super::binary_expr::create_binary_expr_executor;
 use super::function::{create_func_call_executor, FuncCallArg};
 use super::identity::IdentityExecutor;
 use super::parser::ast::*;
+use super::samples::SampleReader;
 use super::unary_expr::UnaryExprExecutor;
 use super::value::{ExprValueIter, ExprValueKind};
 use super::vector::VectorSelectorExecutor;
-use crate::common::time::TimeRange;
 use crate::error::Result;
-use crate::input::Input;
-use crate::output::Output;
+use crate::model::{Record, Timestamp};
 
 const DEFAULT_INTERVAL: Duration = Duration::from_millis(1000);
 const DEFAULT_LOOKBACK: Duration = DEFAULT_INTERVAL;
 
 pub struct Executor {
-    input: Rc<RefCell<Input>>,
-    output: RefCell<Output>,
-    range: TimeRange,
+    reader: Rc<RefCell<SampleReader>>,
     interval: Duration,
     lookback: Duration,
+    start_at: Option<Timestamp>,
 }
 
 impl Executor {
     pub fn new(
-        input: Input,
-        output: Output,
-        range: Option<TimeRange>,
+        reader: Box<dyn std::iter::Iterator<Item = Record>>,
         interval: Option<Duration>,
         lookback: Option<Duration>,
+        start_at: Option<Timestamp>,
     ) -> Self {
         let interval = interval.unwrap_or(DEFAULT_INTERVAL);
         assert!(interval.as_secs() + (interval.subsec_nanos() as u64) > 0);
 
         Self {
-            input: Rc::new(RefCell::new(input)),
-            output: RefCell::new(output),
-            range: range.unwrap_or(TimeRange::infinity()),
+            reader: Rc::new(RefCell::new(SampleReader::new(reader))),
             interval,
             lookback: lookback.unwrap_or(DEFAULT_LOOKBACK),
+            start_at,
         }
-    }
-
-    pub fn execute(&self, query: AST) -> Result<()> {
-        // println!("Executor::execute {:#?}", query);
-
-        let iter = self.create_value_iter(query.root);
-        let iter_value_kind = iter.value_kind();
-        for value in iter {
-            self.output.borrow_mut().write(&value)?;
-            // TODO: if value iter is scalar, we need to wrap it into
-            //       something that would produce a (timestamp, scalar) tuples
-            //       instead.
-            if iter_value_kind == ExprValueKind::Scalar {
-                break;
-            }
-        }
-        // self.output.flush();
-        Ok(())
     }
 
     fn create_value_iter(&self, node: Expr) -> Box<dyn ExprValueIter> {
@@ -114,54 +92,12 @@ impl Executor {
 
             // leaf node
             Expr::VectorSelector(sel) => Box::new(VectorSelectorExecutor::new(
-                Input::cursor(Rc::clone(&self.input)),
+                SampleReader::cursor(Rc::clone(&self.reader)),
                 sel,
-                self.range,
                 self.interval,
                 self.lookback,
+                self.start_at,
             )),
         }
-
-        // Alternative iterative implementation to consider:
-        //
-        // let mut queue = vec![(root, false)];
-        // let mut stack: Vec<ValueIter> = vec![];
-
-        // loop {
-        //     let (node, seen) = match queue.pop() {
-        //         Some((n, s)) => (n, s),
-        //         None => break,
-        //     };
-
-        //     if !seen {
-        //         match node {
-        //             Expr::UnaryExpr(op, expr) => {
-        //                 queue.push((Expr::UnaryExpr(op, Box::new(Expr::Noop)), true));
-        //                 queue.push((*expr, false));
-        //             }
-        //             Expr::VectorSelector(sel) => {
-        //                 stack.push(Box::new(VectorSelectorExecutor::new(
-        //                     Input::cursor(Rc::clone(&self.input)),
-        //                     sel,
-        //                     self.range,
-        //                     self.interval,
-        //                     self.lookback,
-        //                 )));
-        //             }
-        //             _ => unreachable!(),
-        //         };
-        //     } else {
-        //         match node {
-        //             Expr::UnaryExpr(op, _) => {
-        //                 let inner = stack.pop().expect("must not be empty");
-        //                 stack.push(Box::new(UnaryExprExecutor::new(op, inner)));
-        //             }
-        //             _ => unreachable!(),
-        //         };
-        //     }
-        // }
-
-        // assert!(stack.len() == 1);
-        // stack.pop().unwrap()
     }
 }

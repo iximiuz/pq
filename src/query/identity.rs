@@ -1,5 +1,5 @@
 use super::value::{ExprValue, ExprValueIter, ExprValueKind};
-use crate::model::types::SampleValue;
+use crate::model::SampleValue;
 
 enum Inner {
     Scalar(SampleValue),

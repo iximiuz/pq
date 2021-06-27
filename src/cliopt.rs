@@ -5,7 +5,7 @@ use structopt::StructOpt;
 
 use crate::common::parser::parse_duration;
 use crate::error::Result;
-use crate::model::types::Timestamp;
+use crate::model::Timestamp;
 
 #[derive(Debug, StructOpt)]
 #[structopt(name = "pq", about = "pq command line arguments")]

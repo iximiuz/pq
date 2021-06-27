@@ -1,10 +1,7 @@
 use std::collections::{HashMap, HashSet};
 
 use super::parser::ast::LabelMatching;
-use crate::model::{
-    labels::{LabelName, Labels, LabelsTrait},
-    types::{SampleValue, Timestamp},
-};
+use crate::model::{LabelName, Labels, LabelsTrait, SampleValue, Timestamp};
 
 // Every Expr can be evaluated to a value.
 #[derive(Debug)]

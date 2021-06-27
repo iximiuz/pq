@@ -2,7 +2,7 @@ use std::collections::{BTreeMap, HashSet};
 
 use super::parser::ast::{AggregateArgument, AggregateModifier, AggregateOp};
 use super::value::{ExprValue, ExprValueIter, ExprValueKind, InstantVector};
-use crate::model::{labels::LabelsTrait, types::SampleValue};
+use crate::model::{LabelsTrait, SampleValue};
 
 pub(super) struct AggregateExprExecutor {
     op: AggregateOp,

@@ -8,7 +8,7 @@ use nom::{
 };
 
 use super::result::{IResult, ParseError, Span};
-use crate::model::types::{LabelName, MetricName};
+use crate::model::{LabelName, MetricName};
 
 pub fn label_identifier(input: Span) -> IResult<LabelName> {
     // [a-zA-Z_][a-zA-Z0-9_]*

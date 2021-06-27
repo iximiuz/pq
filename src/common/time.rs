@@ -1,5 +1,5 @@
 use crate::error::Result;
-use crate::model::types::Timestamp;
+use crate::model::Timestamp;
 
 #[derive(Debug, Clone, Copy)]
 pub struct TimeRange {

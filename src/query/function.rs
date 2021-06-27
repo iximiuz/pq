@@ -2,10 +2,7 @@ use std::collections::HashSet;
 
 use super::parser::ast::FunctionName;
 use super::value::{ExprValue, ExprValueIter, ExprValueKind, InstantVector, RangeVector};
-use crate::model::{
-    labels::{LabelValue, LabelsTrait},
-    types::SampleValue,
-};
+use crate::model::{LabelValue, LabelsTrait, SampleValue};
 
 pub(super) enum FuncCallArg {
     Number(f64),
