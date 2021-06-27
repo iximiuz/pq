@@ -5,6 +5,7 @@ use crate::decoder::{Decoder, Entry};
 use crate::encoder::{Encoder, Outry};
 use crate::error::Result;
 use crate::input::Reader;
+use crate::matcher::{parse_matcher, Matcher};
 use crate::model::Record;
 use crate::output::Writer;
 
@@ -39,7 +40,7 @@ impl Pipeline {
         decoder: Box<dyn Decoder>,
         encoder: Box<dyn Encoder>,
         writer: Box<dyn Writer>,
-        pattern: Option<String>,
+        pattern: Option<&str>,
         // query: Option<String>,
         // range: Option<TimeRange>,
     ) -> Result<Self> {
@@ -47,7 +48,7 @@ impl Pipeline {
         let ereader = EntryReader::new(reader, decoder);
 
         if let Some(pattern) = pattern {
-            let rreader = RecordReader::new(Box::new(ereader));
+            let rreader = RecordReader::new(Box::new(ereader), parse_matcher(pattern)?);
 
             // TODO:
             // if let Some(query) = query {
@@ -164,12 +165,15 @@ impl std::iter::Iterator for EntryReader {
 
 struct RecordReader {
     entries: Box<dyn std::iter::Iterator<Item = Result<(Entry, usize)>>>,
-    // matcher: Box<dyn Matcher>,
+    matcher: Box<dyn Matcher>,
 }
 
 impl RecordReader {
-    fn new(entries: Box<dyn std::iter::Iterator<Item = Result<(Entry, usize)>>>) -> Self {
-        Self { entries }
+    fn new(
+        entries: Box<dyn std::iter::Iterator<Item = Result<(Entry, usize)>>>,
+        matcher: Box<dyn Matcher>,
+    ) -> Self {
+        Self { entries, matcher }
     }
 }
 

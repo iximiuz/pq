@@ -43,7 +43,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         Box::new(RegexDecoder::new(&opt.parse)?),
         Box::new(HumanReadableEncoder::new()),
         Box::new(LineWriter::new(io::stdout())),
-        opt.mtch,
+        opt.mtch.as_deref(),
     )?;
 
     pipeline.run()?;
