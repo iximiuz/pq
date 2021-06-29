@@ -12,7 +12,8 @@ use super::unary_expr::UnaryExprExecutor;
 use super::value::{ExprValueIter, ExprValueKind};
 use super::vector::VectorSelectorExecutor;
 use crate::error::Result;
-use crate::model::{Record, Timestamp};
+use crate::input::Record;
+use crate::model::Timestamp;
 
 const DEFAULT_INTERVAL: Duration = Duration::from_millis(1000);
 const DEFAULT_LOOKBACK: Duration = DEFAULT_INTERVAL;

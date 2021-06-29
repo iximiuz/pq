@@ -2,9 +2,9 @@ use std::collections::BTreeMap;
 
 use chrono::prelude::*;
 
-use super::encoder::{Encoder, Outry};
-use crate::decoder::Entry;
+use super::encoder::{Encodable, Encoder};
 use crate::error::Result;
+use crate::input::Entry;
 use crate::model::LabelsTrait;
 use crate::query::{ExprValue, InstantVector};
 
@@ -47,16 +47,13 @@ impl HumanReadableEncoder {
 }
 
 impl Encoder for HumanReadableEncoder {
-    fn encode(&self, value: &Outry) -> Result<Vec<u8>> {
+    fn encode(&self, value: &Encodable) -> Result<Vec<u8>> {
         match value {
-            Outry::Entry(Entry::List(entry), line_no) => {
-                Ok(format!("{}: {:?}", line_no, entry).into_bytes())
+            Encodable::Entry(Entry(line_no, data)) => {
+                Ok(format!("{}: {:?}", line_no, data).into_bytes())
             }
-            Outry::Entry(Entry::Dict(entry), line_no) => {
-                Ok(format!("{}: {:?}", line_no, entry).into_bytes())
-            }
-            Outry::Record(record) => Ok(format!("{:?}", record).into_bytes()),
-            Outry::Value(ExprValue::InstantVector(v)) => self.encode_instant_vector(v),
+            Encodable::Record(record) => Ok(format!("{:?}", record).into_bytes()),
+            Encodable::ExprValue(ExprValue::InstantVector(v)) => self.encode_instant_vector(v),
             _ => unimplemented!("coming soon..."),
         }
     }

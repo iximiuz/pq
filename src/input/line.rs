@@ -1,15 +1,15 @@
 use std::io::{self, BufRead};
 
-pub trait Reader {
+pub trait LineReader {
     fn read(&mut self, buf: &mut Vec<u8>) -> io::Result<usize>;
 }
 
-pub struct LineReader<R> {
+pub struct DelimReader<R> {
     inner: R,
     delim: u8,
 }
 
-impl<R: BufRead> LineReader<R> {
+impl<R: BufRead> DelimReader<R> {
     pub fn new(inner: R) -> Self {
         Self {
             inner,
@@ -22,7 +22,7 @@ impl<R: BufRead> LineReader<R> {
     }
 }
 
-impl<R: BufRead> Reader for LineReader<R> {
+impl<R: BufRead> LineReader for DelimReader<R> {
     fn read(&mut self, buf: &mut Vec<u8>) -> io::Result<usize> {
         self.inner.read_until(self.delim, buf)
     }

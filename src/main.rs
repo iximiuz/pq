@@ -4,11 +4,9 @@ use structopt::StructOpt;
 
 use pq::cliopt::CliOpt;
 use pq::common::time::TimeRange;
-use pq::decoder::RegexDecoder;
-use pq::encoder::HumanReadableEncoder;
-use pq::input::LineReader;
-use pq::output::LineWriter;
-use pq::pipeline::Pipeline;
+use pq::input::{DelimReader, RegexDecoder};
+use pq::output::{HumanReadableEncoder, LineWriter};
+use pq::runner::Runner;
 // use pq::query::{parse_query, Executor};
 
 // -p '...'                             <--- just prints matching lines
@@ -38,15 +36,15 @@ use pq::pipeline::Pipeline;
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     let opt = CliOpt::from_args();
 
-    let mut pipeline = Pipeline::new(
-        Box::new(LineReader::new(BufReader::new(io::stdin()))),
+    let mut runner = Runner::new(
+        Box::new(DelimReader::new(BufReader::new(io::stdin()))),
         Box::new(RegexDecoder::new(&opt.parse)?),
         Box::new(HumanReadableEncoder::new()),
         Box::new(LineWriter::new(io::stdout())),
         opt.mtch.as_deref(),
     )?;
 
-    pipeline.run()?;
+    runner.run()?;
 
     // let exctr = Executor::new(
     //     input,

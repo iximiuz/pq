@@ -1,6 +1,6 @@
 use regex;
 
-use super::decoder::{Decoder, Entry};
+use super::decoder::{Decoded, Decoder};
 use crate::error::Result;
 
 pub struct RegexDecoder {
@@ -16,10 +16,10 @@ impl RegexDecoder {
 }
 
 impl Decoder for RegexDecoder {
-    fn decode(&self, buf: &Vec<u8>) -> Result<Entry> {
+    fn decode(&self, buf: &Vec<u8>) -> Result<Decoded> {
         let caps = self.re.captures(buf).ok_or("no match found")?;
 
-        Ok(Entry::List(
+        Ok(Decoded::Tuple(
             caps.iter()
                 .skip((self.re.captures_len() > 1) as usize)
                 .map(|c| {

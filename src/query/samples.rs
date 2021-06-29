@@ -2,7 +2,8 @@ use std::cell::RefCell;
 use std::collections::VecDeque;
 use std::rc::{Rc, Weak};
 
-use crate::model::{Record, Sample};
+use crate::input::Record;
+use crate::model::Sample;
 
 pub struct SampleReader {
     records: Box<dyn std::iter::Iterator<Item = Record>>,

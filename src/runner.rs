@@ -1,13 +1,9 @@
 use std::cell::RefCell;
 
 // use crate::common::time::TimeRange;
-use crate::decoder::{Decoder, Entry};
-use crate::encoder::{Encoder, Outry};
 use crate::error::Result;
-use crate::input::Reader;
-use crate::matcher::{parse_matcher, Matcher};
-use crate::model::Record;
-use crate::output::Writer;
+use crate::input::{parse_matcher, Decoder, EntryReader, LineReader, RecordMatcher, RecordReader};
+use crate::output::{Encodable, Encoder, Writer};
 
 // (Reader -> Decoder [-> Matcher [-> Querier]]) -> (Encoder -> Writer)
 //                 producer                              consumer
@@ -25,18 +21,19 @@ use crate::output::Writer;
 //       -> Record(timestamp, labels, values)
 //         -> Sample(timestamp, labels, value)
 //           -> ExprValue(InstantVector | RangeVector | Scalar)
-//             -> Line or Multiline (loosely, a String)
-//               -> stdout
+//             -> Encodable(Entry | Record | ExprValue)
+//               -> Line or Multiline (loosely, a String)
+//                 -> stdout
 
-pub struct Pipeline {
+pub struct Runner {
     producer: Producer,
     consumer: Consumer,
     // range: TimeRange,
 }
 
-impl Pipeline {
+impl Runner {
     pub fn new(
-        reader: Box<dyn Reader>,
+        reader: Box<dyn LineReader>,
         decoder: Box<dyn Decoder>,
         encoder: Box<dyn Encoder>,
         writer: Box<dyn Writer>,
@@ -78,19 +75,19 @@ impl Pipeline {
 
     pub fn run(&mut self) -> Result<()> {
         loop {
-            let outry = match &self.producer {
+            let encodable = match &self.producer {
                 Producer::EntryReader(ereader) => match ereader.borrow_mut().next() {
-                    Some(Ok((entry, line_no))) => Outry::Entry(entry, line_no),
+                    Some(Ok(entry)) => Encodable::Entry(entry),
                     Some(Err(e)) => return Err(e),
                     None => break,
                 },
                 Producer::RecordReader(rreader) => match rreader.borrow_mut().next() {
-                    Some(Ok(record)) => Outry::Record(record),
+                    Some(Ok(record)) => Encodable::Record(record),
                     Some(Err(e)) => return Err(e),
                     None => break,
                 },
             };
-            self.consumer.write(&outry)?;
+            self.consumer.write(&encodable)?;
         }
         Ok(())
     }
@@ -112,98 +109,6 @@ impl Pipeline {
     // }
 }
 
-struct EntryReader {
-    reader: Box<dyn Reader>,
-    decoder: Box<dyn Decoder>,
-    line_no: usize,
-    verbose: bool,
-}
-
-impl EntryReader {
-    fn new(reader: Box<dyn Reader>, decoder: Box<dyn Decoder>) -> Self {
-        Self {
-            reader,
-            decoder,
-            line_no: 0,
-            verbose: false,
-        }
-    }
-}
-
-impl std::iter::Iterator for EntryReader {
-    type Item = Result<(Entry, usize)>;
-
-    fn next(&mut self) -> Option<Self::Item> {
-        loop {
-            let mut buf = Vec::new();
-            match self.reader.read(&mut buf) {
-                Ok(_) => (),
-                Ok(0) => return None, // EOF
-                Err(e) => {
-                    return Some(Err(("reader failed", e).into()));
-                }
-            };
-
-            self.line_no += 1;
-
-            match self.decoder.decode(&mut buf) {
-                Ok(entry) => return Some(Ok((entry, self.line_no))),
-                Err(err) => {
-                    if self.verbose {
-                        eprintln!(
-                            "Line decoding failed.\nError: {}\nLine: {}",
-                            err,
-                            String::from_utf8_lossy(&buf),
-                        );
-                    }
-                    continue;
-                }
-            }
-        }
-    }
-}
-
-struct RecordReader {
-    entries: Box<dyn std::iter::Iterator<Item = Result<(Entry, usize)>>>,
-    matcher: Box<dyn Matcher>,
-}
-
-impl RecordReader {
-    fn new(
-        entries: Box<dyn std::iter::Iterator<Item = Result<(Entry, usize)>>>,
-        matcher: Box<dyn Matcher>,
-    ) -> Self {
-        Self { entries, matcher }
-    }
-}
-
-impl std::iter::Iterator for RecordReader {
-    type Item = Result<Record>;
-
-    fn next(&mut self) -> Option<Self::Item> {
-        loop {
-            let (entry, line) = match self.entries.next() {
-                Some(Ok((entry, line))) => (entry, line),
-                Some(Err(e)) => {
-                    return Some(Err(("reader failed", e).into()));
-                }
-                None => return None, // EOF
-            };
-
-            // TODO:
-            // Tiny hack...
-            // values.insert("__line__".to_owned(), self.line_no as SampleValue);
-
-            // if sample.timestamp() > self.last_instant.unwrap_or(Timestamp::MAX) {
-            //     // Input not really drained, but we've seen enough.
-            //     return None;
-            // }
-
-            return None;
-        }
-    }
-}
-
 enum Producer {
     EntryReader(RefCell<EntryReader>),
     RecordReader(RefCell<RecordReader>),
@@ -219,7 +124,7 @@ impl Consumer {
         Self { writer, encoder }
     }
 
-    pub fn write(&mut self, value: &Outry) -> Result<()> {
+    pub fn write(&mut self, value: &Encodable) -> Result<()> {
         let buf = self.encoder.encode(value)?;
 
         self.writer
