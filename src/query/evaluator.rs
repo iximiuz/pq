@@ -46,7 +46,7 @@ impl QueryEvaluator {
         match node {
             Expr::Parentheses(expr) => self.create_value_iter(*expr),
 
-            Expr::AggregateExpr(expr) => {
+            Expr::AggregateOperation(expr) => {
                 let (op, inner, modifier, parameter) = expr.into_inner();
                 Box::new(AggregateEvaluator::new(
                     op,
@@ -56,11 +56,11 @@ impl QueryEvaluator {
                 ))
             }
 
-            Expr::UnaryExpr(op, expr) => {
+            Expr::UnaryOperation(op, expr) => {
                 Box::new(UnaryEvaluator::new(op, self.create_value_iter(*expr)))
             }
 
-            Expr::BinaryExpr(expr) => {
+            Expr::BinaryOperation(expr) => {
                 let (op, lhs, rhs, bool_modifier, vector_matching, group_modifier) =
                     expr.into_inner();
                 create_binary_evaluator(

@@ -17,24 +17,24 @@ impl AST {
 
 #[derive(Debug, PartialEq)]
 pub enum Expr {
-    AggregateExpr(AggregateExpr), // Remove Expr part of the name
-    BinaryExpr(BinaryExpr),       // Remove Expr part of the name
+    AggregateOperation(AggregateOperation),
+    BinaryOperation(BinaryOperation),
     FunctionCall(FunctionCall),
     NumberLiteral(SampleValue),
     Parentheses(Box<Expr>),
-    UnaryExpr(UnaryOp, Box<Expr>),
+    UnaryOperation(UnaryOp, Box<Expr>),
     VectorSelector(VectorSelector),
 }
 
 #[derive(Debug, PartialEq)]
-pub struct AggregateExpr {
+pub struct AggregateOperation {
     op: AggregateOp,
     expr: Box<Expr>,
     modifier: Option<AggregateModifier>,
     argument: Option<AggregateArgument>,
 }
 
-impl AggregateExpr {
+impl AggregateOperation {
     pub(super) fn new(
         op: AggregateOp,
         expr: Expr,
@@ -118,7 +118,7 @@ pub enum AggregateArgument {
 }
 
 #[derive(Debug, PartialEq)]
-pub struct BinaryExpr {
+pub struct BinaryOperation {
     lhs: Box<Expr>,
     rhs: Box<Expr>,
     op: BinaryOp,
@@ -127,7 +127,7 @@ pub struct BinaryExpr {
     group_modifier: Option<GroupModifier>,
 }
 
-impl BinaryExpr {
+impl BinaryOperation {
     #[allow(dead_code)] // It's used in tests.
     pub(super) fn new(lhs: Expr, op: BinaryOp, rhs: Expr) -> Self {
         Self::new_ex(lhs, op, rhs, false, None, None)

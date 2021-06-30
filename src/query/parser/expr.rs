@@ -100,7 +100,7 @@ pub fn expr<'a>(min_prec: Option<Precedence>) -> impl FnMut(Span<'a>) -> IResult
             //   - if label_matching is present, lhs and rhs must be instant vectors.
 
             rest = tmp_rest;
-            lhs = Expr::BinaryExpr(BinaryExpr::new_ex(
+            lhs = Expr::BinaryOperation(BinaryOperation::new_ex(
                 lhs,
                 op,
                 rhs,
@@ -281,7 +281,7 @@ fn expr_aggregate(input: Span) -> IResult<Expr> {
 
     Ok((
         rest,
-        Expr::AggregateExpr(AggregateExpr::new(op, inner_expr, modifier, argument)),
+        Expr::AggregateOperation(AggregateOperation::new(op, inner_expr, modifier, argument)),
     ))
 }
 
@@ -379,7 +379,7 @@ fn expr_unary(input: Span) -> IResult<Expr> {
 
     // TODO: validate - expression is scalar or instant vector.
 
-    Ok((rest, Expr::UnaryExpr(op, Box::new(expr))))
+    Ok((rest, Expr::UnaryOperation(op, Box::new(expr))))
 }
 
 fn unary_op(input: Span) -> IResult<UnaryOp> {
@@ -580,14 +580,14 @@ mod tests {
 
     #[test]
     fn test_valid_expressions_ex() -> std::result::Result<(), nom::Err<ParseError<'static>>> {
-        use super::BinaryExpr as BinaryExprInner;
+        use super::BinaryOperation as BinaryInner;
         use super::FunctionCall as FuncCallInner;
         use Expr::*;
 
         let tests = [
             (
                 "-1 + 2",
-                BinaryExpr(BinaryExprInner::new(
+                BinaryOperation(BinaryInner::new(
                     NumberLiteral(-1.0),
                     BinaryOp::Add,
                     NumberLiteral(2.0),
@@ -595,7 +595,7 @@ mod tests {
             ),
             (
                 "-1 * 2",
-                BinaryExpr(BinaryExprInner::new(
+                BinaryOperation(BinaryInner::new(
                     NumberLiteral(-1.0),
                     BinaryOp::Mul,
                     NumberLiteral(2.0),
@@ -603,7 +603,7 @@ mod tests {
             ),
             (
                 "-1 ^ 2",
-                BinaryExpr(BinaryExprInner::new(
+                BinaryOperation(BinaryInner::new(
                     NumberLiteral(-1.0),
                     BinaryOp::Pow,
                     NumberLiteral(2.0),
@@ -611,8 +611,8 @@ mod tests {
             ),
             (
                 "-1 ^ 2 * 3",
-                BinaryExpr(BinaryExprInner::new(
-                    BinaryExpr(BinaryExprInner::new(
+                BinaryOperation(BinaryInner::new(
+                    BinaryOperation(BinaryInner::new(
                         NumberLiteral(-1.0),
                         BinaryOp::Pow,
                         NumberLiteral(2.0),
@@ -623,7 +623,7 @@ mod tests {
             ),
             (
                 "1 - -2",
-                BinaryExpr(BinaryExprInner::new(
+                BinaryOperation(BinaryInner::new(
                     NumberLiteral(1.0),
                     BinaryOp::Sub,
                     NumberLiteral(-2.0),
@@ -631,19 +631,19 @@ mod tests {
             ),
             (
                 "-1---2",
-                BinaryExpr(BinaryExprInner::new(
+                BinaryOperation(BinaryInner::new(
                     NumberLiteral(-1.0),
                     BinaryOp::Sub,
-                    UnaryExpr(UnaryOp::Sub, Box::new(NumberLiteral(-2.0))),
+                    UnaryOperation(UnaryOp::Sub, Box::new(NumberLiteral(-2.0))),
                 )),
             ),
             (
                 "-1---2+3",
-                BinaryExpr(BinaryExprInner::new(
-                    BinaryExpr(BinaryExprInner::new(
+                BinaryOperation(BinaryInner::new(
+                    BinaryOperation(BinaryInner::new(
                         NumberLiteral(-1.0),
                         BinaryOp::Sub,
-                        UnaryExpr(UnaryOp::Sub, Box::new(NumberLiteral(-2.0))),
+                        UnaryOperation(UnaryOp::Sub, Box::new(NumberLiteral(-2.0))),
                     )),
                     BinaryOp::Add,
                     NumberLiteral(3.0),
@@ -652,14 +652,14 @@ mod tests {
             // TODO: "-1---2*3-4",
             (
                 "1 + -4*2^3 -5",
-                BinaryExpr(BinaryExprInner::new(
-                    BinaryExpr(BinaryExprInner::new(
+                BinaryOperation(BinaryInner::new(
+                    BinaryOperation(BinaryInner::new(
                         NumberLiteral(1.0),
                         BinaryOp::Add,
-                        BinaryExpr(BinaryExprInner::new(
+                        BinaryOperation(BinaryInner::new(
                             NumberLiteral(-4.0),
                             BinaryOp::Mul,
-                            BinaryExpr(BinaryExprInner::new(
+                            BinaryOperation(BinaryInner::new(
                                 NumberLiteral(2.0),
                                 BinaryOp::Pow,
                                 NumberLiteral(3.0),
@@ -705,12 +705,12 @@ mod tests {
 
         fn extract_operators(expr: &Expr) -> Vec<BinaryOp> {
             match expr {
-                Expr::BinaryExpr(e) => extract_operators(e.lhs())
+                Expr::BinaryOperation(e) => extract_operators(e.lhs())
                     .into_iter()
                     .chain(extract_operators(e.rhs()).into_iter())
                     .chain(vec![e.op()].into_iter())
                     .collect(),
-                Expr::UnaryExpr(_, e) => extract_operators(e.as_ref()),
+                Expr::UnaryOperation(_, e) => extract_operators(e.as_ref()),
                 _ => vec![],
             }
         }
