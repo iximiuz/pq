@@ -4,11 +4,11 @@ use std::time::Duration;
 use nom::{branch::alt, bytes::complete::tag, character::complete::char};
 
 use super::ast::{Expr, VectorSelector};
-use crate::common::parser::{
+use crate::model::{LabelMatcher, MatchOp};
+use crate::utils::parse::{
     duration, label_identifier, maybe_lpadded, metric_identifier, separated_list, string_literal,
     IResult, ParseError, Span,
 };
-use crate::model::{LabelMatcher, MatchOp};
 
 pub(super) fn expr_vector_selector(input: Span) -> IResult<Expr> {
     let (rest, vs) = vector_selector(input)?;

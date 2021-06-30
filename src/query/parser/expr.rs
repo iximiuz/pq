@@ -9,11 +9,11 @@ use nom::{
 
 use super::ast::*;
 use super::vector::expr_vector_selector;
-use crate::common::parser::{
+use crate::model::LabelName;
+use crate::utils::parse::{
     label_identifier, maybe_lpadded, number_literal, separated_list, string_literal, IResult,
     ParseError, Span,
 };
-use crate::model::LabelName;
 
 pub fn expr<'a>(min_prec: Option<Precedence>) -> impl FnMut(Span<'a>) -> IResult<Expr> {
     move |input: Span| {

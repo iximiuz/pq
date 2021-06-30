@@ -3,10 +3,10 @@ use std::io::{self, BufReader};
 use structopt::StructOpt;
 
 use pq::cliopt::CliOpt;
-use pq::common::time::TimeRange;
 use pq::input::{DelimReader, RegexDecoder};
 use pq::output::{HumanReadableEncoder, LineWriter};
 use pq::runner::Runner;
+use pq::utils::time::TimeRange;
 // use pq::query::{parse_query, Executor};
 
 // -p '...'                             <--- just prints matching lines
