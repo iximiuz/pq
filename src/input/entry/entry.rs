@@ -1,5 +1,5 @@
+use super::super::line::LineReader;
 use super::decoder::{Decoded, Decoder};
-use super::line::LineReader;
 use crate::error::Result;
 
 #[derive(Debug)]

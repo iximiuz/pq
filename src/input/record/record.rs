@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 
-use super::entry::Entry;
+use super::super::entry::Entry;
 use super::matcher::RecordMatcher;
 use crate::error::Result;
 use crate::model::{Labels, MetricName, SampleValue, Timestamp};
