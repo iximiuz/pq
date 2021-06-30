@@ -7,7 +7,7 @@ use super::binary_expr::create_binary_expr_executor;
 use super::function::{create_func_call_executor, FuncCallArg};
 use super::identity::IdentityExecutor;
 use super::parser::ast::*;
-use super::samples::SampleReader;
+use super::sample::SampleReader;
 use super::unary_expr::UnaryExprExecutor;
 use super::value::{ExprValueIter, ExprValueKind};
 use super::vector::VectorSelectorExecutor;

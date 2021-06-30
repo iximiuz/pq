@@ -3,9 +3,9 @@ use std::rc::Rc;
 use std::time::Duration;
 
 use super::parser::ast::VectorSelector;
-use super::samples::Cursor;
+use super::sample::{Cursor, Sample};
 use super::value::{ExprValue, ExprValueIter, ExprValueKind, InstantVector, RangeVector};
-use crate::model::{Labels, LabelsTrait, Sample, SampleValue, Timestamp, TimestampTrait};
+use crate::model::{Labels, LabelsTrait, SampleValue, Timestamp, TimestampTrait};
 
 pub(super) struct VectorSelectorExecutor {
     cursor: Rc<Cursor>,

@@ -3,7 +3,49 @@ use std::collections::VecDeque;
 use std::rc::{Rc, Weak};
 
 use crate::input::Record;
-use crate::model::Sample;
+use crate::model::{Labels, MetricName, SampleValue, Timestamp};
+
+#[derive(Debug)]
+pub struct Sample {
+    value: SampleValue,
+    timestamp: Timestamp,
+    labels: Labels,
+}
+
+impl Sample {
+    pub fn new(
+        name: MetricName,
+        value: SampleValue,
+        timestamp: Timestamp,
+        mut labels: Labels,
+    ) -> Self {
+        labels.insert("__name__".into(), name);
+        Self {
+            value,
+            timestamp,
+            labels,
+        }
+    }
+
+    #[inline]
+    pub fn value(&self) -> SampleValue {
+        self.value
+    }
+
+    #[inline]
+    pub fn timestamp(&self) -> Timestamp {
+        self.timestamp
+    }
+
+    #[inline]
+    pub fn labels(&self) -> &Labels {
+        &self.labels
+    }
+
+    pub fn label(&self, name: &str) -> Option<&MetricName> {
+        self.labels.get(name)
+    }
+}
 
 pub struct SampleReader {
     records: Box<dyn std::iter::Iterator<Item = Record>>,

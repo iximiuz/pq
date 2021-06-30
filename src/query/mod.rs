@@ -4,7 +4,7 @@ mod executor;
 mod function;
 mod identity;
 mod parser;
-mod samples;
+mod sample;
 mod unary_expr;
 mod value;
 mod vector;
