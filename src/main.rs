@@ -7,7 +7,6 @@ use pq::input::{DelimReader, RegexDecoder};
 use pq::output::{HumanReadableEncoder, LineWriter};
 use pq::runner::Runner;
 use pq::utils::time::TimeRange;
-// use pq::query::{parse_query, Executor};
 
 // -p '...'                             <--- just prints matching lines
 // -p '...' -m '...'                    <--- prints matches (groups) or complaints if pattern doesn't match the regex
@@ -42,20 +41,13 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         Box::new(HumanReadableEncoder::new()),
         Box::new(LineWriter::new(io::stdout())),
         opt.mtch.as_deref(),
+        opt.query.as_deref(),
+        Some(TimeRange::new(opt.since, opt.until)?),
+        opt.interval,
+        opt.lookback,
     )?;
 
     runner.run()?;
-
-    // let exctr = Executor::new(
-    //     input,
-    //     output,
-    //     Some(TimeRange::new(opt.since, opt.until)?),
-    //     opt.interval,
-    //     opt.lookback,
-    // );
-
-    // let query_ast = parse_query(&opt.query)?;
-    // exctr.execute(query_ast)?;
 
     Ok(())
 }

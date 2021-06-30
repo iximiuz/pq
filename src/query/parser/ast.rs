@@ -156,16 +156,19 @@ impl BinaryOperation {
     }
 
     #[inline]
+    #[allow(dead_code)] // It's used in tests.
     pub fn op(&self) -> BinaryOp {
         self.op
     }
 
     #[inline]
+    #[allow(dead_code)] // It's used in tests.
     pub fn lhs(&self) -> &Expr {
         self.lhs.as_ref()
     }
 
     #[inline]
+    #[allow(dead_code)] // It's used in tests.
     pub fn rhs(&self) -> &Expr {
         self.rhs.as_ref()
     }

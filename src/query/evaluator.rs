@@ -25,7 +25,7 @@ pub struct QueryEvaluator {
 impl QueryEvaluator {
     pub fn new(
         query: &str,
-        records: Box<dyn std::iter::Iterator<Item = Record>>,
+        records: Box<dyn std::iter::Iterator<Item = Result<Record>>>,
         interval: Option<Duration>,
         lookback: Option<Duration>,
         start_at: Option<Timestamp>,
@@ -41,10 +41,13 @@ impl QueryEvaluator {
 }
 
 impl std::iter::Iterator for QueryEvaluator {
-    type Item = QueryValue;
+    type Item = Result<QueryValue>;
 
     fn next(&mut self) -> Option<Self::Item> {
-        self.inner.next()
+        match self.inner.next() {
+            Some(v) => Some(Ok(v)),
+            None => None,
+        }
     }
 }
 
@@ -57,7 +60,7 @@ struct Context {
 
 impl Context {
     fn new(
-        records: Box<dyn std::iter::Iterator<Item = Record>>,
+        records: Box<dyn std::iter::Iterator<Item = Result<Record>>>,
         interval: Option<Duration>,
         lookback: Option<Duration>,
         start_at: Option<Timestamp>,

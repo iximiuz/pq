@@ -2,6 +2,7 @@ use std::cell::RefCell;
 use std::collections::VecDeque;
 use std::rc::{Rc, Weak};
 
+use crate::error::Result;
 use crate::input::Record;
 use crate::model::{Labels, MetricName, SampleValue, Timestamp};
 
@@ -48,12 +49,12 @@ impl Sample {
 }
 
 pub struct SampleReader {
-    records: Box<dyn std::iter::Iterator<Item = Record>>,
+    records: Box<dyn std::iter::Iterator<Item = Result<Record>>>,
     cursors: Vec<Weak<Cursor>>,
 }
 
 impl SampleReader {
-    pub fn new(records: Box<dyn std::iter::Iterator<Item = Record>>) -> Self {
+    pub fn new(records: Box<dyn std::iter::Iterator<Item = Result<Record>>>) -> Self {
         Self {
             records,
             cursors: vec![],
@@ -68,7 +69,8 @@ impl SampleReader {
 
     fn refill_cursors(&mut self) {
         // TODO: optimize - read multiple records at once.
-        if let Some(Record(timestamp, labels, values)) = self.records.next() {
+        // TODO: propagate errors.
+        if let Some(Ok(Record(timestamp, labels, values))) = self.records.next() {
             for (name, value) in values {
                 let sample = Rc::new(Sample::new(name, value, timestamp, labels.clone()));
 

@@ -30,8 +30,8 @@ impl std::iter::Iterator for EntryReader {
         loop {
             let mut buf = Vec::new();
             match self.inner.read(&mut buf) {
-                Ok(_) => (),
                 Ok(0) => return None, // EOF
+                Ok(_) => (),
                 Err(e) => {
                     return Some(Err(("input reader failed", e).into()));
                 }

@@ -1,9 +1,11 @@
 use std::cell::RefCell;
+use std::time::Duration;
 
-// use crate::common::time::TimeRange;
 use crate::error::Result;
-use crate::input::{parse_matcher, Decoder, EntryReader, LineReader, RecordMatcher, RecordReader};
+use crate::input::{parse_matcher, Decoder, EntryReader, LineReader, RecordReader};
 use crate::output::{Encodable, Encoder, Writer};
+use crate::query::QueryEvaluator;
+use crate::utils::time::TimeRange;
 
 // (Reader -> Decoder [-> Matcher [-> Querier]]) -> (Encoder -> Writer)
 //                 producer                              consumer
@@ -28,7 +30,6 @@ use crate::output::{Encodable, Encoder, Writer};
 pub struct Runner {
     producer: Producer,
     consumer: Consumer,
-    // range: TimeRange,
 }
 
 impl Runner {
@@ -38,43 +39,59 @@ impl Runner {
         encoder: Box<dyn Encoder>,
         writer: Box<dyn Writer>,
         pattern: Option<&str>,
-        // query: Option<String>,
-        // range: Option<TimeRange>,
+        query: Option<&str>,
+        range: Option<TimeRange>,
+        interval: Option<Duration>,
+        lookback: Option<Duration>,
     ) -> Result<Self> {
+        let range = range.unwrap_or(TimeRange::infinity());
         let consumer = Consumer::new(writer, encoder);
         let ereader = EntryReader::new(reader, decoder);
 
-        if let Some(pattern) = pattern {
-            let rreader = RecordReader::new(Box::new(ereader), parse_matcher(pattern)?);
+        let pattern = match pattern {
+            Some(pattern) => pattern,
+            None => {
+                return Ok(Self {
+                    producer: Producer::EntryReader(RefCell::new(ereader)),
+                    consumer,
+                });
+            }
+        };
 
-            // TODO:
-            // if let Some(query) = query {
-            //     TODO: make sure matcher has a timestamp match.
-            //
-            //     return Self {
-            //         producer: Producer::ExprValueReader(QueryExecutor::new(rreader))
-            //         consumer,
-            //     }
-            // }
+        let rreader = RecordReader::new(Box::new(ereader), parse_matcher(pattern)?);
 
-            // TODO: compare decoder entry size and matcher pattern size.
+        let query = match query {
+            Some(query) => query,
+            None => {
+                return Ok(Self {
+                    producer: Producer::RecordReader(RefCell::new(rreader)),
+                    consumer,
+                });
+            }
+        };
 
-            return Ok(Self {
-                producer: Producer::RecordReader(RefCell::new(rreader)),
-                consumer,
-                // range: range.unwrap_or(TimeRange::infinity()),
-            });
-        }
+        // TODO: make sure matcher has a timestamp match.
+        // TODO: compare decoder entry size and matcher pattern size.
 
         Ok(Self {
-            producer: Producer::EntryReader(RefCell::new(ereader)),
+            producer: Producer::QueryReader(RefCell::new(QueryEvaluator::new(
+                query,
+                Box::new(rreader),
+                interval,
+                lookback,
+                range.start(),
+            )?)),
             consumer,
-            // range: range.unwrap_or(TimeRange::infinity()),
         })
     }
 
     pub fn run(&mut self) -> Result<()> {
         loop {
+            // TODO: incorporate this logic somewhere...
+            // if iter_value_kind == ExprValueKind::Scalar {
+            //     break;
+            // }
+
             let encodable = match &self.producer {
                 Producer::EntryReader(ereader) => match ereader.borrow_mut().next() {
                     Some(Ok(entry)) => Encodable::Entry(entry),
@@ -86,32 +103,22 @@ impl Runner {
                     Some(Err(e)) => return Err(e),
                     None => break,
                 },
+                Producer::QueryReader(qreader) => match qreader.borrow_mut().next() {
+                    Some(Ok(value)) => Encodable::QueryValue(value),
+                    Some(Err(e)) => return Err(e),
+                    None => break,
+                },
             };
             self.consumer.write(&encodable)?;
         }
         Ok(())
     }
-
-    // fn execute(&self, query: AST) -> Result<()> {
-    //     // println!("Executor::execute {:#?}", query);
-
-    //     let iter = self.create_value_iter(query.root);
-    //     let iter_value_kind = iter.value_kind();
-    //     for value in iter {
-    //         self.output.borrow_mut().write(&value)?;
-    //         // TODO: if value iter is scalar, we need to wrap it into
-    //         //       something that would produce a (timestamp, scalar) tuples
-    //         //       instead.
-    //         if iter_value_kind == ExprValueKind::Scalar {
-    //             break;
-    //         }
-    //     }
-    // }
 }
 
 enum Producer {
     EntryReader(RefCell<EntryReader>),
     RecordReader(RefCell<RecordReader>),
+    QueryReader(RefCell<QueryEvaluator>),
 }
 
 struct Consumer {
