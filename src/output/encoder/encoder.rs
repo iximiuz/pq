@@ -1,11 +1,11 @@
 use crate::error::Result;
 use crate::input::{Entry, Record};
-use crate::query::ExprValue;
+use crate::query::QueryValue;
 
 pub enum Encodable {
     Entry(Entry),
     Record(Record),
-    ExprValue(ExprValue),
+    QueryValue(QueryValue),
 }
 
 pub trait Encoder {

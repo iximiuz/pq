@@ -2,30 +2,29 @@ use std::cell::RefCell;
 use std::rc::Rc;
 use std::time::Duration;
 
-use super::aggregate_expr::AggregateExprExecutor;
-use super::binary_expr::create_binary_expr_executor;
-use super::function::{create_func_call_executor, FuncCallArg};
-use super::identity::IdentityExecutor;
+use super::aggregate::AggregateEvaluator;
+use super::binary::create_binary_evaluator;
+use super::function::{create_func_evaluator, FuncCallArg};
+use super::identity::IdentityEvaluator;
 use super::parser::ast::*;
 use super::sample::SampleReader;
-use super::unary_expr::UnaryExprExecutor;
-use super::value::{ExprValueIter, ExprValueKind};
-use super::vector::VectorSelectorExecutor;
-use crate::error::Result;
+use super::unary::UnaryEvaluator;
+use super::value::{QueryValue, QueryValueIter};
+use super::vector::VectorSelectorEvaluator;
 use crate::input::Record;
 use crate::model::Timestamp;
 
 const DEFAULT_INTERVAL: Duration = Duration::from_millis(1000);
 const DEFAULT_LOOKBACK: Duration = DEFAULT_INTERVAL;
 
-pub struct Executor {
+pub struct QueryEvaluator {
     reader: Rc<RefCell<SampleReader>>,
     interval: Duration,
     lookback: Duration,
     start_at: Option<Timestamp>,
 }
 
-impl Executor {
+impl QueryEvaluator {
     pub fn new(
         reader: Box<dyn std::iter::Iterator<Item = Record>>,
         interval: Option<Duration>,
@@ -43,13 +42,13 @@ impl Executor {
         }
     }
 
-    fn create_value_iter(&self, node: Expr) -> Box<dyn ExprValueIter> {
+    fn create_value_iter(&self, node: Expr) -> Box<dyn QueryValueIter> {
         match node {
             Expr::Parentheses(expr) => self.create_value_iter(*expr),
 
             Expr::AggregateExpr(expr) => {
                 let (op, inner, modifier, parameter) = expr.into_inner();
-                Box::new(AggregateExprExecutor::new(
+                Box::new(AggregateEvaluator::new(
                     op,
                     self.create_value_iter(*inner),
                     modifier,
@@ -58,13 +57,13 @@ impl Executor {
             }
 
             Expr::UnaryExpr(op, expr) => {
-                Box::new(UnaryExprExecutor::new(op, self.create_value_iter(*expr)))
+                Box::new(UnaryEvaluator::new(op, self.create_value_iter(*expr)))
             }
 
             Expr::BinaryExpr(expr) => {
                 let (op, lhs, rhs, bool_modifier, vector_matching, group_modifier) =
                     expr.into_inner();
-                create_binary_expr_executor(
+                create_binary_evaluator(
                     op,
                     self.create_value_iter(*lhs),
                     self.create_value_iter(*rhs),
@@ -74,7 +73,7 @@ impl Executor {
                 )
             }
 
-            Expr::FunctionCall(call) => create_func_call_executor(
+            Expr::FunctionCall(call) => create_func_evaluator(
                 call.function_name(),
                 call.args()
                     .into_iter()
@@ -89,10 +88,10 @@ impl Executor {
             ),
 
             // leaf node
-            Expr::NumberLiteral(val) => Box::new(IdentityExecutor::scalar(val)),
+            Expr::NumberLiteral(val) => Box::new(IdentityEvaluator::scalar(val)),
 
             // leaf node
-            Expr::VectorSelector(sel) => Box::new(VectorSelectorExecutor::new(
+            Expr::VectorSelector(sel) => Box::new(VectorSelectorEvaluator::new(
                 SampleReader::cursor(Rc::clone(&self.reader)),
                 sel,
                 self.interval,
@@ -100,5 +99,13 @@ impl Executor {
                 self.start_at,
             )),
         }
+    }
+}
+
+impl std::iter::Iterator for QueryEvaluator {
+    type Item = QueryValue;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        None
     }
 }

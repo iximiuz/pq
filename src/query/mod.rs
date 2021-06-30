@@ -1,14 +1,13 @@
-mod aggregate_expr;
-mod binary_expr;
-mod executor;
+mod aggregate;
+mod binary;
+mod evaluator;
 mod function;
 mod identity;
 mod parser;
 mod sample;
-mod unary_expr;
+mod unary;
 mod value;
 mod vector;
 
-pub use executor::Executor;
-pub use parser::parse_query;
-pub use value::{ExprValue, InstantVector, RangeVector};
+pub use evaluator::QueryEvaluator;
+pub use value::{InstantVector, QueryValue, RangeVector};

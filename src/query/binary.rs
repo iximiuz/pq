@@ -1,30 +1,30 @@
 use super::parser::ast::{BinaryOp, BinaryOpKind, GroupModifier, LabelMatching};
-use super::value::{ExprValue, ExprValueIter, ExprValueKind, InstantVector as Vector};
+use super::value::{InstantVector as Vector, QueryValue, QueryValueIter, QueryValueKind};
 use crate::model::SampleValue;
 
-pub(super) fn create_binary_expr_executor(
+pub(super) fn create_binary_evaluator(
     op: BinaryOp,
-    left: Box<dyn ExprValueIter>,
-    right: Box<dyn ExprValueIter>,
+    left: Box<dyn QueryValueIter>,
+    right: Box<dyn QueryValueIter>,
     bool_modifier: bool,
     label_matching: Option<LabelMatching>,
     group_modifier: Option<GroupModifier>,
-) -> Box<dyn ExprValueIter> {
+) -> Box<dyn QueryValueIter> {
     use BinaryOpKind::*;
-    use ExprValueKind::*;
+    use QueryValueKind::*;
 
     match (left.value_kind(), op.kind(), right.value_kind()) {
         (Scalar, Arithmetic | Comparison, Scalar) => {
             assert!(Comparison != op.kind() || bool_modifier);
             assert!(label_matching.is_none());
             assert!(group_modifier.is_none());
-            Box::new(BinaryExprExecutorScalarScalar::new(op, left, right))
+            Box::new(BinaryEvaluatorScalarScalar::new(op, left, right))
         }
         (Scalar, Arithmetic | Comparison, InstantVector) => {
             assert!(!bool_modifier || Comparison == op.kind());
             assert!(label_matching.is_none());
             assert!(group_modifier.is_none());
-            Box::new(BinaryExprExecutorScalarVector::new(
+            Box::new(BinaryEvaluatorScalarVector::new(
                 op,
                 left,
                 right,
@@ -35,7 +35,7 @@ pub(super) fn create_binary_expr_executor(
             assert!(!bool_modifier || Comparison == op.kind());
             assert!(label_matching.is_none());
             assert!(group_modifier.is_none());
-            Box::new(BinaryExprExecutorVectorScalar::new(
+            Box::new(BinaryEvaluatorVectorScalar::new(
                 op,
                 left,
                 right,
@@ -45,7 +45,7 @@ pub(super) fn create_binary_expr_executor(
         (InstantVector, Arithmetic | Comparison | Logical, InstantVector) => {
             assert!(!bool_modifier || Comparison == op.kind());
             assert!(group_modifier.is_none() || label_matching.is_some());
-            Box::new(BinaryExprExecutorVectorVector::new(
+            Box::new(BinaryEvaluatorVectorVector::new(
                 op,
                 left,
                 right,
@@ -58,31 +58,31 @@ pub(super) fn create_binary_expr_executor(
     }
 }
 
-/// BinaryExprExecutorScalarScalar
+/// BinaryEvaluatorScalarScalar
 /// Ex:
 ///   1 + 2
 ///   42 / 6
 ///   2 ^ 64
 ///   ...
-struct BinaryExprExecutorScalarScalar {
+struct BinaryEvaluatorScalarScalar {
     op: BinaryOp,
-    left: Box<dyn ExprValueIter>,
-    right: Box<dyn ExprValueIter>,
+    left: Box<dyn QueryValueIter>,
+    right: Box<dyn QueryValueIter>,
 }
 
-impl BinaryExprExecutorScalarScalar {
-    fn new(op: BinaryOp, left: Box<dyn ExprValueIter>, right: Box<dyn ExprValueIter>) -> Self {
-        assert!(left.value_kind() == ExprValueKind::Scalar);
-        assert!(right.value_kind() == ExprValueKind::Scalar);
+impl BinaryEvaluatorScalarScalar {
+    fn new(op: BinaryOp, left: Box<dyn QueryValueIter>, right: Box<dyn QueryValueIter>) -> Self {
+        assert!(left.value_kind() == QueryValueKind::Scalar);
+        assert!(right.value_kind() == QueryValueKind::Scalar);
         Self { op, left, right }
     }
 }
 
-impl std::iter::Iterator for BinaryExprExecutorScalarScalar {
-    type Item = ExprValue;
+impl std::iter::Iterator for BinaryEvaluatorScalarScalar {
+    type Item = QueryValue;
 
     fn next(&mut self) -> Option<Self::Item> {
-        use ExprValue::*;
+        use QueryValue::*;
 
         let lv = match self.left.next() {
             Some(Scalar(lv)) => lv,
@@ -100,32 +100,32 @@ impl std::iter::Iterator for BinaryExprExecutorScalarScalar {
     }
 }
 
-impl ExprValueIter for BinaryExprExecutorScalarScalar {
-    fn value_kind(&self) -> ExprValueKind {
-        ExprValueKind::Scalar
+impl QueryValueIter for BinaryEvaluatorScalarScalar {
+    fn value_kind(&self) -> QueryValueKind {
+        QueryValueKind::Scalar
     }
 }
 
-/// BinaryExprExecutorScalarVector
+/// BinaryEvaluatorScalarVector
 /// Ex:
 ///   2 * http_requests_total{}
 ///   42 - http_requests_total{method="GET"}
-struct BinaryExprExecutorScalarVector {
+struct BinaryEvaluatorScalarVector {
     op: BinaryOp,
-    left: Box<dyn ExprValueIter>,
-    right: Box<dyn ExprValueIter>,
+    left: Box<dyn QueryValueIter>,
+    right: Box<dyn QueryValueIter>,
     bool_modifier: bool,
 }
 
-impl BinaryExprExecutorScalarVector {
+impl BinaryEvaluatorScalarVector {
     fn new(
         op: BinaryOp,
-        left: Box<dyn ExprValueIter>,
-        right: Box<dyn ExprValueIter>,
+        left: Box<dyn QueryValueIter>,
+        right: Box<dyn QueryValueIter>,
         bool_modifier: bool,
     ) -> Self {
-        assert!(left.value_kind() == ExprValueKind::Scalar);
-        assert!(right.value_kind() == ExprValueKind::InstantVector);
+        assert!(left.value_kind() == QueryValueKind::Scalar);
+        assert!(right.value_kind() == QueryValueKind::InstantVector);
         Self {
             op,
             left,
@@ -135,11 +135,11 @@ impl BinaryExprExecutorScalarVector {
     }
 }
 
-impl std::iter::Iterator for BinaryExprExecutorScalarVector {
-    type Item = ExprValue;
+impl std::iter::Iterator for BinaryEvaluatorScalarVector {
+    type Item = QueryValue;
 
     fn next(&mut self) -> Option<Self::Item> {
-        use ExprValue::*;
+        use QueryValue::*;
 
         let lv = match self.left.next() {
             Some(Scalar(lv)) => lv,
@@ -160,32 +160,32 @@ impl std::iter::Iterator for BinaryExprExecutorScalarVector {
     }
 }
 
-impl ExprValueIter for BinaryExprExecutorScalarVector {
-    fn value_kind(&self) -> ExprValueKind {
-        ExprValueKind::InstantVector
+impl QueryValueIter for BinaryEvaluatorScalarVector {
+    fn value_kind(&self) -> QueryValueKind {
+        QueryValueKind::InstantVector
     }
 }
 
-/// BinaryExprExecutorVectorScalar
+/// BinaryEvaluatorVectorScalar
 /// Ex:
 ///   http_requests_total{} % 9000
 ///   http_requests_total{method="POST"} + 8
-struct BinaryExprExecutorVectorScalar {
+struct BinaryEvaluatorVectorScalar {
     op: BinaryOp,
-    left: Box<dyn ExprValueIter>,
-    right: Box<dyn ExprValueIter>,
+    left: Box<dyn QueryValueIter>,
+    right: Box<dyn QueryValueIter>,
     bool_modifier: bool,
 }
 
-impl BinaryExprExecutorVectorScalar {
+impl BinaryEvaluatorVectorScalar {
     fn new(
         op: BinaryOp,
-        left: Box<dyn ExprValueIter>,
-        right: Box<dyn ExprValueIter>,
+        left: Box<dyn QueryValueIter>,
+        right: Box<dyn QueryValueIter>,
         bool_modifier: bool,
     ) -> Self {
-        assert!(left.value_kind() == ExprValueKind::InstantVector);
-        assert!(right.value_kind() == ExprValueKind::Scalar);
+        assert!(left.value_kind() == QueryValueKind::InstantVector);
+        assert!(right.value_kind() == QueryValueKind::Scalar);
         Self {
             op,
             left,
@@ -195,11 +195,11 @@ impl BinaryExprExecutorVectorScalar {
     }
 }
 
-impl std::iter::Iterator for BinaryExprExecutorVectorScalar {
-    type Item = ExprValue;
+impl std::iter::Iterator for BinaryEvaluatorVectorScalar {
+    type Item = QueryValue;
 
     fn next(&mut self) -> Option<Self::Item> {
-        use ExprValue::*;
+        use QueryValue::*;
 
         let mut lv = match self.left.next() {
             Some(InstantVector(lv)) => lv,
@@ -220,37 +220,37 @@ impl std::iter::Iterator for BinaryExprExecutorVectorScalar {
     }
 }
 
-impl ExprValueIter for BinaryExprExecutorVectorScalar {
-    fn value_kind(&self) -> ExprValueKind {
-        ExprValueKind::InstantVector
+impl QueryValueIter for BinaryEvaluatorVectorScalar {
+    fn value_kind(&self) -> QueryValueKind {
+        QueryValueKind::InstantVector
     }
 }
 
-/// BinaryExprExecutorVectorVector
+/// BinaryEvaluatorVectorVector
 /// Ex:
 ///   http_requests_total{method="GET"} + http_requests_total{method="POST"}
 ///   http_requests_total{} + http_requests_content_length_bytes{} on (method, job)
 ///   http_requests_total{} + http_requests_content_length_bytes{} on (instance)
-struct BinaryExprExecutorVectorVector {
+struct BinaryEvaluatorVectorVector {
     op: BinaryOp,
-    left: std::iter::Peekable<Box<dyn ExprValueIter>>,
-    right: std::iter::Peekable<Box<dyn ExprValueIter>>,
+    left: std::iter::Peekable<Box<dyn QueryValueIter>>,
+    right: std::iter::Peekable<Box<dyn QueryValueIter>>,
     bool_modifier: bool,
     label_matching: Option<LabelMatching>,
     group_modifier: Option<GroupModifier>,
 }
 
-impl BinaryExprExecutorVectorVector {
+impl BinaryEvaluatorVectorVector {
     fn new(
         op: BinaryOp,
-        left: Box<dyn ExprValueIter>,
-        right: Box<dyn ExprValueIter>,
+        left: Box<dyn QueryValueIter>,
+        right: Box<dyn QueryValueIter>,
         bool_modifier: bool,
         label_matching: Option<LabelMatching>,
         group_modifier: Option<GroupModifier>,
     ) -> Self {
-        assert!(left.value_kind() == ExprValueKind::InstantVector);
-        assert!(right.value_kind() == ExprValueKind::InstantVector);
+        assert!(left.value_kind() == QueryValueKind::InstantVector);
+        assert!(right.value_kind() == QueryValueKind::InstantVector);
         Self {
             op,
             left: left.peekable(),
@@ -262,11 +262,11 @@ impl BinaryExprExecutorVectorVector {
     }
 }
 
-impl std::iter::Iterator for BinaryExprExecutorVectorVector {
-    type Item = ExprValue;
+impl std::iter::Iterator for BinaryEvaluatorVectorVector {
+    type Item = QueryValue;
 
     fn next(&mut self) -> Option<Self::Item> {
-        use ExprValue::*;
+        use QueryValue::*;
 
         // Only aligned in time vectors can be matched.
 
@@ -324,9 +324,9 @@ impl std::iter::Iterator for BinaryExprExecutorVectorVector {
     }
 }
 
-impl ExprValueIter for BinaryExprExecutorVectorVector {
-    fn value_kind(&self) -> ExprValueKind {
-        ExprValueKind::InstantVector
+impl QueryValueIter for BinaryEvaluatorVectorVector {
+    fn value_kind(&self) -> QueryValueKind {
+        QueryValueKind::InstantVector
     }
 }
 

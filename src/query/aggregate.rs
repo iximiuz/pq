@@ -1,24 +1,24 @@
 use std::collections::{BTreeMap, HashSet};
 
 use super::parser::ast::{AggregateArgument, AggregateModifier, AggregateOp};
-use super::value::{ExprValue, ExprValueIter, ExprValueKind, InstantVector};
+use super::value::{InstantVector, QueryValue, QueryValueIter, QueryValueKind};
 use crate::model::{LabelsTrait, SampleValue};
 
-pub(super) struct AggregateExprExecutor {
+pub(super) struct AggregateEvaluator {
     op: AggregateOp,
-    inner: Box<dyn ExprValueIter>,
+    inner: Box<dyn QueryValueIter>,
     modifier: Option<AggregateModifier>,
     argument: Option<AggregateArgument>,
 }
 
-impl AggregateExprExecutor {
+impl AggregateEvaluator {
     pub(super) fn new(
         op: AggregateOp,
-        inner: Box<dyn ExprValueIter>,
+        inner: Box<dyn QueryValueIter>,
         modifier: Option<AggregateModifier>,
         argument: Option<AggregateArgument>,
     ) -> Self {
-        assert!(inner.value_kind() == ExprValueKind::InstantVector);
+        assert!(inner.value_kind() == QueryValueKind::InstantVector);
         Self {
             op,
             inner,
@@ -39,12 +39,12 @@ impl AggregateExprExecutor {
     }
 }
 
-impl std::iter::Iterator for AggregateExprExecutor {
-    type Item = ExprValue;
+impl std::iter::Iterator for AggregateEvaluator {
+    type Item = QueryValue;
 
     fn next(&mut self) -> Option<Self::Item> {
         let v = match self.inner.next() {
-            Some(ExprValue::InstantVector(v)) => v,
+            Some(QueryValue::InstantVector(v)) => v,
             None => return None,
             _ => unimplemented!(),
         };
@@ -72,15 +72,15 @@ impl std::iter::Iterator for AggregateExprExecutor {
             }
         }
 
-        Some(ExprValue::InstantVector(InstantVector::new(
+        Some(QueryValue::InstantVector(InstantVector::new(
             v.timestamp(),
             agg.values().cloned().into_iter().collect(),
         )))
     }
 }
 
-impl ExprValueIter for AggregateExprExecutor {
-    fn value_kind(&self) -> ExprValueKind {
+impl QueryValueIter for AggregateEvaluator {
+    fn value_kind(&self) -> QueryValueKind {
         self.inner.value_kind()
     }
 }

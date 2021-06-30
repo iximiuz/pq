@@ -6,7 +6,7 @@ use super::encoder::{Encodable, Encoder};
 use crate::error::Result;
 use crate::input::Entry;
 use crate::model::LabelsTrait;
-use crate::query::{ExprValue, InstantVector};
+use crate::query::{InstantVector, QueryValue};
 
 pub struct HumanReadableEncoder {}
 
@@ -53,7 +53,7 @@ impl Encoder for HumanReadableEncoder {
                 Ok(format!("{}: {:?}", line_no, data).into_bytes())
             }
             Encodable::Record(record) => Ok(format!("{:?}", record).into_bytes()),
-            Encodable::ExprValue(ExprValue::InstantVector(v)) => self.encode_instant_vector(v),
+            Encodable::QueryValue(QueryValue::InstantVector(v)) => self.encode_instant_vector(v),
             _ => unimplemented!("coming soon..."),
         }
     }

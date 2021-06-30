@@ -1,26 +1,26 @@
 use std::collections::HashSet;
 
 use super::parser::ast::FunctionName;
-use super::value::{ExprValue, ExprValueIter, ExprValueKind, InstantVector, RangeVector};
+use super::value::{InstantVector, QueryValue, QueryValueIter, QueryValueKind, RangeVector};
 use crate::model::{LabelValue, LabelsTrait, SampleValue};
 
 pub(super) enum FuncCallArg {
     Number(f64),
     String(LabelValue),
-    ValueIter(Box<dyn ExprValueIter>),
+    ValueIter(Box<dyn QueryValueIter>),
 }
 
-pub(super) fn create_func_call_executor(
+pub(super) fn create_func_evaluator(
     func_name: FunctionName,
     mut args: Vec<FuncCallArg>,
-) -> Box<dyn ExprValueIter> {
+) -> Box<dyn QueryValueIter> {
     use FunctionName::*;
 
     match func_name {
         AvgOverTime | CountOverTime | LastOverTime | MinOverTime | MaxOverTime | SumOverTime => {
             assert!(args.len() == 1);
             if let Some(FuncCallArg::ValueIter(inner)) = args.pop() {
-                return Box::new(AggOverTimeFuncExecutor::new(func_name, inner));
+                return Box::new(AggOverTimeFuncEvaluator::new(func_name, inner));
             }
             panic!("unexpected argument type");
         }
@@ -28,13 +28,13 @@ pub(super) fn create_func_call_executor(
     }
 }
 
-struct AggOverTimeFuncExecutor {
+struct AggOverTimeFuncEvaluator {
     func_name: FunctionName,
-    inner: Box<dyn ExprValueIter>,
+    inner: Box<dyn QueryValueIter>,
 }
 
-impl AggOverTimeFuncExecutor {
-    fn new(func_name: FunctionName, inner: Box<dyn ExprValueIter>) -> Self {
+impl AggOverTimeFuncEvaluator {
+    fn new(func_name: FunctionName, inner: Box<dyn QueryValueIter>) -> Self {
         Self { func_name, inner }
     }
 
@@ -72,28 +72,28 @@ impl AggOverTimeFuncExecutor {
     }
 }
 
-impl std::iter::Iterator for AggOverTimeFuncExecutor {
-    type Item = ExprValue;
+impl std::iter::Iterator for AggOverTimeFuncEvaluator {
+    type Item = QueryValue;
 
     fn next(&mut self) -> Option<Self::Item> {
         use FunctionName::*;
 
         let v = match self.inner.next() {
-            Some(ExprValue::RangeVector(v)) => v,
+            Some(QueryValue::RangeVector(v)) => v,
             None => return None,
             _ => unreachable!("bug"),
         };
 
         match self.func_name {
             AvgOverTime | CountOverTime | LastOverTime | MinOverTime | MaxOverTime
-            | SumOverTime => Some(ExprValue::InstantVector(self.do_next(v))),
+            | SumOverTime => Some(QueryValue::InstantVector(self.do_next(v))),
             _ => unreachable!(),
         }
     }
 }
 
-impl ExprValueIter for AggOverTimeFuncExecutor {
-    fn value_kind(&self) -> ExprValueKind {
-        ExprValueKind::InstantVector
+impl QueryValueIter for AggOverTimeFuncEvaluator {
+    fn value_kind(&self) -> QueryValueKind {
+        QueryValueKind::InstantVector
     }
 }

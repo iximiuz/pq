@@ -4,10 +4,10 @@ use std::time::Duration;
 
 use super::parser::ast::VectorSelector;
 use super::sample::{Cursor, Sample};
-use super::value::{ExprValue, ExprValueIter, ExprValueKind, InstantVector, RangeVector};
+use super::value::{InstantVector, QueryValue, QueryValueIter, QueryValueKind, RangeVector};
 use crate::model::{Labels, LabelsTrait, SampleValue, Timestamp, TimestampTrait};
 
-pub(super) struct VectorSelectorExecutor {
+pub(super) struct VectorSelectorEvaluator {
     cursor: Rc<Cursor>,
     selector: VectorSelector,
     interval: Duration,
@@ -16,7 +16,7 @@ pub(super) struct VectorSelectorExecutor {
     buffer: SampleMatrix,
 }
 
-impl VectorSelectorExecutor {
+impl VectorSelectorEvaluator {
     pub(super) fn new(
         cursor: Rc<Cursor>,
         selector: VectorSelector,
@@ -61,8 +61,8 @@ impl VectorSelectorExecutor {
     }
 }
 
-impl std::iter::Iterator for VectorSelectorExecutor {
-    type Item = ExprValue;
+impl std::iter::Iterator for VectorSelectorEvaluator {
+    type Item = QueryValue;
 
     fn next(&mut self) -> Option<Self::Item> {
         while self
@@ -97,11 +97,11 @@ impl std::iter::Iterator for VectorSelectorExecutor {
         // Here we have a sample after the current next_instant.
         // Hence, we can create (a potentially empty) vector from the current buffer.
         let vector = match self.selector.duration() {
-            None => ExprValue::InstantVector(
+            None => QueryValue::InstantVector(
                 self.buffer
                     .instant_vector(self.next_instant.unwrap(), self.lookback),
             ),
-            Some(duration) => ExprValue::RangeVector(
+            Some(duration) => QueryValue::RangeVector(
                 self.buffer
                     .range_vector(self.next_instant.unwrap(), duration),
             ),
@@ -120,11 +120,11 @@ impl std::iter::Iterator for VectorSelectorExecutor {
     }
 }
 
-impl ExprValueIter for VectorSelectorExecutor {
-    fn value_kind(&self) -> ExprValueKind {
+impl QueryValueIter for VectorSelectorEvaluator {
+    fn value_kind(&self) -> QueryValueKind {
         match self.selector.duration() {
-            None => ExprValueKind::InstantVector,
-            Some(_) => ExprValueKind::RangeVector,
+            None => QueryValueKind::InstantVector,
+            Some(_) => QueryValueKind::RangeVector,
         }
     }
 }
