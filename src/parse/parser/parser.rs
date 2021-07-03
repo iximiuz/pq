@@ -1,19 +1,25 @@
-use super::super::line::LineReader;
+use std::collections::HashMap;
+
 use super::decoder::{Decoded, Decoder};
 use crate::error::Result;
 
 #[derive(Debug)]
-pub struct Entry(pub usize, pub Decoded);
+pub enum Entry {
+    Tuple(usize, Vec<String>),
+    Dict(usize, HashMap<String, String>),
+}
 
-pub struct EntryReader {
-    inner: Box<dyn LineReader>,
+type LineIter = std::iter::Iterator<Item = Result<Vec<u8>>>;
+
+pub struct Parser {
+    inner: Box<dyn LineIter>,
     decoder: Box<dyn Decoder>,
     line_no: usize,
     verbose: bool,
 }
 
-impl EntryReader {
-    pub fn new(inner: Box<dyn LineReader>, decoder: Box<dyn Decoder>) -> Self {
+impl Parser {
+    pub fn new(inner: Box<dyn LineIter>, decoder: Box<dyn Decoder>) -> Self {
         Self {
             inner,
             decoder,
@@ -23,15 +29,14 @@ impl EntryReader {
     }
 }
 
-impl std::iter::Iterator for EntryReader {
+impl std::iter::Iterator for Parser {
     type Item = Result<Entry>;
 
     fn next(&mut self) -> Option<Self::Item> {
         loop {
-            let mut buf = Vec::new();
-            match self.inner.read(&mut buf) {
-                Ok(0) => return None, // EOF
-                Ok(_) => (),
+            let line = match self.inner.next() {
+                Ok(line) => line,
+                None => return None, // EOF
                 Err(e) => {
                     return Some(Err(("input reader failed", e).into()));
                 }
@@ -39,8 +44,9 @@ impl std::iter::Iterator for EntryReader {
 
             self.line_no += 1;
 
-            match self.decoder.decode(&mut buf) {
-                Ok(decoded) => return Some(Ok(Entry(self.line_no, decoded))),
+            match self.decoder.decode(&line) {
+                Ok(Decoded::Tuple(v)) => return Some(Ok(Entry::Tuple(self.line_no, v))),
+                Ok(Decoded::Dict(v)) => return Some(Ok(Entry::Dict(self.line_no, v))),
                 Err(err) => {
                     if self.verbose {
                         eprintln!(

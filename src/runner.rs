@@ -2,8 +2,10 @@ use std::cell::RefCell;
 use std::time::Duration;
 
 use crate::error::Result;
-use crate::input::{parse_matcher, Decoder, EntryReader, LineReader, RecordReader};
-use crate::output::{Encodable, Encoder, Writer};
+use crate::formatter::Formatter;
+use crate::output::{Value, Writer};
+use crate::parse::{Entry, Parser};
+use crate::program::{self, parse_program};
 use crate::query::QueryEvaluator;
 use crate::utils::time::TimeRange;
 
@@ -27,6 +29,8 @@ use crate::utils::time::TimeRange;
 //               -> Line or Multiline (loosely, a String)
 //                 -> stdout
 
+type LineIter = Box<dyn std::iter::Iterator<Item = Result<Vec<u8>>>>;
+
 pub struct Runner {
     producer: Producer,
     consumer: Consumer,
@@ -34,37 +38,46 @@ pub struct Runner {
 
 impl Runner {
     pub fn new(
-        reader: Box<dyn LineReader>,
-        decoder: Box<dyn Decoder>,
-        encoder: Box<dyn Encoder>,
+        program: &str,
+        reader: LineIter,
         writer: Box<dyn Writer>,
-        pattern: Option<&str>,
-        query: Option<&str>,
         range: Option<TimeRange>,
         interval: Option<Duration>,
         lookback: Option<Duration>,
     ) -> Result<Self> {
-        let range = range.unwrap_or(TimeRange::infinity());
-        let consumer = Consumer::new(writer, encoder);
-        let ereader = EntryReader::new(reader, decoder);
+        // TODO: trim spaces from program.
 
-        let pattern = match pattern {
-            Some(pattern) => pattern,
+        let ast = parse_program(program)?;
+
+        let parser = match ast.parser {
+            program::Parser::Regex(opt) => Parser::new(RegexDecoder::new(opt.regex)),
+            _ => unimplemented!(),
+        };
+
+        let formatter = match ast.formatter {
+            Some(program::Formatter::JSON) => Formatter::new(),
+            _ => unreachable!(),
+        };
+
+        let consumer = Consumer::new(writer, formatter);
+
+        let range = range.unwrap_or(TimeRange::infinity());
+
+        let mapper = match ast.mapper {
+            Some(mapper) => Mapper::new(parser, range),
             None => {
                 return Ok(Self {
-                    producer: Producer::EntryReader(RefCell::new(ereader)),
+                    producer: Producer::Parser(RefCell::new(parser)),
                     consumer,
                 });
             }
         };
 
-        let rreader = RecordReader::new(Box::new(ereader), parse_matcher(pattern)?, Some(range));
-
-        let query = match query {
+        let query = match ast.query {
             Some(query) => query,
             None => {
                 return Ok(Self {
-                    producer: Producer::RecordReader(RefCell::new(rreader)),
+                    producer: Producer::Mapper(RefCell::new(mapper)),
                     consumer,
                 });
             }
@@ -76,7 +89,7 @@ impl Runner {
         Ok(Self {
             producer: Producer::QueryReader(RefCell::new(QueryEvaluator::new(
                 query,
-                Box::new(rreader),
+                Box::new(mapper),
                 interval,
                 lookback,
                 range.start(),

@@ -1,7 +1,3 @@
-mod entry;
-mod line;
-mod record;
+mod reader;
 
-pub use entry::*;
-pub use line::*;
-pub use record::*;
+pub use reader::*;

@@ -16,8 +16,10 @@ impl RegexDecoder {
 }
 
 impl Decoder for RegexDecoder {
-    fn decode(&self, buf: &Vec<u8>) -> Result<Decoded> {
-        let caps = self.re.captures(buf).ok_or("no match found")?;
+    fn decode(&self, line: &Vec<u8>) -> Result<Decoded> {
+        // TODO: handle named captures and return Decoded::Dict.
+
+        let caps = self.re.captures(line).ok_or("no match found")?;
 
         Ok(Decoded::Tuple(
             caps.iter()

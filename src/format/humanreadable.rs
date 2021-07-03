@@ -2,15 +2,15 @@ use std::collections::BTreeMap;
 
 use chrono::prelude::*;
 
-use super::encoder::{Encodable, Encoder};
+use super::formatter::{Formatter, Value};
 use crate::error::Result;
 use crate::input::Entry;
 use crate::model::LabelsTrait;
 use crate::query::{InstantVector, QueryValue};
 
-pub struct HumanReadableEncoder {}
+pub struct HumanReadableFormatter {}
 
-impl HumanReadableEncoder {
+impl HumanReadableFormatter {
     pub fn new() -> Self {
         Self {}
     }
@@ -46,14 +46,14 @@ impl HumanReadableEncoder {
     }
 }
 
-impl Encoder for HumanReadableEncoder {
-    fn encode(&self, value: &Encodable) -> Result<Vec<u8>> {
+impl Formatter for HumanReadableFormatter {
+    fn encode(&self, value: &Value) -> Result<Vec<u8>> {
         match value {
-            Encodable::Entry(Entry(line_no, data)) => {
+            Value::Entry(Entry(line_no, data)) => {
                 Ok(format!("{}: {:?}", line_no, data).into_bytes())
             }
-            Encodable::Record(record) => Ok(format!("{:?}", record).into_bytes()),
-            Encodable::QueryValue(QueryValue::InstantVector(v)) => self.encode_instant_vector(v),
+            Value::Record(record) => Ok(format!("{:?}", record).into_bytes()),
+            Value::QueryValue(QueryValue::InstantVector(v)) => self.encode_instant_vector(v),
             _ => unimplemented!("coming soon..."),
         }
     }
