@@ -25,19 +25,17 @@ impl Runner {
         interval: Option<Duration>,
         lookback: Option<Duration>,
     ) -> Result<Self> {
-        // TODO: trim spaces from program.
-
         let ast = parse_program(program)?;
 
-        let decoder = match ast.parser {
-            program::Parser::Regex(opt) => {
-                Decoder::new(reader, Box::new(RegexDecodingStrategy::new(&opt.regex)?))
+        let decoder = match ast.decoder {
+            program::Decoder::Regex { regex } => {
+                Decoder::new(reader, Box::new(RegexDecodingStrategy::new(&regex)?))
             }
             _ => unimplemented!(),
         };
 
         let formatter = match ast.formatter {
-            Some(program::Formatter::JSON) => HumanReadableFormatter::new(),
+            None | Some(program::Formatter::HumanReadable) => HumanReadableFormatter::new(),
             _ => unreachable!(),
         };
 
