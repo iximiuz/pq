@@ -12,8 +12,8 @@ use super::unary::UnaryEvaluator;
 use super::value::{QueryValue, QueryValueIter};
 use super::vector::VectorSelectorEvaluator;
 use crate::error::Result;
-use crate::input::Record;
 use crate::model::Timestamp;
+use crate::parse::Record;
 
 const DEFAULT_INTERVAL: Duration = Duration::from_millis(1000);
 const DEFAULT_LOOKBACK: Duration = DEFAULT_INTERVAL;

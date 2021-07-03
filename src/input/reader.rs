@@ -1,32 +1,38 @@
 use std::io::BufRead;
 
+use crate::error::Result;
+
 pub struct LineReader<R> {
     inner: R,
     delim: u8,
+    line_no: usize,
 }
 
 impl<R: BufRead> LineReader<R> {
     pub fn new(inner: R) -> Self {
-        Self {
-            inner,
-            delim: b'\n',
-        }
+        Self::with_delimiter(inner, b'\n')
     }
 
     pub fn with_delimiter(inner: R, delim: u8) -> Self {
-        Self { inner, delim }
+        Self {
+            inner,
+            delim,
+            line_no: 0,
+        }
     }
 }
 
 impl<R: BufRead> std::iter::Iterator for LineReader<R> {
-    type Item = Result<Vec<u8>>;
+    type Item = Result<(usize, Vec<u8>)>;
 
     fn next(&mut self) -> Option<Self::Item> {
         let mut buf = Vec::new();
-        match self.inner.read_until(self.delim, buf) {
+        self.line_no += 1;
+
+        match self.inner.read_until(self.delim, &mut buf) {
             Ok(0) => None,
-            Ok(_) => Some(Ok(buf)),
-            Err(e) => Some(Err(e)),
+            Ok(_) => Some(Ok((self.line_no, buf))),
+            Err(e) => Some(Err(("input reader failed", e).into())),
         }
     }
 }

@@ -1,37 +1,39 @@
 use std::collections::HashMap;
 
-use super::super::entry::Entry;
-use super::matcher::RecordMatcher;
 use crate::error::Result;
 use crate::model::{Labels, MetricName, SampleValue, Timestamp};
+use crate::parse::Entry;
 use crate::utils::time::TimeRange;
 
 pub type Values = HashMap<MetricName, SampleValue>;
 
 #[derive(Debug)]
-pub struct Record(pub Timestamp, pub Labels, pub Values);
+pub struct Record(pub usize, pub Timestamp, pub Labels, pub Values);
 
-pub struct RecordReader {
+pub trait RecordMatcher {
+    fn match_record(&self, entry: &Entry) -> Result<Record>;
+}
+
+pub struct Mapper {
     entries: Box<dyn std::iter::Iterator<Item = Result<Entry>>>,
-    matcher: Box<dyn RecordMatcher>,
+    matcher: Option<Box<dyn RecordMatcher>>,
     range: TimeRange,
 }
 
-impl RecordReader {
+impl Mapper {
     pub fn new(
         entries: Box<dyn std::iter::Iterator<Item = Result<Entry>>>,
-        matcher: Box<dyn RecordMatcher>,
         range: Option<TimeRange>,
     ) -> Self {
         Self {
             entries,
-            matcher,
+            matcher: None,
             range: range.unwrap_or(TimeRange::infinity()),
         }
     }
 }
 
-impl std::iter::Iterator for RecordReader {
+impl std::iter::Iterator for Mapper {
     type Item = Result<Record>;
 
     fn next(&mut self) -> Option<Self::Item> {
@@ -44,25 +46,22 @@ impl std::iter::Iterator for RecordReader {
                 None => return None, // EOF
             };
 
-            let (ts, labels, mut values) = match self.matcher.match_record(&entry) {
-                Ok(Record(ts, ls, vs)) => (ts, ls, vs),
+            let record = match self.matcher.as_ref().unwrap().match_record(&entry) {
+                Ok(record) => record,
                 Err(_) => {
                     // TODO: eprintln!() if verbose
                     continue;
                 }
             };
 
-            // Tiny hack...
-            values.insert("__line__".to_owned(), entry.0 as SampleValue);
-
-            if ts < self.range.start().unwrap_or(Timestamp::MIN) {
+            if record.1 < self.range.start().unwrap_or(Timestamp::MIN) {
                 continue;
             }
-            if ts > self.range.end().unwrap_or(Timestamp::MAX) {
+            if record.1 > self.range.end().unwrap_or(Timestamp::MAX) {
                 continue;
             }
 
-            return Some(Ok(Record(ts, labels, values)));
+            return Some(Ok(record));
         }
     }
 }

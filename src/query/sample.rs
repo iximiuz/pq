@@ -3,8 +3,8 @@ use std::collections::VecDeque;
 use std::rc::{Rc, Weak};
 
 use crate::error::Result;
-use crate::input::Record;
 use crate::model::{Labels, MetricName, SampleValue, Timestamp};
+use crate::parse::Record;
 
 #[derive(Debug)]
 pub struct Sample {
@@ -70,7 +70,10 @@ impl SampleReader {
     fn refill_cursors(&mut self) {
         // TODO: optimize - read multiple records at once.
         // TODO: propagate errors.
-        if let Some(Ok(Record(timestamp, labels, values))) = self.records.next() {
+        if let Some(Ok(Record(line_no, timestamp, labels, mut values))) = self.records.next() {
+            // Tiny hack...
+            values.insert("__line__".to_owned(), line_no as SampleValue);
+
             for (name, value) in values {
                 let sample = Rc::new(Sample::new(name, value, timestamp, labels.clone()));
 

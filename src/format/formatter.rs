@@ -8,6 +8,6 @@ pub enum Value {
     QueryValue(QueryValue),
 }
 
-pub trait Encoder {
-    fn encode(&self, value: &Value) -> Result<Vec<u8>>;
+pub trait Formatter {
+    fn format(&self, value: &Value) -> Result<Vec<u8>>;
 }

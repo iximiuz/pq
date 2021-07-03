@@ -1,13 +1,13 @@
 use regex;
 
-use super::decoder::{Decoded, Decoder};
+use super::strategy::{DecodingResult, DecodingStrategy};
 use crate::error::Result;
 
-pub struct RegexDecoder {
+pub struct RegexDecodingStrategy {
     re: regex::bytes::Regex,
 }
 
-impl RegexDecoder {
+impl RegexDecodingStrategy {
     pub fn new(re_pattern: &str) -> Result<Self> {
         let re = regex::bytes::Regex::new(re_pattern).map_err(|e| ("bad regex pattern", e))?;
 
@@ -15,13 +15,13 @@ impl RegexDecoder {
     }
 }
 
-impl Decoder for RegexDecoder {
-    fn decode(&self, line: &Vec<u8>) -> Result<Decoded> {
+impl DecodingStrategy for RegexDecodingStrategy {
+    fn decode(&self, line: &Vec<u8>) -> Result<DecodingResult> {
         // TODO: handle named captures and return Decoded::Dict.
 
         let caps = self.re.captures(line).ok_or("no match found")?;
 
-        Ok(Decoded::Tuple(
+        Ok(DecodingResult::Tuple(
             caps.iter()
                 .skip((self.re.captures_len() > 1) as usize)
                 .map(|c| {

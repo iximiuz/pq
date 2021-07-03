@@ -15,14 +15,7 @@ pub struct CliOpt {
 
     // #[structopt(long = "encode", short = "e")]
     // pub encode: Option<String>,
-    #[structopt(long = "parse", short = "p")]
-    pub parse: String,
-
-    #[structopt(long = "match", short = "m")]
-    pub mtch: Option<String>,
-
-    #[structopt(long = "query", short = "q")]
-    pub query: Option<String>,
+    pub program: String,
 
     #[structopt(long = "since", short = "s", parse(try_from_str = parse_iso_time))]
     pub since: Option<Timestamp>,

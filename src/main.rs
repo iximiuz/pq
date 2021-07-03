@@ -3,8 +3,8 @@ use std::io::{self, BufReader};
 use structopt::StructOpt;
 
 use pq::cliopt::CliOpt;
-use pq::input::{DelimReader, RegexDecoder};
-use pq::output::{HumanReadableEncoder, LineWriter};
+use pq::input::LineReader;
+use pq::output::LineWriter;
 use pq::runner::Runner;
 use pq::utils::time::TimeRange;
 
@@ -36,12 +36,9 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let opt = CliOpt::from_args();
 
     let mut runner = Runner::new(
-        Box::new(DelimReader::new(BufReader::new(io::stdin()))),
-        Box::new(RegexDecoder::new(&opt.parse)?),
-        Box::new(HumanReadableEncoder::new()),
+        &opt.program,
+        Box::new(LineReader::new(BufReader::new(io::stdin()))),
         Box::new(LineWriter::new(io::stdout())),
-        opt.mtch.as_deref(),
-        opt.query.as_deref(),
         Some(TimeRange::new(opt.since, opt.until)?),
         opt.interval,
         opt.lookback,

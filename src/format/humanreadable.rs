@@ -4,8 +4,8 @@ use chrono::prelude::*;
 
 use super::formatter::{Formatter, Value};
 use crate::error::Result;
-use crate::input::Entry;
 use crate::model::LabelsTrait;
+use crate::parse::Entry;
 use crate::query::{InstantVector, QueryValue};
 
 pub struct HumanReadableFormatter {}
@@ -47,9 +47,12 @@ impl HumanReadableFormatter {
 }
 
 impl Formatter for HumanReadableFormatter {
-    fn encode(&self, value: &Value) -> Result<Vec<u8>> {
+    fn format(&self, value: &Value) -> Result<Vec<u8>> {
         match value {
-            Value::Entry(Entry(line_no, data)) => {
+            Value::Entry(Entry::Tuple(line_no, data)) => {
+                Ok(format!("{}: {:?}", line_no, data).into_bytes())
+            }
+            Value::Entry(Entry::Dict(line_no, data)) => {
                 Ok(format!("{}: {:?}", line_no, data).into_bytes())
             }
             Value::Record(record) => Ok(format!("{:?}", record).into_bytes()),
