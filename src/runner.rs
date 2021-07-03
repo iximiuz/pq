@@ -58,7 +58,7 @@ impl Runner {
             }
         };
 
-        let rreader = RecordReader::new(Box::new(ereader), parse_matcher(pattern)?);
+        let rreader = RecordReader::new(Box::new(ereader), parse_matcher(pattern)?, Some(range));
 
         let query = match query {
             Some(query) => query,
