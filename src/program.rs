@@ -1,5 +1,5 @@
 use crate::error::{Error, Result};
-use crate::utils::parse::{IResult, ParseError, Span};
+use crate::utils::parse::{maybe_lpadded, IResult, ParseError, Span};
 
 use nom::{
     branch::alt,
@@ -63,25 +63,64 @@ fn do_parse_program(input: Span) -> IResult<AST> {
         Err(e) => return Err(e),
     };
 
-    Ok((
+    let (rest, try_parse_formatter) = match maybe_lpadded(char('|'))(rest) {
+        Ok((rest, _)) => (rest, true),
+        Err(nom::Err::Error(_)) => (rest, false),
+        Err(e) => return Err(e),
+    };
+
+    if !try_parse_formatter {
+        return Ok((
+            rest,
+            AST {
+                decoder,
+                mapper: None,
+                query: None,
+                formatter: None,
+            },
+        ));
+    }
+
+    let (rest, formatter) = match maybe_lpadded(formatter)(rest) {
+        Ok((rest, formatter)) => (rest, formatter),
+        Err(nom::Err::Error(_)) => {
+            return Err(nom::Err::Failure(ParseError::partial(
+                "program",
+                "formatter (to_json is the only one supported at the moment)",
+                rest,
+            )))
+        }
+        Err(e) => return Err(e),
+    };
+
+    return Ok((
         rest,
         AST {
             decoder,
             mapper: None,
             query: None,
-            formatter: None,
+            formatter: Some(formatter),
         },
-    ))
+    ));
+}
+
+fn formatter(input: Span) -> IResult<Formatter> {
+    let (rest, kind) = alt((tag_no_case("to_json"), tag_no_case("to_json")))(input)?;
+
+    match kind.to_lowercase().as_str() {
+        "to_json" => Ok((rest, Formatter::JSON)),
+        _ => unimplemented!(),
+    }
 }
 
 fn decoder(input: Span) -> IResult<Decoder> {
-    let (rest, parse_regex) = match char('/')(input) {
+    let (rest, try_parse_regex) = match char('/')(input) {
         Ok((rest, _)) => (rest, true),
         Err(nom::Err::Error(_)) => (input, false),
         Err(e) => return Err(e),
     };
 
-    if parse_regex {
+    if try_parse_regex {
         // TODO: fix it! Less something less naive (e.g., escaped-strings-like parser).
         let end_pos = match find_unescaped(*rest, '/') {
             Some(end_pos) => end_pos,
@@ -103,7 +142,7 @@ fn decoder(input: Span) -> IResult<Decoder> {
         ));
     }
 
-    let (rest, kind) = alt((tag_no_case("json"), tag_no_case("nginx")))(input)?;
+    let (rest, kind) = alt((tag_no_case("json"), tag_no_case("json")))(input)?;
 
     match kind.to_lowercase().as_str() {
         "json" => Ok((rest, Decoder::JSON)),
@@ -141,6 +180,12 @@ mod tests {
             "//",
             "/foo/",
             "/.*(\\d+)foo\\s(\\w+).+/",
+            "json",
+            "json | to_json",
+            "json| to_json",
+            "json |to_json",
+            "json|to_json",
+            "/.*(\\d+)foo\\s(\\w+).+/ | to_json",
         ];
 
         for input in &tests {

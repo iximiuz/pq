@@ -2,7 +2,7 @@ use std::cell::RefCell;
 use std::time::Duration;
 
 use crate::error::Result;
-use crate::format::{Formatter, HumanReadableFormatter, Value};
+use crate::format::{Formatter, HumanReadableFormatter, JSONFormatter, Value};
 use crate::output::Writer;
 use crate::parse::{Decoder, Mapper, RegexDecodingStrategy};
 use crate::program::{self, parse_program};
@@ -34,12 +34,14 @@ impl Runner {
             _ => unimplemented!(),
         };
 
-        let formatter = match ast.formatter {
-            None | Some(program::Formatter::HumanReadable) => HumanReadableFormatter::new(),
-            _ => unreachable!(),
+        let formatter: Box<dyn Formatter> = match ast.formatter {
+            Some(program::Formatter::JSON) => Box::new(JSONFormatter::new()),
+            None | Some(program::Formatter::HumanReadable) => {
+                Box::new(HumanReadableFormatter::new())
+            }
         };
 
-        let consumer = Consumer::new(writer, Box::new(formatter));
+        let consumer = Consumer::new(writer, formatter);
 
         let range = range.unwrap_or(TimeRange::infinity());
 
