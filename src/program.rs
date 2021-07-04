@@ -1,4 +1,5 @@
 use crate::error::{Error, Result};
+use crate::query::parser::{ast::Expr as QueryExpr, expr::expr as query_expr};
 use crate::utils::parse::{
     label_identifier, maybe_lpadded, separated_list, string_literal, IResult, ParseError, Span,
 };
@@ -15,7 +16,7 @@ use nom::{
 pub struct AST {
     pub decoder: Decoder,
     pub mapper: Option<Mapper>,
-    pub query: Option<String>,
+    pub query: Option<QueryExpr>,
     pub formatter: Option<Formatter>,
 }
 
@@ -304,9 +305,20 @@ fn mapper_field_const(input: Span) -> IResult<MapperField> {
     ))
 }
 
-fn query(input: Span) -> IResult<String> {
-    let (rest, _) = tag_no_case("implement me!")(input)?;
-    Ok((rest, "foobar".to_owned()))
+fn query(input: Span) -> IResult<QueryExpr> {
+    let (rest, _) = tag_no_case("select ")(input)?;
+    let (rest, expr) = match maybe_lpadded(query_expr(None))(rest) {
+        Ok((rest, ast)) => (rest, ast),
+        Err(nom::Err::Error(_)) => {
+            return Err(nom::Err::Failure(ParseError::partial(
+                "query",
+                "query expression",
+                rest,
+            )));
+        }
+        Err(e) => return Err(e),
+    };
+    Ok((rest, expr))
 }
 
 fn formatter(input: Span) -> IResult<Formatter> {
@@ -357,6 +369,7 @@ mod tests {
             r#"/.*(\\d+)foo\\s(\\w+).+/ | map {foo: "bar"} | to_json"#,
             r#"/.*(\\d+)foo\\s(\\w+).+/ | map {.0:str, .1:num as qux, .2:ts "%Y-%m-%d", foo: "bar"} | to_json"#,
             r#"/.*(\\d+)foo\\s(\\w+).+/ | map {.foo:str as bar, .qux:num, .ts:ts "%Y-%m-%d", abc: "42"} | to_json"#,
+            r#"/.*(\\d+)foo\\s(\\w+).+/ | map {.foo:str as bar, .qux:num, .ts:ts "%Y-%m-%d", abc: "42"} | select {__name__=~"abc|foo"} / 9001 | to_json"#,
         ];
 
         for input in &tests {

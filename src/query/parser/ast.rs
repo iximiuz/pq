@@ -4,17 +4,6 @@ use std::time::Duration;
 use crate::error::{Error, Result};
 use crate::model::{LabelMatcher, LabelName, MetricName, SampleValue};
 
-#[derive(Debug)]
-pub struct AST {
-    pub root: Expr,
-}
-
-impl AST {
-    pub fn new(root: Expr) -> Self {
-        Self { root }
-    }
-}
-
 #[derive(Debug, PartialEq)]
 pub enum Expr {
     AggregateOperation(AggregateOperation),

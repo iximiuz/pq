@@ -1,5 +1,6 @@
 use std::convert::TryFrom;
 
+use lazy_static::lazy_static;
 use nom::{
     branch::alt,
     bytes::complete::tag_no_case,
@@ -16,6 +17,10 @@ use crate::utils::parse::{
 };
 
 pub fn expr<'a>(min_prec: Option<Precedence>) -> impl FnMut(Span<'a>) -> IResult<Expr> {
+    lazy_static! {
+        static ref EXPR_SEP: Vec<Option<char>> = vec![None, Some(','), Some(')'), Some('|')];
+    }
+
     move |input: Span| {
         let (mut rest, mut lhs) = alt((
             // Order matters here!
@@ -32,7 +37,7 @@ pub fn expr<'a>(min_prec: Option<Precedence>) -> impl FnMut(Span<'a>) -> IResult
         // E.g.  expr = unary_expr | vector_selector | binary_expr ...
         // where binary_expr = expr <OP> expr
 
-        while *rest != "" && !(*rest).starts_with(")") && !(*rest).starts_with(",") {
+        while !EXPR_SEP.contains(&(*rest).trim_start().chars().nth(0)) {
             let (tmp_rest, op) = match maybe_lpadded(binary_op)(rest) {
                 Ok((r, o)) => (r, o),
                 Err(_) => {

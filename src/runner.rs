@@ -70,7 +70,7 @@ impl Runner {
 
         Ok(Self {
             producer: Producer::Querier(RefCell::new(QueryEvaluator::new(
-                &query,
+                query,
                 Box::new(mapper),
                 interval,
                 lookback,

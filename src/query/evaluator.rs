@@ -6,7 +6,7 @@ use super::aggregate::AggregateEvaluator;
 use super::binary::create_binary_evaluator;
 use super::function::{create_func_evaluator, FuncCallArg};
 use super::identity::IdentityEvaluator;
-use super::parser::{ast::*, parse_query};
+use super::parser::ast::*;
 use super::sample::SampleReader;
 use super::unary::UnaryEvaluator;
 use super::value::{QueryValue, QueryValueIter};
@@ -24,18 +24,14 @@ pub struct QueryEvaluator {
 
 impl QueryEvaluator {
     pub fn new(
-        query: &str,
+        query: Expr,
         records: Box<dyn std::iter::Iterator<Item = Result<Record>>>,
         interval: Option<Duration>,
         lookback: Option<Duration>,
         start_at: Option<Timestamp>,
     ) -> Result<Self> {
-        let ast = parse_query(query)?;
         Ok(Self {
-            inner: create_value_iter(
-                &Context::new(records, interval, lookback, start_at),
-                ast.root,
-            ),
+            inner: create_value_iter(&Context::new(records, interval, lookback, start_at), query),
         })
     }
 }
