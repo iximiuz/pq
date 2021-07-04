@@ -62,32 +62,28 @@ impl std::iter::Iterator for Mapper {
     type Item = Result<Record>;
 
     fn next(&mut self) -> Option<Self::Item> {
-        loop {
-            let entry = match self.entries.next() {
-                Some(Ok(entry)) => entry,
-                Some(Err(e)) => {
-                    return Some(Err(("reader failed", e).into()));
-                }
-                None => return None, // EOF
-            };
+        let entry = match self.entries.next() {
+            Some(Ok(entry)) => entry,
+            Some(Err(e)) => return Some(Err(e)),
+            None => return None, // EOF
+        };
 
-            // let record = match self.matcher.as_ref().unwrap().match_record(&entry) {
-            //     Ok(record) => record,
-            //     Err(_) => {
-            //         // TODO: eprintln!() if verbose
-            //         continue;
-            //     }
-            // };
+        // let record = match self.matcher.as_ref().unwrap().match_record(&entry) {
+        //     Ok(record) => record,
+        //     Err(_) => {
+        //         // TODO: eprintln!() if verbose
+        //         continue;
+        //     }
+        // };
 
-            // if record.1 < self.range.start().unwrap_or(Timestamp::MIN) {
-            //     continue;
-            // }
-            // if record.1 > self.range.end().unwrap_or(Timestamp::MAX) {
-            //     continue;
-            // }
+        // if record.1 < self.range.start().unwrap_or(Timestamp::MIN) {
+        //     continue;
+        // }
+        // if record.1 > self.range.end().unwrap_or(Timestamp::MAX) {
+        //     continue;
+        // }
 
-            // return Some(Ok(record));
-            return None;
-        }
+        // return Some(Ok(record));
+        return None;
     }
 }
