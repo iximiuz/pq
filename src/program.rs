@@ -1,3 +1,5 @@
+use std::collections::HashSet;
+
 use crate::error::{Error, Result};
 use crate::query::parser::{ast::Expr as QueryExpr, expr::expr as query_expr};
 use crate::utils::parse::{
@@ -11,6 +13,8 @@ use nom::{
     combinator::{map, value},
     sequence::preceded,
 };
+
+// TODO: make all attributes private, add constructors with validation logic, and proper getters.
 
 #[derive(Debug)]
 pub struct AST {
@@ -43,9 +47,27 @@ pub struct Mapper {
 
 #[derive(Debug)]
 pub struct MapperField {
-    loc: FieldLoc,
-    typ: FieldType,
-    alias: Option<String>,
+    pub loc: FieldLoc,
+    pub typ: FieldType,
+    pub alias: Option<String>,
+}
+
+impl MapperField {
+    pub fn end_name(&self) -> String {
+        if let Some(ref alias) = self.alias {
+            return alias.clone();
+        }
+
+        if let FieldLoc::Name(ref name) = self.loc {
+            return name.clone();
+        }
+
+        if let FieldLoc::Position(pos) = self.loc {
+            return format!("f{}", pos);
+        }
+
+        panic!("malformed field definition");
+    }
 }
 
 #[derive(Debug)]
@@ -170,6 +192,56 @@ fn mapper(input: Span) -> IResult<Mapper> {
         }
         Err(e) => return Err(e),
     };
+
+    let mut count_timestamps = 0;
+    let mut count_loc_by_name = 0;
+    let mut count_loc_by_pos = 0;
+    let mut end_names = HashSet::new();
+    for field in fields.iter() {
+        if let FieldType::Timestamp(_) = field.typ {
+            count_timestamps += 1;
+        }
+
+        if !end_names.insert(field.end_name()) {
+            return Err(nom::Err::Failure(ParseError::new(
+                format!(
+                    "ambiguous field name in map expression '{}'",
+                    field.end_name()
+                ),
+                rest,
+            )));
+        }
+
+        if let FieldType::Const(_) = field.typ {
+            // noop for now
+        } else {
+            match field.loc {
+                FieldLoc::Name(_) => count_loc_by_name += 1,
+                FieldLoc::Position(_) => count_loc_by_pos += 1,
+            }
+        }
+    }
+
+    if fields.len() == 0 {
+        return Err(nom::Err::Failure(ParseError::new(
+            "map expression must have at least one field definition (example: .1:str as some_name)"
+                .to_owned(),
+            rest,
+        )));
+    }
+    if count_timestamps > 1 {
+        return Err(nom::Err::Failure(ParseError::new(
+            "map expression cannot have more than one timestamp field definition".to_owned(),
+            rest,
+        )));
+    }
+    if count_loc_by_name > 0 && count_loc_by_pos > 0 {
+        return Err(nom::Err::Failure(ParseError::new(
+            "all field definition must be either position-based (.0, .1, etc) or name-based (.foo, .bar, etc)".to_owned(),
+            rest,
+        )));
+    }
+
     Ok((rest, Mapper { fields }))
 }
 
