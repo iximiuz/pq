@@ -19,7 +19,7 @@ pub struct AST {
     pub formatter: Option<Formatter>,
 }
 
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 pub enum Decoder {
     JSON,
     Regex { regex: String },
@@ -49,8 +49,8 @@ pub struct MapperField {
 
 #[derive(Debug)]
 pub enum FieldLoc {
-    Position(usize),
     Name(String),
+    Position(usize),
 }
 
 #[derive(Clone, Debug)]
@@ -62,7 +62,7 @@ pub enum FieldType {
     Timestamp(Option<String>),
 }
 
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 pub enum Formatter {
     // Prometheus,
     HumanReadable,
@@ -123,26 +123,16 @@ fn do_parse_program(input: Span) -> IResult<AST> {
 }
 
 fn decoder(input: Span) -> IResult<Decoder> {
-    let (rest, try_parse_regex) = match char('/')(input) {
-        Ok((rest, _)) => (rest, true),
-        Err(nom::Err::Error(_)) => (input, false),
-        Err(e) => return Err(e),
-    };
+    let (rest, decoder) = alt((decoder_regex, value(Decoder::JSON, tag_no_case("json"))))(input)?;
+    Ok((rest, decoder))
+}
 
-    if try_parse_regex {
-        // TODO: fix it! Less something less naive (e.g., escaped-strings-like parser).
-        let end_pos = match find_unescaped(*rest, '/') {
-            Some(end_pos) => end_pos,
-            None => {
-                return Err(nom::Err::Failure(ParseError::partial(
-                    "regex",
-                    "closing '/' symbol",
-                    rest,
-                )));
-            }
-        };
+fn decoder_regex(input: Span) -> IResult<Decoder> {
+    let (rest, _) = char('/')(input)?;
 
-        let (rest, regex) = take::<usize, Span, ParseError>(end_pos + 1)(rest).unwrap();
+    // TODO: fix it! Less something less naive (e.g., escaped-strings-like parser).
+    if let Some(end_pos) = find_unescaped(*rest, '/') {
+        let (rest, regex) = take::<usize, Span, ParseError>(end_pos + 1)(rest)?;
         return Ok((
             rest,
             Decoder::Regex {
@@ -151,12 +141,11 @@ fn decoder(input: Span) -> IResult<Decoder> {
         ));
     }
 
-    let (rest, kind) = alt((tag_no_case("json"), tag_no_case("json")))(input)?;
-
-    match kind.to_lowercase().as_str() {
-        "json" => Ok((rest, Decoder::JSON)),
-        _ => unimplemented!(),
-    }
+    Err(nom::Err::Failure(ParseError::partial(
+        "regex",
+        "closing '/' symbol",
+        rest,
+    )))
 }
 
 fn mapper(input: Span) -> IResult<Mapper> {
@@ -167,7 +156,7 @@ fn mapper(input: Span) -> IResult<Mapper> {
         ',',
         mapper_field,
         "map expression",
-        "field definition like '.foo:str' or '}'",
+        "field definition (example: '.foo:str') or '}'",
     ))(rest)
     {
         Ok((rest, fields)) => (rest, fields),
@@ -321,12 +310,11 @@ fn query(input: Span) -> IResult<String> {
 }
 
 fn formatter(input: Span) -> IResult<Formatter> {
-    let (rest, kind) = alt((tag_no_case("to_json"), tag_no_case("to_json")))(input)?;
-
-    match kind.to_lowercase().as_str() {
-        "to_json" => Ok((rest, Formatter::JSON)),
-        _ => unimplemented!(),
-    }
+    let (rest, fmt) = alt((
+        value(Formatter::JSON, tag_no_case("to_json")),
+        value(Formatter::JSON, tag_no_case("to_json")),
+    ))(input)?;
+    Ok((rest, fmt))
 }
 
 fn find_unescaped(stack: &str, needle: char) -> Option<usize> {
