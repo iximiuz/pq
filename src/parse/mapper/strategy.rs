@@ -6,16 +6,17 @@ use lazy_static::lazy_static;
 
 use super::decoder::{Decoder, Entry};
 use crate::error::{Error, Result};
+use crate::program::Mapper as MappingRules;
 
 // [timestamp:<format>, method:l, status_code:l, body_size:m]
 
-pub struct ListMatcher {
+pub struct MappingStrategy {
     timestamp_cap: CaptureTimestamp,
     label_caps: Vec<CaptureLabel>,
     metric_caps: Vec<CaptureMetric>,
 }
 
-impl ListMatcher {
+impl MappingStrategy {
     pub fn new(
         re_pattern: &str,
         timestamp: String,
