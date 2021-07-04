@@ -10,11 +10,6 @@ use crate::utils::parse::parse_duration;
 #[derive(Debug, StructOpt)]
 #[structopt(name = "pq", about = "pq command line arguments")]
 pub struct CliOpt {
-    // #[structopt(long = "v", short = "verbose")]
-    // pub verbose: bool,
-
-    // #[structopt(long = "encode", short = "e")]
-    // pub encode: Option<String>,
     pub program: String,
 
     #[structopt(long = "since", short = "s", parse(try_from_str = parse_iso_time))]
@@ -23,11 +18,14 @@ pub struct CliOpt {
     #[structopt(long = "until", short = "u", parse(try_from_str = parse_iso_time))]
     pub until: Option<Timestamp>,
 
-    #[structopt(long = "interval", short = "i", parse(try_from_str = parse_duration))]
+    #[structopt(long = "interval", short = "I", parse(try_from_str = parse_duration))]
     pub interval: Option<Duration>,
 
     #[structopt(long = "lookback", short = "b", parse(try_from_str = parse_duration))]
     pub lookback: Option<Duration>,
+
+    #[structopt(long = "v", short = "verbose")]
+    pub verbose: bool,
 }
 
 fn parse_iso_time(s: &str) -> Result<Timestamp> {

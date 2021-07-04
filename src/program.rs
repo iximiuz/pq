@@ -33,11 +33,15 @@ pub enum Decoder {
     //     header: Vec<String>,
     //     separator: String,
     // },
+    // logfmt
+    // scanf
     // Prometheus,
     // InfluxDB,
     // Nginx,
+    // Nginx:combined,
     // Apache,
     // Envoy,
+    // Redis
 }
 
 #[derive(Debug)]
@@ -108,7 +112,7 @@ fn do_parse_program(input: Span) -> IResult<AST> {
     let (rest, decoder) = match decoder(input) {
         Ok((rest, decoder)) => (rest, decoder),
         Err(nom::Err::Error(_)) => return Err(nom::Err::Failure(ParseError::new(
-            "a valid pq program must start from a known parser (supported parsers - regex, JSON)"
+            "a valid pq program must start from a known parser (supported parsers: regex /.../)"
                 .to_owned(),
             input,
         ))),
@@ -155,7 +159,8 @@ fn decoder_regex(input: Span) -> IResult<Decoder> {
 
     // TODO: fix it! Less something less naive (e.g., escaped-strings-like parser).
     if let Some(end_pos) = find_unescaped(*rest, '/') {
-        let (rest, regex) = take::<usize, Span, ParseError>(end_pos + 1)(rest)?;
+        let (rest, regex) = take::<usize, Span, ParseError>(end_pos)(rest)?;
+        let (rest, _) = char('/')(rest)?;
         return Ok((
             rest,
             Decoder::Regex {

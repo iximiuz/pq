@@ -21,6 +21,7 @@ impl Runner {
         program: &str,
         reader: LineIter,
         writer: Box<dyn Writer>,
+        verbose: bool,
         range: Option<TimeRange>,
         interval: Option<Duration>,
         lookback: Option<Duration>,
@@ -37,7 +38,7 @@ impl Runner {
         let formatter: Box<dyn Formatter> = match ast.formatter {
             Some(program::Formatter::JSON) => Box::new(JSONFormatter::new()),
             None | Some(program::Formatter::HumanReadable) => {
-                Box::new(HumanReadableFormatter::new())
+                Box::new(HumanReadableFormatter::new(verbose))
             }
         };
 
