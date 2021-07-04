@@ -70,7 +70,16 @@ impl SampleReader {
     fn refill_cursors(&mut self) {
         // TODO: optimize - read multiple records at once.
         // TODO: propagate errors.
-        if let Some(Ok(Record(line_no, timestamp, labels, mut values))) = self.records.next() {
+        if let Some(Ok(record)) = self.records.next() {
+            let (line_no, timestamp, labels, mut values) = (
+                record.line_no(),
+                record
+                    .timestamp()
+                    .expect("querying records without timestamps is not supported"),
+                record.labels(),
+                record.values().clone(),
+            );
+
             // Tiny hack...
             values.insert("__line__".to_owned(), line_no as SampleValue);
 

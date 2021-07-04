@@ -3,31 +3,56 @@ use std::collections::HashMap;
 use crate::error::Result;
 use crate::model::{Labels, MetricName, SampleValue, Timestamp};
 use crate::parse::Entry;
+use crate::program::Mapper as MapperOpts;
 use crate::utils::time::TimeRange;
 
 pub type Values = HashMap<MetricName, SampleValue>;
 
 #[derive(Debug)]
-pub struct Record(pub usize, pub Timestamp, pub Labels, pub Values);
+pub struct Record {
+    line_no: usize,
+    timestamp: Option<Timestamp>,
+    labels: Labels,
+    values: Values,
+}
 
-pub trait RecordMatcher {
-    fn match_record(&self, entry: &Entry) -> Result<Record>;
+impl Record {
+    #[inline]
+    pub fn line_no(&self) -> usize {
+        self.line_no
+    }
+
+    #[inline]
+    pub fn timestamp(&self) -> Option<Timestamp> {
+        self.timestamp
+    }
+
+    #[inline]
+    pub fn labels(&self) -> &Labels {
+        &self.labels
+    }
+
+    #[inline]
+    pub fn values(&self) -> &Values {
+        &self.values
+    }
 }
 
 pub struct Mapper {
     entries: Box<dyn std::iter::Iterator<Item = Result<Entry>>>,
-    matcher: Option<Box<dyn RecordMatcher>>,
+    opts: MapperOpts,
     range: TimeRange,
 }
 
 impl Mapper {
     pub fn new(
         entries: Box<dyn std::iter::Iterator<Item = Result<Entry>>>,
+        opts: MapperOpts,
         range: Option<TimeRange>,
     ) -> Self {
         Self {
             entries,
-            matcher: None,
+            opts,
             range: range.unwrap_or(TimeRange::infinity()),
         }
     }
@@ -46,22 +71,23 @@ impl std::iter::Iterator for Mapper {
                 None => return None, // EOF
             };
 
-            let record = match self.matcher.as_ref().unwrap().match_record(&entry) {
-                Ok(record) => record,
-                Err(_) => {
-                    // TODO: eprintln!() if verbose
-                    continue;
-                }
-            };
+            // let record = match self.matcher.as_ref().unwrap().match_record(&entry) {
+            //     Ok(record) => record,
+            //     Err(_) => {
+            //         // TODO: eprintln!() if verbose
+            //         continue;
+            //     }
+            // };
 
-            if record.1 < self.range.start().unwrap_or(Timestamp::MIN) {
-                continue;
-            }
-            if record.1 > self.range.end().unwrap_or(Timestamp::MAX) {
-                continue;
-            }
+            // if record.1 < self.range.start().unwrap_or(Timestamp::MIN) {
+            //     continue;
+            // }
+            // if record.1 > self.range.end().unwrap_or(Timestamp::MAX) {
+            //     continue;
+            // }
 
-            return Some(Ok(record));
+            // return Some(Ok(record));
+            return None;
         }
     }
 }

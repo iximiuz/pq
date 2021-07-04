@@ -46,7 +46,7 @@ impl Runner {
         let range = range.unwrap_or(TimeRange::infinity());
 
         let mapper = match ast.mapper {
-            Some(mapper) => Mapper::new(Box::new(decoder), Some(range)),
+            Some(mapper) => Mapper::new(Box::new(decoder), mapper, Some(range)),
             None => {
                 return Ok(Self {
                     producer: Producer::Decoder(RefCell::new(decoder)),
@@ -64,9 +64,6 @@ impl Runner {
                 });
             }
         };
-
-        // TODO: make sure matcher has a timestamp match.
-        // TODO: compare decoder entry size and matcher pattern size.
 
         Ok(Self {
             producer: Producer::Querier(RefCell::new(QueryEvaluator::new(
