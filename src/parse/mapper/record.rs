@@ -13,6 +13,20 @@ pub struct Record {
 }
 
 impl Record {
+    pub(super) fn new(
+        line_no: usize,
+        timestamp: Option<Timestamp>,
+        labels: Labels,
+        values: Values,
+    ) -> Self {
+        Self {
+            line_no,
+            timestamp,
+            labels,
+            values,
+        }
+    }
+
     #[inline]
     pub fn line_no(&self) -> usize {
         self.line_no

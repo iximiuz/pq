@@ -70,26 +70,30 @@ impl SampleReader {
     fn refill_cursors(&mut self) {
         // TODO: optimize - read multiple records at once.
         // TODO: propagate errors.
-        if let Some(Ok(record)) = self.records.next() {
-            let (line_no, timestamp, labels, mut values) = (
-                record.line_no(),
-                record
-                    .timestamp()
-                    .expect("querying records without timestamps is not supported"),
-                record.labels(),
-                record.values().clone(),
-            );
+        loop {
+            if let Some(Ok(record)) = self.records.next() {
+                let (line_no, timestamp, labels, mut values) = (
+                    record.line_no(),
+                    record.timestamp(),
+                    record.labels(),
+                    record.values().clone(),
+                );
 
-            // Tiny hack...
-            values.insert("__line__".to_owned(), line_no as SampleValue);
+                if let Some(timestamp) = timestamp {
+                    // Tiny hack...
+                    values.insert("__line__".to_owned(), line_no as SampleValue);
 
-            for (name, value) in values {
-                let sample = Rc::new(Sample::new(name, value, timestamp, labels.clone()));
+                    for (name, value) in values {
+                        let sample = Rc::new(Sample::new(name, value, timestamp, labels.clone()));
 
-                for weak_cursor in self.cursors.iter_mut() {
-                    if let Some(cursor) = weak_cursor.upgrade() {
-                        cursor.buffer.borrow_mut().push_front(sample.clone());
+                        for weak_cursor in self.cursors.iter_mut() {
+                            if let Some(cursor) = weak_cursor.upgrade() {
+                                cursor.buffer.borrow_mut().push_front(sample.clone());
+                            }
+                        }
                     }
+
+                    break;
                 }
             }
         }

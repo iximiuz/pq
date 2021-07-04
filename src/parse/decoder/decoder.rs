@@ -9,6 +9,15 @@ pub enum Entry {
     Dict(usize, HashMap<String, String>),
 }
 
+impl Entry {
+    pub fn line_no(&self) -> usize {
+        match self {
+            Entry::Tuple(line_no, _) => *line_no,
+            Entry::Dict(line_no, _) => *line_no,
+        }
+    }
+}
+
 type LineIter = Box<dyn std::iter::Iterator<Item = Result<(usize, Vec<u8>)>>>;
 
 pub struct Decoder {
