@@ -5,6 +5,7 @@ use nom::{
     branch::alt,
     bytes::complete::{tag_no_case, take},
     character::complete::char,
+    sequence::preceded,
 };
 
 #[derive(Debug)]
@@ -53,6 +54,7 @@ pub fn parse_program(program: &str) -> Result<AST> {
 }
 
 fn do_parse_program(input: Span) -> IResult<AST> {
+    // Parse decoder - the only one mandatory part of the program.
     let (rest, decoder) = match decoder(input) {
         Ok((rest, decoder)) => (rest, decoder),
         Err(nom::Err::Error(_)) => return Err(nom::Err::Failure(ParseError::new(
@@ -63,54 +65,34 @@ fn do_parse_program(input: Span) -> IResult<AST> {
         Err(e) => return Err(e),
     };
 
-    let (rest, try_parse_formatter) = match maybe_lpadded(char('|'))(rest) {
-        Ok((rest, _)) => (rest, true),
-        Err(nom::Err::Error(_)) => (rest, false),
+    let (rest, mapper) = match maybe_lpadded(preceded(char('|'), maybe_lpadded(mapper)))(rest) {
+        Ok((rest, mapper)) => (rest, Some(mapper)),
+        Err(nom::Err::Error(_)) => (rest, None),
         Err(e) => return Err(e),
     };
 
-    if !try_parse_formatter {
-        return Ok((
-            rest,
-            AST {
-                decoder,
-                mapper: None,
-                query: None,
-                formatter: None,
-            },
-        ));
-    }
-
-    let (rest, formatter) = match maybe_lpadded(formatter)(rest) {
-        Ok((rest, formatter)) => (rest, formatter),
-        Err(nom::Err::Error(_)) => {
-            return Err(nom::Err::Failure(ParseError::partial(
-                "program",
-                "formatter (to_json is the only one supported at the moment)",
-                rest,
-            )))
-        }
+    let (rest, query) = match maybe_lpadded(preceded(char('|'), maybe_lpadded(query)))(rest) {
+        Ok((rest, query)) => (rest, Some(query)),
+        Err(nom::Err::Error(_)) => (rest, None),
         Err(e) => return Err(e),
     };
 
-    return Ok((
+    let (rest, formatter) = match maybe_lpadded(preceded(char('|'), maybe_lpadded(formatter)))(rest)
+    {
+        Ok((rest, formatter)) => (rest, Some(formatter)),
+        Err(nom::Err::Error(_)) => (rest, None),
+        Err(e) => return Err(e),
+    };
+
+    Ok((
         rest,
         AST {
             decoder,
-            mapper: None,
-            query: None,
-            formatter: Some(formatter),
+            mapper,
+            query,
+            formatter,
         },
-    ));
-}
-
-fn formatter(input: Span) -> IResult<Formatter> {
-    let (rest, kind) = alt((tag_no_case("to_json"), tag_no_case("to_json")))(input)?;
-
-    match kind.to_lowercase().as_str() {
-        "to_json" => Ok((rest, Formatter::JSON)),
-        _ => unimplemented!(),
-    }
+    ))
 }
 
 fn decoder(input: Span) -> IResult<Decoder> {
@@ -150,6 +132,25 @@ fn decoder(input: Span) -> IResult<Decoder> {
     }
 }
 
+fn mapper(input: Span) -> IResult<Mapper> {
+    let (rest, _) = tag_no_case("implement me!")(input)?;
+    Ok((rest, Mapper {}))
+}
+
+fn query(input: Span) -> IResult<String> {
+    let (rest, _) = tag_no_case("implement me!")(input)?;
+    Ok((rest, "foobar".to_owned()))
+}
+
+fn formatter(input: Span) -> IResult<Formatter> {
+    let (rest, kind) = alt((tag_no_case("to_json"), tag_no_case("to_json")))(input)?;
+
+    match kind.to_lowercase().as_str() {
+        "to_json" => Ok((rest, Formatter::JSON)),
+        _ => unimplemented!(),
+    }
+}
+
 fn find_unescaped(stack: &str, needle: char) -> Option<usize> {
     let mut armed = false;
     for (i, c) in stack.chars().enumerate() {
@@ -177,15 +178,16 @@ mod tests {
     fn test_valid_program() -> std::result::Result<(), String> {
         #[rustfmt::skip]
         let tests = [
-            "//",
-            "/foo/",
-            "/.*(\\d+)foo\\s(\\w+).+/",
-            "json",
-            "json | to_json",
-            "json| to_json",
-            "json |to_json",
-            "json|to_json",
-            "/.*(\\d+)foo\\s(\\w+).+/ | to_json",
+            r#"//"#,
+            r#"/foo/"#,
+            r#"/foo\/bar/"#,
+            r#"/.*(\\d+)foo\\s(\\w+).+/"#,
+            r#"json"#,
+            r#"json | to_json"#,
+            r#"json| to_json"#,
+            r#"json |to_json"#,
+            r#"json|to_json"#,
+            r#"/.*(\\d+)foo\\s(\\w+).+/ | to_json"#,
         ];
 
         for input in &tests {
