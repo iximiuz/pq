@@ -1,12 +1,10 @@
-use std::collections::{BTreeMap, HashMap};
-
-use chrono::prelude::*;
+use std::collections::{BTreeMap, HashMap, HashSet};
 
 use super::formatter::{Formatter, Value};
 use crate::error::Result;
 use crate::model::{LabelsTrait, TimestampTrait};
 use crate::parse::{Entry, Record};
-use crate::query::{InstantVector, QueryValue};
+use crate::query::{InstantVector, QueryValue, RangeVector};
 
 pub struct HumanReadableFormatter {
     verbose: bool,
@@ -27,9 +25,9 @@ impl HumanReadableFormatter {
 
     fn format_dict_entry(&self, line_no: usize, data: &HashMap<String, String>) -> Result<Vec<u8>> {
         if self.verbose {
-            Ok(format!("{}: {}", line_no, self.format_dict(data)).into_bytes())
+            Ok(format!("{}: {}", line_no, self.format_dict(data, "\t")).into_bytes())
         } else {
-            Ok(self.format_dict(data).into_bytes())
+            Ok(self.format_dict(data, "\t").into_bytes())
         }
     }
 
@@ -39,7 +37,7 @@ impl HumanReadableFormatter {
             parts.push(ts.to_string_millis());
         }
         if record.labels().len() > 0 {
-            parts.push(self.format_dict(record.labels()));
+            parts.push(self.format_dict(record.labels(), "\t"));
         }
         if record.values().len() > 0 {
             parts.push(
@@ -49,6 +47,7 @@ impl HumanReadableFormatter {
                         .iter()
                         .map(|(key, val)| (key.clone(), val.to_string()))
                         .collect(),
+                    "\t",
                 ),
             );
         }
@@ -60,43 +59,82 @@ impl HumanReadableFormatter {
         }
     }
 
-    fn format_dict(&self, dict: &HashMap<String, String>) -> String {
+    fn format_instant_vector(&self, vector: &InstantVector) -> Result<Vec<u8>> {
+        let mut lines = Vec::new();
+
+        for (labels, value) in vector.samples() {
+            let mut parts = vec![format!("{}\t", vector.timestamp().to_string_millis())];
+
+            if let Some(metric) = labels.name() {
+                parts.push(format!("{}", metric));
+            }
+
+            let labels = labels.without(&HashSet::new()); // to drop __name__
+            if labels.len() > 0 || labels.name().is_some() {
+                parts.push(format!("{{{}}}\t\t\t", self.format_dict(&labels, ", ")));
+            }
+
+            parts.push(value.to_string());
+
+            lines.push(parts.join(""));
+        }
+
+        if lines.len() == 0 {
+            if !self.verbose {
+                return Ok(Vec::new());
+            }
+
+            lines.push(format!(
+                "{} <no data>",
+                vector.timestamp().to_string_millis()
+            ));
+        }
+
+        Ok(String::into_bytes(lines.join("\n")))
+    }
+
+    fn format_range_vector(&self, vector: &RangeVector) -> Result<Vec<u8>> {
+        let mut lines = Vec::new();
+
+        for (labels, values) in vector.samples() {
+            let mut parts = vec![format!("{}\t", vector.timestamp().to_string_millis())];
+
+            if let Some(metric) = labels.name() {
+                parts.push(format!("{}", metric));
+            }
+
+            let labels = labels.without(&HashSet::new()); // to drop __name__
+            if labels.len() > 0 || labels.name().is_some() {
+                parts.push(format!("{{{}}}\t\t\t", self.format_dict(&labels, ", ")));
+            }
+
+            lines.push(parts.join(""));
+            for (val, ts) in values.iter().rev() {
+                lines.push(format!("\t{} @ {}", val, ts.to_string_millis()));
+            }
+        }
+
+        if lines.len() == 0 {
+            if !self.verbose {
+                return Ok(Vec::new());
+            }
+
+            lines.push(format!(
+                "{} <no data>",
+                vector.timestamp().to_string_millis()
+            ));
+        }
+
+        Ok(String::into_bytes(lines.join("\n")))
+    }
+
+    fn format_dict(&self, dict: &HashMap<String, String>, sep: &str) -> String {
         let ordered = dict.iter().collect::<BTreeMap<_, _>>();
         ordered
             .iter()
             .map(|(key, val)| format!("{}={}", key, val))
             .collect::<Vec<_>>()
-            .join("\t")
-    }
-
-    // This is just a quick and dirty draft.
-    fn format_instant_vector(&self, vector: &InstantVector) -> Result<Vec<u8>> {
-        let ts = NaiveDateTime::from_timestamp(vector.timestamp() / 1000, 0);
-        let mut lines = vec![
-            // format!("{}[2J", 27 as char),
-            format!("{esc}[2J{esc}[1;1H", esc = 27 as char),
-            ts.format("%Y-%m-%d %H:%M:%S").to_string(),
-            "-".to_string(),
-        ];
-
-        let mut prefix = "";
-        for (labels, value) in vector.samples() {
-            if let Some(metric) = labels.name() {
-                lines.push(metric.clone());
-                lines.push("\n".to_string());
-                prefix = "\t";
-            }
-
-            let mut line = vec![];
-            for (label_name, label_value) in labels.iter().collect::<BTreeMap<_, _>>() {
-                line.push(format!("{}{}: '{}'", prefix, label_name, label_value));
-            }
-            line.push(format!("\t\t\t{}", value));
-
-            lines.push(line.join("\t\t"));
-        }
-
-        Ok(String::into_bytes(lines.join("\n")))
+            .join(sep)
     }
 }
 
@@ -107,6 +145,7 @@ impl Formatter for HumanReadableFormatter {
             Value::Entry(Entry::Dict(line_no, data)) => self.format_dict_entry(*line_no, data),
             Value::Record(record) => self.format_record(record),
             Value::QueryValue(QueryValue::InstantVector(v)) => self.format_instant_vector(v),
+            Value::QueryValue(QueryValue::RangeVector(v)) => self.format_range_vector(v),
             _ => unimplemented!("coming soon..."),
         }
     }

@@ -145,10 +145,11 @@ impl Consumer {
 
     pub fn write(&mut self, value: &Value) -> Result<()> {
         let buf = self.formatter.format(value)?;
-
-        self.writer
-            .write(&buf)
-            .map_err(|e| ("writer failed with error {}", e))?;
+        if buf.len() > 0 {
+            self.writer
+                .write(&buf)
+                .map_err(|e| ("writer failed with error {}", e))?;
+        }
 
         Ok(())
     }

@@ -32,6 +32,6 @@ impl TimestampTrait for Timestamp {
 
     fn to_string_millis(&self) -> String {
         let ts = NaiveDateTime::from_timestamp(self / 1000, 0);
-        ts.format("%Y-%m-%d %H:%M:%S%.3f").to_string()
+        ts.format("%Y-%m-%dT%H:%M:%S%.3f").to_string()
     }
 }

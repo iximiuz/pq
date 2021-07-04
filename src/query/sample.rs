@@ -71,30 +71,35 @@ impl SampleReader {
         // TODO: optimize - read multiple records at once.
         // TODO: propagate errors.
         loop {
-            if let Some(Ok(record)) = self.records.next() {
-                let (line_no, timestamp, labels, mut values) = (
-                    record.line_no(),
-                    record.timestamp(),
-                    record.labels(),
-                    record.values().clone(),
-                );
+            match self.records.next() {
+                Some(Ok(record)) => {
+                    let (line_no, timestamp, labels, mut values) = (
+                        record.line_no(),
+                        record.timestamp(),
+                        record.labels(),
+                        record.values().clone(),
+                    );
 
-                if let Some(timestamp) = timestamp {
-                    // Tiny hack...
-                    values.insert("__line__".to_owned(), line_no as SampleValue);
+                    if let Some(timestamp) = timestamp {
+                        // Tiny hack...
+                        values.insert("__line__".to_owned(), line_no as SampleValue);
 
-                    for (name, value) in values {
-                        let sample = Rc::new(Sample::new(name, value, timestamp, labels.clone()));
+                        for (name, value) in values {
+                            let sample =
+                                Rc::new(Sample::new(name, value, timestamp, labels.clone()));
 
-                        for weak_cursor in self.cursors.iter_mut() {
-                            if let Some(cursor) = weak_cursor.upgrade() {
-                                cursor.buffer.borrow_mut().push_front(sample.clone());
+                            for weak_cursor in self.cursors.iter_mut() {
+                                if let Some(cursor) = weak_cursor.upgrade() {
+                                    cursor.buffer.borrow_mut().push_front(sample.clone());
+                                }
                             }
                         }
-                    }
 
-                    break;
+                        break;
+                    }
                 }
+                None => break,
+                _ => (),
             }
         }
     }

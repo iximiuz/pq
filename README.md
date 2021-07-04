@@ -2,6 +2,12 @@
 
 Project is actively being developed!
 
+New format:
+
+```bash
+tail -n 100 ~/access.log | ./target/debug/pq '/([^\s]+).+\[([^\s]+).*\]\s+"(\w+).*?"\s(\d+)\s+(\d+)/ | map {.0 as ip, .1:ts "%d/%b/%Y:%H:%M:%S", .2 as method, .3:str as status_code, .4:num as content_len} | select content_len[1s]'
+```
+
 
 ## Why
 
