@@ -14,6 +14,7 @@ type LineIter = Box<dyn std::iter::Iterator<Item = Result<(usize, Vec<u8>)>>>;
 pub struct Runner {
     producer: Producer,
     consumer: Consumer,
+    verbose: bool,
 }
 
 impl Runner {
@@ -52,6 +53,7 @@ impl Runner {
                 return Ok(Self {
                     producer: Producer::Decoder(RefCell::new(decoder)),
                     consumer,
+                    verbose,
                 });
             }
         };
@@ -62,6 +64,7 @@ impl Runner {
                 return Ok(Self {
                     producer: Producer::Mapper(RefCell::new(mapper)),
                     consumer,
+                    verbose,
                 });
             }
         };
@@ -75,6 +78,7 @@ impl Runner {
                 range.start(),
             )?)),
             consumer,
+            verbose,
         })
     }
 
@@ -88,17 +92,32 @@ impl Runner {
             let value = match &self.producer {
                 Producer::Decoder(decoder) => match decoder.borrow_mut().next() {
                     Some(Ok(entry)) => Value::Entry(entry),
-                    Some(Err(e)) => return Err(e),
+                    Some(Err(e)) => {
+                        if self.verbose {
+                            eprintln!("{}", e);
+                        }
+                        continue;
+                    }
                     None => break,
                 },
                 Producer::Mapper(mapper) => match mapper.borrow_mut().next() {
                     Some(Ok(record)) => Value::Record(record),
-                    Some(Err(e)) => return Err(e),
+                    Some(Err(e)) => {
+                        if self.verbose {
+                            eprintln!("{}", e);
+                        }
+                        continue;
+                    }
                     None => break,
                 },
                 Producer::Querier(querier) => match querier.borrow_mut().next() {
                     Some(Ok(value)) => Value::QueryValue(value),
-                    Some(Err(e)) => return Err(e),
+                    Some(Err(e)) => {
+                        if self.verbose {
+                            eprintln!("{}", e);
+                        }
+                        continue;
+                    }
                     None => break,
                 },
             };

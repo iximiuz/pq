@@ -40,8 +40,9 @@ impl MappingStrategy {
                 FieldType::Number => {
                     if let Ok(n) = datum.parse::<SampleValue>() {
                         values.insert(field.end_name(), n);
+                    } else {
+                        return Err(Error::new("could not parse numeric field"));
                     }
-                    return Err(Error::new("could not parse numeric field"));
                 }
                 FieldType::String => {
                     labels.insert(field.end_name(), datum);
@@ -57,52 +58,6 @@ impl MappingStrategy {
         Ok(Record::new(entry.line_no(), timestamp, labels, values))
     }
 }
-
-// fn decode(&self, buf: &Vec<u8>) -> Result<Entry> {
-//     let record_caps = self.re.captures(buf).ok_or("no match found")?;
-//
-//     let timestamp = parse_record_timestamp(
-//         &String::from_utf8(
-//             record_caps
-//                 .get(self.timestamp_cap.pos + 1)
-//                 .ok_or("timestamp capture is empty")?
-//                 .as_bytes()
-//                 .to_vec(),
-//         )
-//         .map_err(|e| ("couldn't decode UTF-8 timestamp value", e))?,
-//         Some(&self.timestamp_cap.format),
-//     )?;
-//
-//     let mut metrics = Values::new();
-//     for metric_cap in self.metric_caps.iter() {
-//         if let Some(metric) = record_caps.get(metric_cap.pos + 1) {
-//             metrics.insert(
-//                 metric_cap.name.clone(),
-//                 String::from_utf8(metric.as_bytes().to_vec())
-//                     .map_err(|e| ("couldn't decode UTF-8 metric value", e))?
-//                     .parse::<f64>()
-//                     .map_err(|e| ("couldn't parse metric value into f64", e))?,
-//             );
-//         }
-//     }
-//
-//     if metrics.len() == 0 {
-//         return Err(Error::new("no metric match found"));
-//     }
-//
-//     let mut labels = HashMap::new();
-//     for label_cap in self.label_caps.iter() {
-//         if let Some(label) = record_caps.get(label_cap.pos + 1) {
-//             labels.insert(
-//                 label_cap.name.clone(),
-//                 String::from_utf8(label.as_bytes().to_vec())
-//                     .map_err(|e| ("couldn't decode UTF-8 label value", e))?,
-//             );
-//         }
-//     }
-//
-//     Ok(Record(timestamp.timestamp_millis(), labels, metrics))
-// }
 
 fn get_entry_field(entry: &Entry, field: &MapperField) -> Result<String> {
     match (entry, &field.loc) {
