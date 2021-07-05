@@ -2,7 +2,7 @@ use std::cell::RefCell;
 use std::time::Duration;
 
 use crate::error::Result;
-use crate::format::{Formatter, HumanReadableFormatter, JSONFormatter, Value};
+use crate::format::{Formatter, HumanReadableFormatter, JSONFormatter, PromApiFormatter, Value};
 use crate::output::Writer;
 use crate::parse::{Decoder, Mapper, RegexDecodingStrategy};
 use crate::program::{self, parse_program};
@@ -37,10 +37,12 @@ impl Runner {
         };
 
         let formatter: Box<dyn Formatter> = match ast.formatter {
-            Some(program::Formatter::JSON) => Box::new(JSONFormatter::new()),
-            None | Some(program::Formatter::HumanReadable) => {
+            Some(program::Formatter::HumanReadable) => {
                 Box::new(HumanReadableFormatter::new(verbose))
             }
+            Some(program::Formatter::JSON) => Box::new(JSONFormatter::new()),
+            Some(program::Formatter::PromAPI) => Box::new(PromApiFormatter::new()),
+            None => Box::new(HumanReadableFormatter::new(verbose)),
         };
 
         let consumer = Consumer::new(writer, formatter);

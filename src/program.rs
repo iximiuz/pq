@@ -91,9 +91,11 @@ pub enum FieldType {
 
 #[derive(Clone, Debug)]
 pub enum Formatter {
-    // Prometheus,
     HumanReadable,
     JSON,
+    PromAPI,
+    // TODO:
+    // PromQL,
 }
 
 pub fn parse_program(program: &str) -> Result<AST> {
@@ -401,7 +403,7 @@ fn query(input: Span) -> IResult<QueryExpr> {
 fn formatter(input: Span) -> IResult<Formatter> {
     let (rest, fmt) = alt((
         value(Formatter::JSON, tag_no_case("to_json")),
-        value(Formatter::JSON, tag_no_case("to_json")),
+        value(Formatter::PromAPI, tag_no_case("to_promapi")),
     ))(input)?;
     Ok((rest, fmt))
 }
@@ -442,6 +444,7 @@ mod tests {
             r#"json| to_json"#,
             r#"json |to_json"#,
             r#"json|to_json"#,
+            r#"json | to_promapi"#,
             r#"/.*(\\d+)foo\\s(\\w+).+/ | to_json"#,
             r#"/.*(\\d+)foo\\s(\\w+).+/ | map {foo: "bar"} | to_json"#,
             r#"/.*(\\d+)foo\\s(\\w+).+/ | map {.0:str, .1:num as qux, .2:ts "%Y-%m-%d", foo: "bar"} | to_json"#,
