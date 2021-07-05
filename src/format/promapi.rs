@@ -5,7 +5,6 @@ use serde_json;
 
 use super::formatter::{Formatter, Value};
 use crate::error::Result;
-use crate::parse::{Entry, Record};
 use crate::query::{InstantVector, QueryValue, RangeVector};
 
 // TODO: Instant query - string
@@ -183,7 +182,7 @@ impl Formatter for PromApiFormatter {
             Value::QueryValue(QueryValue::InstantVector(v)) => self.format_instant_vector(v),
             Value::QueryValue(QueryValue::RangeVector(v)) => self.format_range_vector(v),
             Value::QueryValue(QueryValue::Scalar(v)) => self.format_scalar(*v),
-            _ => unimplemented!("coming soon..."),
+            _ => unimplemented!("Only instant vector, range vector, or scalar results are supported by this formatter"),
         }
     }
 }
