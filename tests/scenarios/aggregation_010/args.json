@@ -1,5 +1,4 @@
 [
   "pq",
-  "/([^\\s]+)\\s(\\w+)\\s(\\d+)/ | map {.0:ts \"0:%Y-%m-%dT%H:%M:%S\", .1 as name, .2 as age} | select sum(age) | to_promapi"
+  "/([^\\s]+)\\s(\\w+)\\s(\\d+)/ | map {.0:ts \"%Y-%m-%dT%H:%M:%S\", .1 as name, .2 as age} | select sum(age) | to_promapi"
 ]
-
