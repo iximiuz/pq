@@ -1,7 +1,7 @@
 use std::cell::RefCell;
 use std::time::Duration;
 
-use crate::error::Result;
+use crate::error::{Error, Result};
 use crate::format::{Formatter, HumanReadableFormatter, JSONFormatter, PromApiFormatter, Value};
 use crate::output::Writer;
 use crate::parse::{Decoder, Mapper, RegexDecodingStrategy};
@@ -52,6 +52,12 @@ impl Runner {
         let mapper = match ast.mapper {
             Some(mapper) => Mapper::new(Box::new(decoder), mapper, Some(range)),
             None => {
+                if ast.query.is_some() {
+                    return Err(Error::new(
+                        "'select' without 'map' is not supported by this parser",
+                    ));
+                }
+
                 return Ok(Self {
                     producer: Producer::Decoder(RefCell::new(decoder)),
                     consumer,

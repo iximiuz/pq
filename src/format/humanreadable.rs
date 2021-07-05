@@ -2,7 +2,7 @@ use std::collections::{BTreeMap, HashMap, HashSet};
 
 use super::formatter::{Formatter, Value};
 use crate::error::Result;
-use crate::model::{LabelsTrait, TimestampTrait};
+use crate::model::{LabelsTrait, SampleValue, TimestampTrait};
 use crate::parse::{Entry, Record};
 use crate::query::{InstantVector, QueryValue, RangeVector};
 
@@ -128,6 +128,10 @@ impl HumanReadableFormatter {
         Ok(String::into_bytes(lines.join("\n")))
     }
 
+    fn format_scalar(&self, n: SampleValue) -> Result<Vec<u8>> {
+        Ok(n.to_string().into_bytes())
+    }
+
     fn format_dict(&self, dict: &HashMap<String, String>, sep: &str) -> String {
         let ordered = dict.iter().collect::<BTreeMap<_, _>>();
         ordered
@@ -146,7 +150,7 @@ impl Formatter for HumanReadableFormatter {
             Value::Record(record) => self.format_record(record),
             Value::QueryValue(QueryValue::InstantVector(v)) => self.format_instant_vector(v),
             Value::QueryValue(QueryValue::RangeVector(v)) => self.format_range_vector(v),
-            _ => unimplemented!("coming soon..."),
+            Value::QueryValue(QueryValue::Scalar(n)) => self.format_scalar(*n),
         }
     }
 }
