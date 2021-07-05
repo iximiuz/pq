@@ -1,4 +1,6 @@
 [
   "pq",
-  "/[^\\s]+[^\\[]+\\[([^\\]]+)]\\s+\"([^\\s]+)[^\"]*?\"\\s+(\\d+).*/ | map { .0:ts \"%d/%b/%Y:%H:%M:%S\", .1 as method, .2 as status_code } | select count_over_time(status_code[3s]) | to_promapi"
+  "/[^\\s]+[^\\[]+\\[([^\\]]+)]\\s+\"([^\\s]+)[^\"]*?\"\\s+(\\d+).*/ | map { .0:ts \"%d/%b/%Y:%H:%M:%S\", .1 as method, .2 as status_code } | select count_over_time(status_code[3s]) | to_promapi",
+  "--interval",
+  "1s"
 ]

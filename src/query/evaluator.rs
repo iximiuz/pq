@@ -32,6 +32,13 @@ impl QueryEvaluator {
         start_at: Option<Timestamp>,
         verbose: bool, // TODO: remove it
     ) -> Result<Self> {
+        let interval = interval
+            .or(find_smallest_range(&query))
+            .unwrap_or(DEFAULT_INTERVAL);
+        assert!(interval.as_secs() + (interval.subsec_nanos() as u64) > 0);
+
+        let lookback = lookback.unwrap_or(DEFAULT_LOOKBACK);
+
         Ok(Self {
             inner: create_value_iter(
                 &Context::new(records, interval, lookback, start_at, verbose),
@@ -39,6 +46,38 @@ impl QueryEvaluator {
             ),
             drained: false,
         })
+    }
+}
+
+fn find_smallest_range(node: &Expr) -> Option<Duration> {
+    match node {
+        Expr::Parentheses(expr) => find_smallest_range(expr),
+
+        Expr::AggregateOperation(op) => find_smallest_range(op.expr()),
+
+        Expr::UnaryOperation(_, expr) => find_smallest_range(expr),
+
+        Expr::BinaryOperation(op) => {
+            let lhs = find_smallest_range(op.lhs());
+            let rhs = find_smallest_range(op.rhs());
+            match (lhs, rhs) {
+                (None, None) => None,
+                (Some(lhs), None) => Some(lhs),
+                (None, Some(rhs)) => Some(rhs),
+                (Some(lhs), Some(rhs)) => Some(std::cmp::min(lhs, rhs)),
+            }
+        }
+
+        Expr::FunctionCall(call) => match call.expr() {
+            Some(expr) => find_smallest_range(expr),
+            None => None,
+        },
+
+        // // leaf node
+        Expr::NumberLiteral(_) => None,
+
+        // // leaf node
+        Expr::VectorSelector(sel) => sel.duration(),
     }
 }
 
@@ -72,18 +111,15 @@ struct Context {
 impl Context {
     fn new(
         records: Box<dyn std::iter::Iterator<Item = Result<Record>>>,
-        interval: Option<Duration>,
-        lookback: Option<Duration>,
+        interval: Duration,
+        lookback: Duration,
         start_at: Option<Timestamp>,
         verbose: bool,
     ) -> Self {
-        let interval = interval.unwrap_or(DEFAULT_INTERVAL);
-        assert!(interval.as_secs() + (interval.subsec_nanos() as u64) > 0);
-
         Self {
             samples: Rc::new(RefCell::new(SampleReader::new(records, verbose))),
             interval,
-            lookback: lookback.unwrap_or(DEFAULT_LOOKBACK),
+            lookback,
             start_at,
         }
     }

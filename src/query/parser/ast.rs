@@ -42,6 +42,11 @@ impl AggregateOperation {
         }
     }
 
+    #[inline]
+    pub fn expr(&self) -> &Expr {
+        self.expr.as_ref()
+    }
+
     pub fn into_inner(
         self,
     ) -> (
@@ -349,12 +354,25 @@ impl FunctionCall {
         Self { name, args }
     }
 
+    #[inline]
     pub fn function_name(&self) -> FunctionName {
         self.name
     }
 
     pub fn args(self) -> Vec<FunctionCallArg> {
         self.args
+    }
+
+    /// An assumption here is that a function has a max one inner expression.
+    #[inline]
+    pub fn expr(&self) -> Option<&Expr> {
+        for arg in self.args.iter() {
+            match arg {
+                FunctionCallArg::Expr(expr) => return Some(expr.as_ref()),
+                _ => (),
+            }
+        }
+        None
     }
 }
 
