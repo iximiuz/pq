@@ -16,6 +16,7 @@ use pq::utils::time::TimeRange;
 #[test]
 fn e2e() -> Result<(), Box<dyn std::error::Error>> {
     let root_test_dir = Path::new(file!()).parent().unwrap().join("scenarios");
+    let mut failed = Vec::new();
 
     for test_dir in fs::read_dir(&root_test_dir)? {
         let test_dir = test_dir?.path();
@@ -26,35 +27,56 @@ fn e2e() -> Result<(), Box<dyn std::error::Error>> {
             }
         }
 
+        eprintln!("{}: running...", test_dir.display());
+
         let cli_args: Vec<String> =
             serde_json::from_str(&fs::read_to_string(test_dir.join("args.json"))?)?;
 
-        let actual_output = query(
+        let actual_output = match query(
             Box::new(io::BufReader::new(fs::File::open(test_dir.join("input"))?)),
-            &CliOpt::from_iter(cli_args.clone()),
-        )?;
+            &cli_args,
+        ) {
+            Ok(actual_output) => actual_output,
+            Err(e) => {
+                eprintln!("{}: query failed with '{}'", test_dir.display(), e);
+                failed.push(test_dir);
+                continue;
+            }
+        };
 
         let expected_output = expected(Box::new(io::BufReader::new(fs::File::open(
             test_dir.join("output"),
         )?)))?;
 
-        assert_eq!(
-            expected_output,
-            actual_output,
-            "\nUnexpected query result in '{}'.\nCommand: {}\nExpected:\n{}\nActual:\n{}",
-            test_dir.display(),
-            pprint_cli_args(&test_dir.join("input").as_path(), &cli_args),
-            String::from_utf8_lossy(&expected_output),
-            String::from_utf8_lossy(&actual_output),
-        );
+        if expected_output == actual_output {
+            eprintln!("{}: ok!", test_dir.display());
+        } else {
+            eprintln!(
+                "{}: unexpected query result.\nCommand: {}\nExpected:\n{}\nActual:\n{}",
+                test_dir.display(),
+                pprint_cli_args(&test_dir.join("input").as_path(), &cli_args),
+                String::from_utf8_lossy(&expected_output),
+                String::from_utf8_lossy(&actual_output),
+            );
+            failed.push(test_dir);
+        }
     }
 
+    assert!(
+        failed.len() == 0,
+        "Failed e2e tests:\n{}",
+        failed
+            .iter()
+            .map(|p| format!("\t- {}", p.display()))
+            .collect::<Vec<String>>()
+            .join("\n")
+    );
     Ok(())
 }
 
 fn query<'a>(
     input_reader: Box<dyn io::BufRead>,
-    cli_opt: &CliOpt,
+    cli_args: &[String],
 ) -> Result<Vec<u8>, Box<dyn std::error::Error>> {
     let writer = Rc::new(RefCell::new(LineWriter::new(
         io::BufWriter::new(Vec::new()),
@@ -67,6 +89,8 @@ fn query<'a>(
             self.0.borrow_mut().write(buf)
         }
     }
+
+    let cli_opt = CliOpt::from_iter_safe(cli_args)?;
 
     let mut runner = Runner::new(
         &cli_opt.program,
