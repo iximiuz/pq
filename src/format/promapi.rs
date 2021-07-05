@@ -142,8 +142,8 @@ impl PromApiFormatter {
     //   ]
     // }
     fn format_instant_vector(&self, vector: &InstantVector) -> Result<Vec<u8>> {
-        Ok(serde_json::to_vec(&Vector::new(vector))
-            .map_err(|e| ("JSON serialization failed", e))?)
+        serde_json::to_vec(&Vector::new(vector))
+            .map_err(|e| ("JSON serialization failed", e).into())
     }
 
     // Instant query - range vector
@@ -161,8 +161,8 @@ impl PromApiFormatter {
     //   ]
     // }
     fn format_range_vector(&self, vector: &RangeVector) -> Result<Vec<u8>> {
-        Ok(serde_json::to_vec(&Matrix::new(vector))
-            .map_err(|e| ("JSON serialization failed", e))?)
+        serde_json::to_vec(&Matrix::new(vector))
+            .map_err(|e| ("JSON serialization failed", e).into())
     }
 
     // Instant query - scalar
@@ -171,8 +171,8 @@ impl PromApiFormatter {
     //   "result": [1622104500, "42"]
     // }
     fn format_scalar(&self, number: f64) -> Result<Vec<u8>> {
-        Ok(serde_json::to_vec(&Scalar::new(number))
-            .map_err(|e| ("JSON serialization failed", e))?)
+        serde_json::to_vec(&Scalar::new(number))
+            .map_err(|e| ("JSON serialization failed", e).into())
     }
 }
 

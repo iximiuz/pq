@@ -114,7 +114,7 @@ fn do_parse_program(input: Span) -> IResult<AST> {
     let (rest, decoder) = match decoder(input) {
         Ok((rest, decoder)) => (rest, decoder),
         Err(nom::Err::Error(_)) => return Err(nom::Err::Failure(ParseError::new(
-            "a valid pq program must start from a known parser (supported parsers: regex /.../)"
+            "a valid pq program must start from a known parser (supported parsers: regex /.../, json)"
                 .to_owned(),
             input,
         ))),

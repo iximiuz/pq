@@ -40,7 +40,7 @@ impl Runner {
             Some(program::Formatter::HumanReadable) => {
                 Box::new(HumanReadableFormatter::new(verbose))
             }
-            Some(program::Formatter::JSON) => Box::new(JSONFormatter::new()),
+            Some(program::Formatter::JSON) => Box::new(JSONFormatter::new(verbose)),
             Some(program::Formatter::PromAPI) => Box::new(PromApiFormatter::new()),
             None => Box::new(HumanReadableFormatter::new(verbose)),
         };

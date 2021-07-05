@@ -1,12 +1,36 @@
 use std::collections::{BTreeMap, HashMap};
 
+use serde::Serialize;
 use serde_json;
 
 use super::formatter::{Formatter, Value};
 use super::promapi::PromApiFormatter;
 use crate::error::Result;
+use crate::model::Timestamp;
 use crate::parse::{Entry, Record};
-use crate::query::{InstantVector, QueryValue, RangeVector};
+use crate::query::QueryValue;
+
+#[derive(Serialize)]
+struct TupleEntryRepr<'a> {
+    line: usize,
+    data: &'a [String],
+}
+
+#[derive(Serialize)]
+struct DictEntryRepr<'a> {
+    line: usize,
+    data: BTreeMap<&'a String, &'a String>,
+}
+
+#[derive(Serialize)]
+struct RecordRepr<'a> {
+    #[serde(skip_serializing_if = "Option::is_none")]
+    line: Option<usize>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    timestamp: Option<Timestamp>,
+    labels: BTreeMap<&'a String, &'a String>,
+    values: BTreeMap<&'a String, &'a f64>,
+}
 
 pub struct JSONFormatter {
     verbose: bool,
@@ -21,53 +45,40 @@ impl JSONFormatter {
         }
     }
 
-    fn format_tuple_entry(&self, line_no: usize, data: &[String]) -> Result<Vec<u8>> {
+    fn format_tuple_entry(&self, line: usize, data: &[String]) -> Result<Vec<u8>> {
         if self.verbose {
-            Ok(format!(
-                "{}: {}",
-                line_no,
-                serde_json::to_string(data).map_err(|e| ("", e).into())?
-            )
-            .into_bytes())
+            serde_json::to_vec(&TupleEntryRepr { line, data })
         } else {
-            serde_json::to_vec(data).map_err(|e| ("JSON serialization failed", e).into())
+            serde_json::to_vec(data)
         }
+        .map_err(|e| ("JSON serialization failed", e).into())
     }
 
-    fn format_dict_entry(&self, line_no: usize, data: &HashMap<String, String>) -> Result<Vec<u8>> {
+    fn format_dict_entry(&self, line: usize, data: &HashMap<String, String>) -> Result<Vec<u8>> {
         if self.verbose {
-            Ok(format!("{}: {}", line_no, self.format_dict(data, "\t")).into_bytes())
+            serde_json::to_vec(&DictEntryRepr {
+                line,
+                data: data.iter().collect(),
+            })
         } else {
-            Ok(self.format_dict(data, "\t").into_bytes())
+            serde_json::to_vec(data)
         }
+        .map_err(|e| ("JSON serialization failed", e).into())
     }
 
     fn format_record(&self, record: &Record) -> Result<Vec<u8>> {
-        let mut parts = Vec::new();
-        if let Some(ts) = record.timestamp() {
-            parts.push(ts.to_string_millis());
-        }
-        if record.labels().len() > 0 {
-            parts.push(self.format_dict(record.labels(), "\t"));
-        }
-        if record.values().len() > 0 {
-            parts.push(
-                self.format_dict(
-                    &record
-                        .values()
-                        .iter()
-                        .map(|(key, val)| (key.clone(), val.to_string()))
-                        .collect(),
-                    "\t",
-                ),
-            );
-        }
+        let mut repr = RecordRepr {
+            line: None,
+            timestamp: record.timestamp(),
+            labels: record.labels().iter().collect(),
+            values: record.values().iter().collect(),
+        };
 
         if self.verbose {
-            Ok(format!("{}: {}", record.line_no(), parts.join("\t")).into_bytes())
-        } else {
-            Ok(parts.join("\t").into_bytes())
+            repr.line = Some(record.line_no());
         }
+
+        serde_json::to_vec(&repr).map_err(|e| ("JSON serialization failed", e).into())
     }
 }
 
