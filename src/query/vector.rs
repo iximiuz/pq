@@ -59,6 +59,10 @@ impl VectorSelectorEvaluator {
             }
         }
     }
+
+    fn actual_lookback(&self) -> Duration {
+        self.selector.duration().unwrap_or(self.lookback)
+    }
 }
 
 impl std::iter::Iterator for VectorSelectorEvaluator {
@@ -85,10 +89,20 @@ impl std::iter::Iterator for VectorSelectorEvaluator {
             }
 
             // This sample timestamp check is more an optimization than a necessity.
-            if sample.timestamp() > self.next_instant.unwrap().sub(self.lookback) {
+            if sample.timestamp() > self.next_instant.unwrap().sub(self.actual_lookback()) {
+                // println!(
+                //     "BUFFERING SAMPLE @ {}",
+                //     sample.timestamp().to_string_millis()
+                // );
                 self.buffer.push(sample);
             }
         }
+
+        // println!(
+        //     "CUR INSTANT {:#?}",
+        //     self.next_instant.unwrap().to_string_millis()
+        // );
+        // println!("{:#?}", self.buffer);
 
         if self.buffer.is_empty() {
             return None;
@@ -109,12 +123,15 @@ impl std::iter::Iterator for VectorSelectorEvaluator {
 
         // Advance next_instant for the next iteration.
         self.next_instant = Some(self.next_instant.unwrap().add(self.interval));
+        // println!(
+        //     "NEXT INSTANT {:#?}",
+        //     self.next_instant.unwrap().to_string_millis()
+        // );
 
-        let keep_since = self.next_instant.unwrap().sub(std::cmp::max(
-            self.selector.duration().unwrap_or(self.lookback),
-            self.lookback,
-        ));
+        let keep_since = self.next_instant.unwrap().sub(self.actual_lookback());
+        // println!("KEEP SINCE {:#?}", keep_since.to_string_millis());
         self.buffer.purge_before(keep_since);
+        // println!("{:#?}", self.buffer);
 
         return Some(vector);
     }
@@ -129,8 +146,9 @@ impl QueryValueIter for VectorSelectorEvaluator {
     }
 }
 
+#[derive(Debug)]
 struct SampleMatrix {
-    matrix: BTreeMap<Vec<u8>, (Labels, VecDeque<(SampleValue, Timestamp)>)>,
+    matrix: BTreeMap<String, (Labels, VecDeque<(SampleValue, Timestamp)>)>,
     latest_sample_timestamp: Option<Timestamp>,
 }
 
@@ -156,7 +174,7 @@ impl SampleMatrix {
 
     fn push(&mut self, sample: Rc<Sample>) {
         self.matrix
-            .entry(sample.labels().to_vec())
+            .entry(String::from_utf8(sample.labels().to_vec()).unwrap())
             .or_insert((sample.labels().clone(), VecDeque::new()))
             .1
             .push_back((sample.value(), sample.timestamp()));
