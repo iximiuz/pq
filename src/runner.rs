@@ -4,7 +4,9 @@ use std::time::Duration;
 use crate::error::{Error, Result};
 use crate::format::{Formatter, HumanReadableFormatter, JSONFormatter, PromApiFormatter, Value};
 use crate::output::Writer;
-use crate::parse::{Decoder, Mapper, RegexDecodingStrategy};
+use crate::parse::{
+    Decoder, DecodingStrategy, JSONDecodingStrategy, Mapper, RegexDecodingStrategy,
+};
 use crate::program::{self, parse_program};
 use crate::query::QueryEvaluator;
 use crate::utils::time::TimeRange;
@@ -29,12 +31,11 @@ impl Runner {
     ) -> Result<Self> {
         let ast = parse_program(program)?;
 
-        let decoder = match ast.decoder {
-            program::Decoder::Regex { regex } => {
-                Decoder::new(reader, Box::new(RegexDecodingStrategy::new(&regex)?))
-            }
-            _ => unimplemented!(),
+        let decoding: Box<dyn DecodingStrategy> = match ast.decoder {
+            program::Decoder::JSON => Box::new(JSONDecodingStrategy::new()),
+            program::Decoder::Regex { regex } => Box::new(RegexDecodingStrategy::new(&regex)?),
         };
+        let decoder = Decoder::new(reader, decoding);
 
         let formatter: Box<dyn Formatter> = match ast.formatter {
             Some(program::Formatter::HumanReadable) => {
@@ -44,7 +45,6 @@ impl Runner {
             Some(program::Formatter::PromAPI) => Box::new(PromApiFormatter::new()),
             None => Box::new(HumanReadableFormatter::new(verbose)),
         };
-
         let consumer = Consumer::new(writer, formatter);
 
         let range = range.unwrap_or(TimeRange::infinity());
