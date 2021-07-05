@@ -86,11 +86,6 @@ impl Runner {
 
     pub fn run(&mut self) -> Result<()> {
         loop {
-            // TODO: incorporate this logic somewhere...
-            // if iter_value_kind == ExprValueKind::Scalar {
-            //     break;
-            // }
-
             let value = match &self.producer {
                 Producer::Decoder(decoder) => match decoder.borrow_mut().next() {
                     Some(Ok(entry)) => Value::Entry(entry),

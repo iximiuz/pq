@@ -1,12 +1,4 @@
 [
   "pq",
-  "-d", "([^\\s]+)[^\\[]+\\[([^\\]]+)]\\s+\"([^\\s]+)[^\"]*?\"\\s+(\\d+)\\s+(\\d+).*",
-  "-t", "1:%d/%b/%Y:%H:%M:%S",
-  "-l", "0:ip",
-  "-l", "2:method",
-  "-m", "3:status_code",
-  "-m", "4:content_length",
-  "--",
-  "status_code < bool content_length"
+  "/([^\\s]+)[^\\[]+\\[([^\\]]+)]\\s+\"([^\\s]+)[^\"]*?\"\\s+(\\d+)\\s+(\\d+).*/ | map {.1:ts \"%d/%b/%Y:%H:%M:%S\", .0 as ip, .2 as method, .3 as status_code, .4 as content_length} | select status_code < bool content_length | to_promapi"
 ]
-

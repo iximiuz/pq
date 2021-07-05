@@ -9,7 +9,7 @@ use super::identity::IdentityEvaluator;
 use super::parser::ast::*;
 use super::sample::SampleReader;
 use super::unary::UnaryEvaluator;
-use super::value::{QueryValue, QueryValueIter};
+use super::value::{QueryValue, QueryValueIter, QueryValueKind};
 use super::vector::VectorSelectorEvaluator;
 use crate::error::Result;
 use crate::model::Timestamp;
@@ -20,6 +20,7 @@ const DEFAULT_LOOKBACK: Duration = DEFAULT_INTERVAL;
 
 pub struct QueryEvaluator {
     inner: Box<dyn QueryValueIter>,
+    drained: bool,
 }
 
 impl QueryEvaluator {
@@ -32,6 +33,7 @@ impl QueryEvaluator {
     ) -> Result<Self> {
         Ok(Self {
             inner: create_value_iter(&Context::new(records, interval, lookback, start_at), query),
+            drained: false,
         })
     }
 }
@@ -40,6 +42,15 @@ impl std::iter::Iterator for QueryEvaluator {
     type Item = Result<QueryValue>;
 
     fn next(&mut self) -> Option<Self::Item> {
+        if self.drained {
+            return None;
+        }
+
+        // Tiny hack to prevent infinite iteration.
+        if self.inner.value_kind() == QueryValueKind::Scalar {
+            self.drained = true;
+        }
+
         match self.inner.next() {
             Some(v) => Some(Ok(v)),
             None => None,
