@@ -30,9 +30,13 @@ impl QueryEvaluator {
         interval: Option<Duration>,
         lookback: Option<Duration>,
         start_at: Option<Timestamp>,
+        verbose: bool, // TODO: remove it
     ) -> Result<Self> {
         Ok(Self {
-            inner: create_value_iter(&Context::new(records, interval, lookback, start_at), query),
+            inner: create_value_iter(
+                &Context::new(records, interval, lookback, start_at, verbose),
+                query,
+            ),
             drained: false,
         })
     }
@@ -71,12 +75,13 @@ impl Context {
         interval: Option<Duration>,
         lookback: Option<Duration>,
         start_at: Option<Timestamp>,
+        verbose: bool,
     ) -> Self {
         let interval = interval.unwrap_or(DEFAULT_INTERVAL);
         assert!(interval.as_secs() + (interval.subsec_nanos() as u64) > 0);
 
         Self {
-            samples: Rc::new(RefCell::new(SampleReader::new(records))),
+            samples: Rc::new(RefCell::new(SampleReader::new(records, verbose))),
             interval,
             lookback: lookback.unwrap_or(DEFAULT_LOOKBACK),
             start_at,

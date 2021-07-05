@@ -54,7 +54,7 @@ impl Runner {
             None => {
                 if ast.query.is_some() {
                     return Err(Error::new(
-                        "'select' without 'map' is not supported by this parser",
+                        "'select' without 'map' is not supported for this parser",
                     ));
                 }
 
@@ -84,6 +84,7 @@ impl Runner {
                 interval,
                 lookback,
                 range.start(),
+                verbose, // TODO: remove it when proper error propagation is in place.
             )?)),
             consumer,
             verbose,

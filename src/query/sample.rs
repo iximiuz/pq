@@ -51,13 +51,18 @@ impl Sample {
 pub struct SampleReader {
     records: Box<dyn std::iter::Iterator<Item = Result<Record>>>,
     cursors: Vec<Weak<Cursor>>,
+    verbose: bool, // TODO: remove it
 }
 
 impl SampleReader {
-    pub fn new(records: Box<dyn std::iter::Iterator<Item = Result<Record>>>) -> Self {
+    pub fn new(
+        records: Box<dyn std::iter::Iterator<Item = Result<Record>>>,
+        verbose: bool,
+    ) -> Self {
         Self {
             records,
             cursors: vec![],
+            verbose,
         }
     }
 
@@ -97,6 +102,9 @@ impl SampleReader {
 
                         break;
                     }
+                }
+                Some(Err(e)) if self.verbose => {
+                    eprintln!("{}", e);
                 }
                 None => break,
                 _ => (),
