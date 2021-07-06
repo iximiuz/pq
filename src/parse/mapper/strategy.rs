@@ -1,10 +1,9 @@
-use chrono::prelude::*;
-
 use super::record::{Record, Values};
 use crate::error::{Error, Result};
-use crate::model::{Labels, SampleValue};
+use crate::model::{Labels, SampleValue, Timestamp};
 use crate::parse::Entry;
 use crate::program::{FieldLoc, FieldType, Mapper as MappingRules, MapperField};
+use crate::utils::time::{parse_time, try_parse_time};
 
 pub struct MappingStrategy {
     mapping: MappingRules,
@@ -48,8 +47,7 @@ impl MappingStrategy {
                     labels.insert(field.end_name(), datum);
                 }
                 FieldType::Timestamp(format) => {
-                    timestamp =
-                        Some(parse_timestamp(&datum, format.as_deref())?.timestamp_millis());
+                    timestamp = Some(parse_timestamp_field(&datum, format.as_deref())?);
                 }
                 _ => unreachable!(),
             }
@@ -84,10 +82,12 @@ fn get_entry_field(entry: &Entry, field: &MapperField) -> Result<String> {
     }
 }
 
-fn parse_timestamp(timestamp: &str, format: Option<&str>) -> Result<DateTime<Utc>> {
+fn parse_timestamp_field(timestamp: &str, format: Option<&str>) -> Result<Timestamp> {
     match format {
-        Some(f) => Utc.datetime_from_str(timestamp, f),
-        None => timestamp.parse::<DateTime<Utc>>(),
+        Some(format) => parse_time(timestamp, format),
+        None => match try_parse_time(timestamp) {
+            Some(timestamp) => Ok(timestamp),
+            None => return Err(Error::new("couldn't guess time format")),
+        },
     }
-    .map_err(|e| (Error::from(("couldn't parse timestamp", e))))
 }

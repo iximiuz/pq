@@ -1,21 +1,20 @@
 use std::time::Duration;
 
-use chrono::prelude::*;
 use structopt::StructOpt;
 
-use crate::error::Result;
+use crate::error::{Error, Result};
 use crate::model::Timestamp;
-use crate::utils::parse::parse_duration;
+use crate::utils::{parse::parse_duration, time::try_parse_time};
 
 #[derive(Debug, StructOpt)]
 #[structopt(name = "pq", about = "pq command line arguments")]
 pub struct CliOpt {
     pub program: String,
 
-    #[structopt(long = "since", short = "s", parse(try_from_str = parse_iso_time))]
+    #[structopt(long = "since", short = "s", parse(try_from_str = parse_time))]
     pub since: Option<Timestamp>,
 
-    #[structopt(long = "until", short = "u", parse(try_from_str = parse_iso_time))]
+    #[structopt(long = "until", short = "u", parse(try_from_str = parse_time))]
     pub until: Option<Timestamp>,
 
     #[structopt(long = "interval", short = "I", parse(try_from_str = parse_duration))]
@@ -28,8 +27,9 @@ pub struct CliOpt {
     pub verbose: bool,
 }
 
-fn parse_iso_time(s: &str) -> Result<Timestamp> {
-    s.parse::<DateTime<Utc>>()
-        .and_then(|t| Ok(t.timestamp_millis()))
-        .map_err(|e| ("timestamp parsing failed", e).into())
+fn parse_time(s: &str) -> Result<Timestamp> {
+    match try_parse_time(s) {
+        Some(t) => Ok(t),
+        None => Err(Error::new("couldn't guess time format")),
+    }
 }

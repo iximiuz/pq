@@ -93,6 +93,7 @@ where
 #[cfg(test)]
 mod tests {
     use super::*;
+
     #[test]
     fn test_separated_list_valid() -> std::result::Result<(), ParseError<'static>> {
         #[rustfmt::skip]
