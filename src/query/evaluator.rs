@@ -16,7 +16,6 @@ use crate::model::Timestamp;
 use crate::parse::Record;
 
 const DEFAULT_INTERVAL: Duration = Duration::from_millis(1000);
-const DEFAULT_LOOKBACK: Duration = DEFAULT_INTERVAL;
 
 pub struct QueryEvaluator {
     inner: Box<dyn QueryValueIter>,
@@ -37,47 +36,19 @@ impl QueryEvaluator {
             .unwrap_or(DEFAULT_INTERVAL);
         assert!(interval.as_secs() + (interval.subsec_nanos() as u64) > 0);
 
-        let lookback = lookback.unwrap_or(DEFAULT_LOOKBACK);
-
         Ok(Self {
             inner: create_value_iter(
-                &Context::new(records, interval, lookback, start_at, verbose),
+                &Context::new(
+                    records,
+                    interval,
+                    lookback.unwrap_or(interval),
+                    start_at,
+                    verbose,
+                ),
                 query,
             ),
             drained: false,
         })
-    }
-}
-
-fn find_smallest_range(node: &Expr) -> Option<Duration> {
-    match node {
-        Expr::Parentheses(expr) => find_smallest_range(expr),
-
-        Expr::AggregateOperation(op) => find_smallest_range(op.expr()),
-
-        Expr::UnaryOperation(_, expr) => find_smallest_range(expr),
-
-        Expr::BinaryOperation(op) => {
-            let lhs = find_smallest_range(op.lhs());
-            let rhs = find_smallest_range(op.rhs());
-            match (lhs, rhs) {
-                (None, None) => None,
-                (Some(lhs), None) => Some(lhs),
-                (None, Some(rhs)) => Some(rhs),
-                (Some(lhs), Some(rhs)) => Some(std::cmp::min(lhs, rhs)),
-            }
-        }
-
-        Expr::FunctionCall(call) => match call.expr() {
-            Some(expr) => find_smallest_range(expr),
-            None => None,
-        },
-
-        // // leaf node
-        Expr::NumberLiteral(_) => None,
-
-        // // leaf node
-        Expr::VectorSelector(sel) => sel.duration(),
     }
 }
 
@@ -180,5 +151,35 @@ fn create_value_iter(ctx: &Context, node: Expr) -> Box<dyn QueryValueIter> {
             ctx.lookback,
             ctx.start_at,
         )),
+    }
+}
+
+fn find_smallest_range(node: &Expr) -> Option<Duration> {
+    match node {
+        Expr::Parentheses(expr) => find_smallest_range(expr),
+
+        Expr::AggregateOperation(op) => find_smallest_range(op.expr()),
+
+        Expr::UnaryOperation(_, expr) => find_smallest_range(expr),
+
+        Expr::BinaryOperation(op) => {
+            let lhs = find_smallest_range(op.lhs());
+            let rhs = find_smallest_range(op.rhs());
+            match (lhs, rhs) {
+                (None, None) => None,
+                (Some(lhs), None) => Some(lhs),
+                (None, Some(rhs)) => Some(rhs),
+                (Some(lhs), Some(rhs)) => Some(std::cmp::min(lhs, rhs)),
+            }
+        }
+
+        Expr::FunctionCall(call) => match call.expr() {
+            Some(expr) => find_smallest_range(expr),
+            None => None,
+        },
+
+        Expr::NumberLiteral(_) => None,
+
+        Expr::VectorSelector(sel) => sel.duration(),
     }
 }

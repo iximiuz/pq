@@ -1,4 +1,4 @@
-{"resultType":"vector","result":[{"metric":{"method":"GET"},"value":[1624711635.0,"10"]}]}
-{"resultType":"vector","result":[{"metric":{"method":"GET"},"value":[1624711636.0,"10"]}]}
-{"resultType":"vector","result":[{"metric":{"method":"GET"},"value":[1624711637.0,"10"]}]}
-{"resultType":"vector","result":[{"metric":{"method":"GET"},"value":[1624711638.0,"10"]}]}
+{"resultType":"vector","result":[{"metric":{"method":"GET"},"value":[1624711635.999,"10"]}]}
+{"resultType":"vector","result":[{"metric":{"method":"GET"},"value":[1624711636.999,"10"]}]}
+{"resultType":"vector","result":[{"metric":{"method":"GET"},"value":[1624711637.999,"10"]}]}
+{"resultType":"vector","result":[{"metric":{"method":"GET"},"value":[1624711638.999,"10"]}]}

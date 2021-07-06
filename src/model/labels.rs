@@ -52,8 +52,7 @@ impl LabelsTrait for Labels {
         let sorted: BTreeSet<_> = self.clone().into_iter().collect();
         sorted
             .into_iter()
-            // .flat_map(|(name, value)| [name.as_bytes(), &[b'\xFF'], value.as_bytes()].concat())
-            .flat_map(|(name, value)| [name.as_bytes(), &[b'|'], value.as_bytes()].concat())
+            .flat_map(|(name, value)| [name.as_bytes(), &[b'\xFF'], value.as_bytes()].concat())
             .collect()
     }
 }

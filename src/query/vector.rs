@@ -24,17 +24,23 @@ impl VectorSelectorEvaluator {
         lookback: Duration,
         start_at: Option<Timestamp>,
     ) -> Self {
-        assert!(
-            lookback.as_secs() > 0,
-            "lookbacks < 1 sec aren't supported yet"
-        );
+        // Configurable lookback is only allowed for instant vectors.
+        // If the provided selector is a range selector, override the
+        // lookback duration.
+        let lookback = selector.duration().unwrap_or(lookback);
+
+        // Trying to set a reasonable first instant timestamp if the
+        // query time range is provided. We cannot start from start_at
+        // as is because the very first vector would have to few samples.
+        let next_instant =
+            start_at.and_then(|t| Some(t.add(std::cmp::min(lookback, interval)) - 1));
 
         Self {
             cursor,
             selector,
             interval,
             lookback,
-            next_instant: start_at,
+            next_instant,
             buffer: SampleMatrix::new(),
         }
     }
@@ -59,10 +65,6 @@ impl VectorSelectorEvaluator {
             }
         }
     }
-
-    fn actual_lookback(&self) -> Duration {
-        self.selector.duration().unwrap_or(self.lookback)
-    }
 }
 
 impl std::iter::Iterator for VectorSelectorEvaluator {
@@ -82,27 +84,22 @@ impl std::iter::Iterator for VectorSelectorEvaluator {
 
             if self.next_instant.is_none() {
                 // Maybe fixup next_instant. Can happen only on the very first next() call.
-                // FIXME: round_up_to_secs doesn't play well with sub-secondly lookbacks.
-                //        To support sub-secondly lookbacks, the round up should be till
-                //        the next even lookback.
-                self.next_instant = Some(sample.timestamp().round_up_to_secs());
+                // Trying to set a reasonable first instant timestamp if the
+                // query time range is provided. We cannot start from start_at
+                // as is because the very first vector would have to few samples.
+                self.next_instant = Some(
+                    sample
+                        .timestamp()
+                        .add(std::cmp::min(self.lookback, self.interval))
+                        - 1,
+                );
             }
 
             // This sample timestamp check is more an optimization than a necessity.
-            if sample.timestamp() > self.next_instant.unwrap().sub(self.actual_lookback()) {
-                // println!(
-                //     "BUFFERING SAMPLE @ {}",
-                //     sample.timestamp().to_string_millis()
-                // );
+            if sample.timestamp() > self.next_instant.unwrap().sub(self.lookback) {
                 self.buffer.push(sample);
             }
         }
-
-        // println!(
-        //     "CUR INSTANT {:#?}",
-        //     self.next_instant.unwrap().to_string_millis()
-        // );
-        // println!("{:#?}", self.buffer);
 
         if self.buffer.is_empty() {
             return None;
@@ -123,15 +120,9 @@ impl std::iter::Iterator for VectorSelectorEvaluator {
 
         // Advance next_instant for the next iteration.
         self.next_instant = Some(self.next_instant.unwrap().add(self.interval));
-        // println!(
-        //     "NEXT INSTANT {:#?}",
-        //     self.next_instant.unwrap().to_string_millis()
-        // );
 
-        let keep_since = self.next_instant.unwrap().sub(self.actual_lookback());
-        // println!("KEEP SINCE {:#?}", keep_since.to_string_millis());
+        let keep_since = self.next_instant.unwrap().sub(self.lookback);
         self.buffer.purge_before(keep_since);
-        // println!("{:#?}", self.buffer);
 
         return Some(vector);
     }
@@ -148,7 +139,7 @@ impl QueryValueIter for VectorSelectorEvaluator {
 
 #[derive(Debug)]
 struct SampleMatrix {
-    matrix: BTreeMap<String, (Labels, VecDeque<(SampleValue, Timestamp)>)>,
+    matrix: BTreeMap<Vec<u8>, (Labels, VecDeque<(SampleValue, Timestamp)>)>,
     latest_sample_timestamp: Option<Timestamp>,
 }
 
@@ -174,7 +165,7 @@ impl SampleMatrix {
 
     fn push(&mut self, sample: Rc<Sample>) {
         self.matrix
-            .entry(String::from_utf8(sample.labels().to_vec()).unwrap())
+            .entry(sample.labels().to_vec())
             .or_insert((sample.labels().clone(), VecDeque::new()))
             .1
             .push_back((sample.value(), sample.timestamp()));

@@ -1,4 +1,4 @@
-{"resultType":"vector","result":[{"metric":{"method":"GET"},"value":[1623037143.0,"2"]},{"metric":{"method":"POST"},"value":[1623037143.0,"3"]}]}
-{"resultType":"vector","result":[{"metric":{"method":"GET"},"value":[1623037144.0,"4"]},{"metric":{"method":"POST"},"value":[1623037144.0,"5"]}]}
-{"resultType":"vector","result":[{"metric":{"method":"GET"},"value":[1623037145.0,"4"]},{"metric":{"method":"POST"},"value":[1623037145.0,"5"]}]}
-{"resultType":"vector","result":[{"metric":{"method":"GET"},"value":[1623037146.0,"2"]},{"metric":{"method":"POST"},"value":[1623037146.0,"2"]}]}
+{"resultType":"vector","result":[{"metric":{"method":"GET"},"value":[1623037143.999,"2"]},{"metric":{"method":"POST"},"value":[1623037143.999,"3"]}]}
+{"resultType":"vector","result":[{"metric":{"method":"GET"},"value":[1623037144.999,"4"]},{"metric":{"method":"POST"},"value":[1623037144.999,"5"]}]}
+{"resultType":"vector","result":[{"metric":{"method":"GET"},"value":[1623037145.999,"4"]},{"metric":{"method":"POST"},"value":[1623037145.999,"5"]}]}
+{"resultType":"vector","result":[{"metric":{"method":"GET"},"value":[1623037146.999,"2"]},{"metric":{"method":"POST"},"value":[1623037146.999,"2"]}]}
