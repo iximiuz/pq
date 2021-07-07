@@ -67,6 +67,36 @@ impl AggregateEvaluator {
         InstantVector::new(v.timestamp(), agg.values().cloned().into_iter().collect())
     }
 
+    // shamefully copy-pasted from next_simple().
+    fn next_avg(&self, v: InstantVector) -> InstantVector {
+        let mut agg = BTreeMap::new();
+        for (labels, cur_value) in v.samples() {
+            let agg_labels = match self.modifier {
+                Some(AggregateModifier::By(ref names)) => labels.with(names),
+                Some(AggregateModifier::Without(ref names)) => labels.without(names),
+                None => labels.with(&HashSet::new()),
+            };
+
+            let signature = agg_labels.to_vec();
+
+            match agg.remove(&signature) {
+                Some((_, (sum, count))) => {
+                    agg.insert(signature, (agg_labels, (sum + *cur_value, count + 1)));
+                }
+                None => {
+                    agg.insert(signature, (agg_labels, (*cur_value, 1)));
+                }
+            }
+        }
+
+        InstantVector::new(
+            v.timestamp(),
+            agg.values()
+                .map(|(labels, (sum, count))| (labels.clone(), sum / (*count) as SampleValue))
+                .collect(),
+        )
+    }
+
     fn next_top_bottom_k(&self, v: InstantVector) -> InstantVector {
         use AggregateOp::*;
 
@@ -148,6 +178,7 @@ impl std::iter::Iterator for AggregateEvaluator {
         };
 
         Some(QueryValue::InstantVector(match self.op {
+            Avg => self.next_avg(v),
             Count | Group | Max | Min | Sum => self.next_simple(v),
             TopK | BottomK => self.next_top_bottom_k(v),
             _ => unimplemented!("aggregation operator {:?} is not implemented yet", self.op),

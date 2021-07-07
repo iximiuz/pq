@@ -34,14 +34,12 @@
             for (const entry of queryResult) {
                 for (const metric of entry.result) {
                     const keys = Object.keys(metric.metric);
-                    keys.sort();
-
                     const parts = [];
                     for (const key of keys) {
                         parts.push(key + '=' + metric.metric[key]);
                     }
 
-                    const seriesLabel = parts.join(',');
+                    const seriesLabel = parts.join(',') || 'query';
                     series[seriesLabel] = series[seriesLabel] || [];
                     series[seriesLabel].push({x: metric.value[0] * 1000, y: +metric.value[1]});
                 }
