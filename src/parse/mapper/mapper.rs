@@ -50,7 +50,7 @@ impl std::iter::Iterator for Mapper {
             if record.timestamp().unwrap_or(Timestamp::MIN)
                 > self.range.end().unwrap_or(Timestamp::MAX)
             {
-                continue;
+                return None; // not a EOF but we are out of requested range.
             }
 
             return Some(Ok(record));

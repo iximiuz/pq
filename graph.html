@@ -47,7 +47,7 @@
                 }
             }
 
-            const colors = palette('mpn65', Math.max(30, Object.keys(series).length)).map(function(hex) { return '#' + hex; });
+            const colors = palette('mpn65', Math.min(30, Object.keys(series).length)).map(function(hex) { return '#' + hex; });
             config.data.datasets = Object.keys(series).map(function(label) {
                 return {
                     label: label,
