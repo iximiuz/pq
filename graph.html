@@ -1,121 +1,110 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js/dist/chart.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns/dist/chartjs-adapter-date-fns.bundle.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/google-palette/1.1.0/palette.js"></script>
 </head>
 <body>
 <div>
-    <canvas id="myChart"></canvas>
+    <input id="file-input" type="file" />
+    <div style="width: 90%; margin-bottom: 20px">
+        <canvas id="chart"></canvas>
+    </div>
+    <label>Logarithmic Y: <input id="log-scale-check" type="checkbox"></label>
+    <button id="hide-all-btn">Hide all</button>
+    <button id="show-all-btn">Show all</button>
+
     <script>
-// cat ~/access.log | ./target/release/pq '/([^\s]+).*?\[([^\]]+).*?"(GET)\s+.(en|ru).posts.([a-z0-9-]+).*?HTTP.*?(200)\s+(\d+)/ | map { .0 as ip, .1:ts, .2 as method, .3 as lang, .4 as post, .5:str as status_code, .6 as content_len } | select sum(count_over_time(__line__[4w])) by (lang) | to_json' --since '2019-01-01 00:00:00 +0000'
-        const queryResult = [
-            {"resultType":"vector","result":[{"metric":{"lang":"en"},"value":[1560815999.999,"2719"]},{"metric":{"lang":"ru"},"value":[1560815999.999,"228"]}]},
-            {"resultType":"vector","result":[{"metric":{"lang":"en"},"value":[1563235199.999,"9104"]},{"metric":{"lang":"ru"},"value":[1563235199.999,"1816"]}]},
-            {"resultType":"vector","result":[{"metric":{"lang":"en"},"value":[1565654399.999,"5065"]},{"metric":{"lang":"ru"},"value":[1565654399.999,"1886"]}]},
-            {"resultType":"vector","result":[{"metric":{"lang":"en"},"value":[1568073599.999,"11744"]},{"metric":{"lang":"ru"},"value":[1568073599.999,"2309"]}]},
-            {"resultType":"vector","result":[{"metric":{"lang":"en"},"value":[1570492799.999,"5437"]},{"metric":{"lang":"ru"},"value":[1570492799.999,"3184"]}]},
-            {"resultType":"vector","result":[{"metric":{"lang":"en"},"value":[1572911999.999,"12873"]},{"metric":{"lang":"ru"},"value":[1572911999.999,"3997"]}]},
-            {"resultType":"vector","result":[{"metric":{"lang":"en"},"value":[1575331199.999,"10861"]},{"metric":{"lang":"ru"},"value":[1575331199.999,"5077"]}]},
-            {"resultType":"vector","result":[{"metric":{"lang":"en"},"value":[1577750399.999,"12067"]},{"metric":{"lang":"ru"},"value":[1577750399.999,"4327"]}]},
-            {"resultType":"vector","result":[{"metric":{"lang":"en"},"value":[1580169599.999,"12188"]},{"metric":{"lang":"ru"},"value":[1580169599.999,"3750"]}]},
-            {"resultType":"vector","result":[{"metric":{"lang":"en"},"value":[1582588799.999,"12888"]},{"metric":{"lang":"ru"},"value":[1582588799.999,"4582"]}]},
-            {"resultType":"vector","result":[{"metric":{"lang":"en"},"value":[1585007999.999,"9747"]},{"metric":{"lang":"ru"},"value":[1585007999.999,"4696"]}]},
-            {"resultType":"vector","result":[{"metric":{"lang":"en"},"value":[1587427199.999,"8116"]},{"metric":{"lang":"ru"},"value":[1587427199.999,"5436"]}]},
-            {"resultType":"vector","result":[{"metric":{"lang":"en"},"value":[1589846399.999,"24199"]},{"metric":{"lang":"ru"},"value":[1589846399.999,"5487"]}]},
-            {"resultType":"vector","result":[{"metric":{"lang":"en"},"value":[1592265599.999,"17175"]},{"metric":{"lang":"ru"},"value":[1592265599.999,"4891"]}]},
-            {"resultType":"vector","result":[{"metric":{"lang":"en"},"value":[1594684799.999,"9251"]},{"metric":{"lang":"ru"},"value":[1594684799.999,"4186"]}]},
-            {"resultType":"vector","result":[{"metric":{"lang":"en"},"value":[1597103999.999,"8919"]},{"metric":{"lang":"ru"},"value":[1597103999.999,"3850"]}]},
-            {"resultType":"vector","result":[{"metric":{"lang":"en"},"value":[1599523199.999,"13366"]},{"metric":{"lang":"ru"},"value":[1599523199.999,"4224"]}]},
-            {"resultType":"vector","result":[{"metric":{"lang":"en"},"value":[1601942399.999,"15352"]},{"metric":{"lang":"ru"},"value":[1601942399.999,"4589"]}]},
-            {"resultType":"vector","result":[{"metric":{"lang":"en"},"value":[1604361599.999,"20019"]},{"metric":{"lang":"ru"},"value":[1604361599.999,"4291"]}]},
-            {"resultType":"vector","result":[{"metric":{"lang":"en"},"value":[1606780799.999,"16968"]},{"metric":{"lang":"ru"},"value":[1606780799.999,"3948"]}]},
-            {"resultType":"vector","result":[{"metric":{"lang":"en"},"value":[1609199999.999,"20230"]},{"metric":{"lang":"ru"},"value":[1609199999.999,"3324"]}]},
-            {"resultType":"vector","result":[{"metric":{"lang":"en"},"value":[1611619199.999,"70127"]},{"metric":{"lang":"ru"},"value":[1611619199.999,"3194"]}]},
-            {"resultType":"vector","result":[{"metric":{"lang":"en"},"value":[1614038399.999,"39254"]},{"metric":{"lang":"ru"},"value":[1614038399.999,"4554"]}]},
-            {"resultType":"vector","result":[{"metric":{"lang":"en"},"value":[1616457599.999,"68680"]},{"metric":{"lang":"ru"},"value":[1616457599.999,"4045"]}]},
-            {"resultType":"vector","result":[{"metric":{"lang":"en"},"value":[1618876799.999,"70271"]},{"metric":{"lang":"ru"},"value":[1618876799.999,"4084"]}]},
-            {"resultType":"vector","result":[{"metric":{"lang":"en"},"value":[1621295999.999,"29452"]},{"metric":{"lang":"ru"},"value":[1621295999.999,"3567"]}]},
-            {"resultType":"vector","result":[{"metric":{"lang":"en"},"value":[1623715199.999,"48220"]},{"metric":{"lang":"ru"},"value":[1623715199.999,"3921"]}]},
-            {"resultType":"vector","result":[{"metric":{"lang":"en"},"value":[1626134399.999,"7651"]},{"metric":{"lang":"ru"},"value":[1626134399.999,"952"]}]},
-        ];
-
-        const labels = [
-            'Jan, 2019',
-            'Feb, 2019',
-            'Mar, 2019',
-            'Apr, 2019',
-            'May, 2019',
-            'Jun, 2019',
-            'Jul, 2019',
-            'Aug, 2019',
-            'Sep, 2019',
-            'Oct, 2019',
-            'Nov, 2019',
-            'Dec, 2019',
-            'Jan, 2020',
-            'Feb, 2020',
-            'Mar, 2020',
-            'Apr, 2020',
-            'May, 2020',
-            'Jun, 2020',
-            'Jul, 2020',
-            'Aug, 2020',
-            'Sep, 2020',
-            'Oct, 2020',
-            'Nov, 2020',
-            'Dec, 2020',
-            'Jan, 2021',
-            'Feb, 2021',
-            'Mar, 2021',
-            'Apr, 2021',
-            'May, 2021',
-            'Jun, 2021',
-            'Jul, 2021',
-        ];
-
-        const datapointsByMetric = {};
-
-        for (const entry of queryResult) {
-            for (const metric of entry.result) {
-                const key = metric.metric.lang;
-                datapointsByMetric[key] = datapointsByMetric[key] || [];
-                datapointsByMetric[key].push(+metric.value[1]);
-            }
-        }
-
-        console.log(datapointsByMetric);
-
-        const datasets = [
-            {
-                label: 'RU posts',
-                backgroundColor: 'rgb(0, 255, 0)',
-                borderColor: 'rgb(255, 99, 132)',
-                data: datapointsByMetric.ru,
-            },
-            {
-                label: 'EN posts',
-                backgroundColor: 'rgb(0, 0, 255)',
-                borderColor: 'rgb(255, 99, 132)',
-                data: datapointsByMetric.en,
-            },
-        ];
-
-
-
-        const data = {
-            labels,
-            datasets
-        };
         const config = {
             type: 'line',
-            data,
-            options: {}
+            data: {datasets: []},
+            options: {
+                scales: {
+                    x: {
+                        type: 'timeseries'
+                    }
+                },
+            },
         };
+        const chart = new Chart(document.getElementById('chart'), config);
 
-        var myChart = new Chart(
-            document.getElementById('myChart'),
-            config
-        );
+        function plot(queryResult) {
+            const series = {};
+            for (const entry of queryResult) {
+                for (const metric of entry.result) {
+                    const keys = Object.keys(metric.metric);
+                    keys.sort();
+
+                    const parts = [];
+                    for (const key of keys) {
+                        parts.push(key + '=' + metric.metric[key]);
+                    }
+
+                    const seriesLabel = parts.join(',');
+                    series[seriesLabel] = series[seriesLabel] || [];
+                    series[seriesLabel].push({x: metric.value[0] * 1000, y: +metric.value[1]});
+                }
+            }
+
+            const colors = palette('mpn65', Math.max(30, Object.keys(series).length)).map(function(hex) { return '#' + hex; });
+            config.data.datasets = Object.keys(series).map(function(label) {
+                return {
+                    label: label,
+                    borderColor: colors.pop(),
+                    data: series[label]
+                }
+            });
+
+            chart.update();
+        }
+
+        function readFile(e) {
+            const file = e.target.files[0];
+            if (!file) {
+                return;
+            }
+
+            const reader = new FileReader();
+
+            reader.onload = function(e) {
+                const queryResult = [];
+                for (let line of e.target.result.split('\n')) {
+                    line = line.trim();
+                    if (line.length) {
+                        queryResult.push(JSON.parse(line));
+                    }
+                }
+
+                plot(queryResult);
+            };
+
+            reader.readAsText(file);
+        }
+
+        function toggleLogScale(e) {
+            config.options.scales.y.type = e.currentTarget.checked ? 'logarithmic' : undefined;
+            chart.update();
+        }
+
+        function hideAll() {
+            chart.data.datasets.forEach(function(ds) {
+                ds.hidden = true;
+            });
+            chart.update();
+        }
+
+        function showAll() {
+            chart.data.datasets.forEach(function(ds) {
+                ds.hidden = false;
+            });
+            chart.update();
+        }
+
+        document.getElementById('file-input').addEventListener('change', readFile, false);
+        document.getElementById('log-scale-check').addEventListener('change', toggleLogScale, false);
+        document.getElementById('hide-all-btn').addEventListener('click', hideAll, false);
+        document.getElementById('show-all-btn').addEventListener('click', showAll, false);
     </script>
 </div>
 </body>
