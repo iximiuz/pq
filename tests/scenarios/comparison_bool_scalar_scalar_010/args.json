@@ -1,9 +1,4 @@
 [
   "pq",
-  "-d", "([^\\s]+)\\s(\\w+)\\s(\\d+)",
-  "-t", "0:%Y-%m-%dT%H:%M:%S",
-  "-l", "1:name",
-  "-m", "2:age",
-  "--",
-  "42.0 != bool 52"
+  "/([^\\s]+)\\s(\\w+)\\s(\\d+)/ | map {.0:ts, .1 as name, .2 as age} | select 42.0 != bool 52 | to_promapi"
 ]

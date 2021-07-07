@@ -3,9 +3,9 @@ use std::collections::BTreeMap;
 use serde::Serialize;
 use serde_json;
 
-use super::encoder::Encoder;
+use super::formatter::{Formatter, Value};
 use crate::error::Result;
-use crate::query::{ExprValue, InstantVector, RangeVector};
+use crate::query::{InstantVector, QueryValue, RangeVector};
 
 // TODO: Instant query - string
 // {
@@ -120,9 +120,9 @@ impl Scalar {
     }
 }
 
-pub struct PromApiEncoder {}
+pub struct PromApiFormatter {}
 
-impl PromApiEncoder {
+impl PromApiFormatter {
     pub fn new() -> Self {
         Self {}
     }
@@ -141,9 +141,9 @@ impl PromApiEncoder {
     //     }
     //   ]
     // }
-    fn encode_instant_vector(&self, vector: &InstantVector) -> Result<Vec<u8>> {
-        Ok(serde_json::to_vec(&Vector::new(vector))
-            .map_err(|e| ("JSON serialization failed", e))?)
+    fn format_instant_vector(&self, vector: &InstantVector) -> Result<Vec<u8>> {
+        serde_json::to_vec(&Vector::new(vector))
+            .map_err(|e| ("JSON serialization failed", e).into())
     }
 
     // Instant query - range vector
@@ -160,9 +160,9 @@ impl PromApiEncoder {
     //     }
     //   ]
     // }
-    fn encode_range_vector(&self, vector: &RangeVector) -> Result<Vec<u8>> {
-        Ok(serde_json::to_vec(&Matrix::new(vector))
-            .map_err(|e| ("JSON serialization failed", e))?)
+    fn format_range_vector(&self, vector: &RangeVector) -> Result<Vec<u8>> {
+        serde_json::to_vec(&Matrix::new(vector))
+            .map_err(|e| ("JSON serialization failed", e).into())
     }
 
     // Instant query - scalar
@@ -170,18 +170,19 @@ impl PromApiEncoder {
     //   "resultType": "scalar",
     //   "result": [1622104500, "42"]
     // }
-    fn encode_scalar(&self, number: f64) -> Result<Vec<u8>> {
-        Ok(serde_json::to_vec(&Scalar::new(number))
-            .map_err(|e| ("JSON serialization failed", e))?)
+    fn format_scalar(&self, number: f64) -> Result<Vec<u8>> {
+        serde_json::to_vec(&Scalar::new(number))
+            .map_err(|e| ("JSON serialization failed", e).into())
     }
 }
 
-impl Encoder for PromApiEncoder {
-    fn encode(&self, value: &ExprValue) -> Result<Vec<u8>> {
+impl Formatter for PromApiFormatter {
+    fn format(&self, value: &Value) -> Result<Vec<u8>> {
         match value {
-            ExprValue::InstantVector(v) => self.encode_instant_vector(v),
-            ExprValue::RangeVector(v) => self.encode_range_vector(v),
-            ExprValue::Scalar(v) => self.encode_scalar(*v),
+            Value::QueryValue(QueryValue::InstantVector(v)) => self.format_instant_vector(v),
+            Value::QueryValue(QueryValue::RangeVector(v)) => self.format_range_vector(v),
+            Value::QueryValue(QueryValue::Scalar(v)) => self.format_scalar(*v),
+            _ => unimplemented!("Only instant vector, range vector, or scalar results are supported by this formatter"),
         }
     }
 }

@@ -1,10 +1,4 @@
 [
   "pq",
-  "-d", "([^\\s]+)\\s(\\w+)\\s(\\d+)",
-  "-t", "0:%Y-%m-%dT%H:%M:%S",
-  "-l", "1:name",
-  "-m", "2:age",
-  "--",
-  "42.0 + -age{name=~\"(bob|sarah)\", name!~\"b.*\"} * 2^3 -1"
+  "/([^\\s]+)\\s(\\w+)\\s(\\d+)/ | map {.0:ts \"%Y-%m-%dT%H:%M:%S\", .1 as name, .2 as age} | select 42.0 + -age{name=~\"(bob|sarah)\", name!~\"b.*\"} * 2^3 -1 | to_promapi"
 ]
-

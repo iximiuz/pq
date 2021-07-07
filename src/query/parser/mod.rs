@@ -1,6 +1,4 @@
-pub mod ast;
-mod expr;
-mod query;
 mod vector;
 
-pub use query::parse_query;
+pub mod ast;
+pub mod expr;

@@ -1,2 +1,2 @@
-{"resultType":"vector","result":[{"metric":{"__name__":"status_code","ip":"192.168.101.12","method":"GET"},"value":[1623037143.0,"200"]}]}
-{"resultType":"vector","result":[{"metric":{"__name__":"status_code","ip":"192.168.101.13","method":"POST"},"value":[1623037144.0,"200"]}]}
+{"resultType":"vector","result":[{"metric":{"__name__":"status_code","ip":"192.168.101.12","method":"GET"},"value":[1623037143.999,"200"]}]}
+{"resultType":"vector","result":[{"metric":{"__name__":"status_code","ip":"192.168.101.13","method":"POST"},"value":[1623037144.999,"200"]}]}

@@ -1,14 +1,11 @@
 use std::collections::{HashMap, HashSet};
 
 use super::parser::ast::LabelMatching;
-use crate::model::{
-    labels::{LabelName, Labels, LabelsTrait},
-    types::{SampleValue, Timestamp},
-};
+use crate::model::{LabelName, Labels, LabelsTrait, SampleValue, Timestamp};
 
 // Every Expr can be evaluated to a value.
 #[derive(Debug)]
-pub enum ExprValue {
+pub enum QueryValue {
     InstantVector(InstantVector),
     RangeVector(RangeVector),
     Scalar(SampleValue),
@@ -16,14 +13,14 @@ pub enum ExprValue {
 }
 
 #[derive(Debug, PartialEq)]
-pub(super) enum ExprValueKind {
+pub(super) enum QueryValueKind {
     InstantVector,
     RangeVector,
     Scalar,
 }
 
-pub(super) trait ExprValueIter: std::iter::Iterator<Item = ExprValue> {
-    fn value_kind(&self) -> ExprValueKind;
+pub(super) trait QueryValueIter: std::iter::Iterator<Item = QueryValue> {
+    fn value_kind(&self) -> QueryValueKind;
 }
 
 #[derive(Debug)]

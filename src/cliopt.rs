@@ -1,50 +1,38 @@
 use std::time::Duration;
 
-use chrono::prelude::*;
 use structopt::StructOpt;
 
-use crate::common::parser::parse_duration;
-use crate::error::Result;
-use crate::model::types::Timestamp;
+use crate::error::{Error, Result};
+use crate::model::Timestamp;
+use crate::utils::{parse::parse_duration, time::try_parse_time};
 
 #[derive(Debug, StructOpt)]
 #[structopt(name = "pq", about = "pq command line arguments")]
 pub struct CliOpt {
-    #[structopt(long = "v", short = "verbose")]
-    pub verbose: bool,
+    pub program: String,
 
-    #[structopt(long = "since", short = "s", parse(try_from_str = parse_iso_time))]
+    #[structopt(long = "since", short = "s", parse(try_from_str = parse_time))]
     pub since: Option<Timestamp>,
 
-    #[structopt(long = "until", short = "u", parse(try_from_str = parse_iso_time))]
+    #[structopt(long = "until", short = "u", parse(try_from_str = parse_time))]
     pub until: Option<Timestamp>,
 
-    #[structopt(long = "interval", short = "i", parse(try_from_str = parse_duration))]
+    #[structopt(long = "interval", short = "I", parse(try_from_str = parse_duration))]
     pub interval: Option<Duration>,
 
     #[structopt(long = "lookback", short = "b", parse(try_from_str = parse_duration))]
     pub lookback: Option<Duration>,
 
-    #[structopt(long = "decode", short = "d")]
-    pub decode: String,
+    #[structopt(long = "i", short = "interactive")]
+    pub interactive: bool,
 
-    #[structopt(long = "encode", short = "e")]
-    pub encode: Option<String>,
-
-    #[structopt(long = "timestamp", short = "t")]
-    pub timestamp: String,
-
-    #[structopt(long = "label", short = "l")]
-    pub labels: Vec<String>,
-
-    #[structopt(long = "metric", short = "m")]
-    pub metrics: Vec<String>,
-
-    pub query: String,
+    #[structopt(long = "v", short = "verbose")]
+    pub verbose: bool,
 }
 
-fn parse_iso_time(s: &str) -> Result<Timestamp> {
-    s.parse::<DateTime<Utc>>()
-        .and_then(|t| Ok(t.timestamp_millis()))
-        .map_err(|e| ("timestamp parsing failed", e).into())
+fn parse_time(s: &str) -> Result<Timestamp> {
+    match try_parse_time(s) {
+        Some(t) => Ok(t),
+        None => Err(Error::new("couldn't guess time format")),
+    }
 }

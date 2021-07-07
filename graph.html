@@ -1,0 +1,109 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js/dist/chart.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns/dist/chartjs-adapter-date-fns.bundle.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/google-palette/1.1.0/palette.js"></script>
+</head>
+<body>
+<div>
+    <input id="file-input" type="file" />
+    <div style="width: 90%; margin-bottom: 20px">
+        <canvas id="chart"></canvas>
+    </div>
+    <label>Logarithmic Y: <input id="log-scale-check" type="checkbox"></label>
+    <button id="hide-all-btn">Hide all</button>
+    <button id="show-all-btn">Show all</button>
+
+    <script>
+        const config = {
+            type: 'line',
+            data: {datasets: []},
+            options: {
+                scales: {
+                    x: {
+                        type: 'timeseries'
+                    }
+                },
+            },
+        };
+        const chart = new Chart(document.getElementById('chart'), config);
+
+        function plot(queryResult) {
+            const series = {};
+            for (const entry of queryResult) {
+                for (const metric of entry.result) {
+                    const keys = Object.keys(metric.metric);
+                    const parts = [];
+                    for (const key of keys) {
+                        parts.push(key + '=' + metric.metric[key]);
+                    }
+
+                    const seriesLabel = parts.join(',') || 'query';
+                    series[seriesLabel] = series[seriesLabel] || [];
+                    series[seriesLabel].push({x: metric.value[0] * 1000, y: +metric.value[1]});
+                }
+            }
+
+            const colors = palette('mpn65', Math.min(30, Object.keys(series).length)).map(function(hex) { return '#' + hex; });
+            config.data.datasets = Object.keys(series).map(function(label) {
+                return {
+                    label: label,
+                    borderColor: colors.pop(),
+                    data: series[label]
+                }
+            });
+
+            chart.update();
+        }
+
+        function readFile(e) {
+            const file = e.target.files[0];
+            if (!file) {
+                return;
+            }
+
+            const reader = new FileReader();
+
+            reader.onload = function(e) {
+                const queryResult = [];
+                for (let line of e.target.result.split('\n')) {
+                    line = line.trim();
+                    if (line.length) {
+                        queryResult.push(JSON.parse(line));
+                    }
+                }
+
+                plot(queryResult);
+            };
+
+            reader.readAsText(file);
+        }
+
+        function toggleLogScale(e) {
+            config.options.scales.y.type = e.currentTarget.checked ? 'logarithmic' : undefined;
+            chart.update();
+        }
+
+        function hideAll() {
+            chart.data.datasets.forEach(function(ds) {
+                ds.hidden = true;
+            });
+            chart.update();
+        }
+
+        function showAll() {
+            chart.data.datasets.forEach(function(ds) {
+                ds.hidden = false;
+            });
+            chart.update();
+        }
+
+        document.getElementById('file-input').addEventListener('change', readFile, false);
+        document.getElementById('log-scale-check').addEventListener('change', toggleLogScale, false);
+        document.getElementById('hide-all-btn').addEventListener('click', hideAll, false);
+        document.getElementById('show-all-btn').addEventListener('click', showAll, false);
+    </script>
+</div>
+</body>
+</html>

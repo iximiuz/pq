@@ -3,44 +3,44 @@ use std::rc::Rc;
 use std::time::Duration;
 
 use super::parser::ast::VectorSelector;
-use super::value::{ExprValue, ExprValueIter, ExprValueKind, InstantVector, RangeVector};
-use crate::common::time::TimeRange;
-use crate::input::{Cursor, Sample};
-use crate::model::{
-    labels::{Labels, LabelsTrait},
-    types::{SampleValue, Timestamp, TimestampTrait},
-};
+use super::sample::{Cursor, Sample};
+use super::value::{InstantVector, QueryValue, QueryValueIter, QueryValueKind, RangeVector};
+use crate::model::{Labels, LabelsTrait, SampleValue, Timestamp, TimestampTrait};
 
-pub(super) struct VectorSelectorExecutor {
+pub(super) struct VectorSelectorEvaluator {
     cursor: Rc<Cursor>,
     selector: VectorSelector,
     interval: Duration,
     lookback: Duration,
     next_instant: Option<Timestamp>,
-    last_instant: Option<Timestamp>,
     buffer: SampleMatrix,
 }
 
-impl VectorSelectorExecutor {
+impl VectorSelectorEvaluator {
     pub(super) fn new(
         cursor: Rc<Cursor>,
         selector: VectorSelector,
-        range: TimeRange,
         interval: Duration,
         lookback: Duration,
+        start_at: Option<Timestamp>,
     ) -> Self {
-        assert!(
-            lookback.as_secs() > 0,
-            "lookbacks < 1 sec aren't supported yet"
-        );
+        // Configurable lookback is only allowed for instant vectors.
+        // If the provided selector is a range selector, override the
+        // lookback duration.
+        let lookback = selector.duration().unwrap_or(lookback);
+
+        // Trying to set a reasonable first instant timestamp if the
+        // query time range is provided. We cannot start from start_at
+        // as is because the very first vector would have to few samples.
+        let next_instant =
+            start_at.and_then(|t| Some(t.add(std::cmp::min(lookback, interval)) - 1));
 
         Self {
             cursor,
             selector,
             interval,
             lookback,
-            next_instant: range.start().map(|t| t.round_up_to_secs()),
-            last_instant: range.end().map(|t| t.round_up_to_secs()),
+            next_instant,
             buffer: SampleMatrix::new(),
         }
     }
@@ -51,11 +51,6 @@ impl VectorSelectorExecutor {
                 Some(s) => s,
                 None => return None, // drained input
             };
-
-            if sample.timestamp() > self.last_instant.unwrap_or(Timestamp::MAX) {
-                // Input not really drained, but we've seen enough.
-                return None;
-            }
 
             if self
                 .selector
@@ -72,8 +67,8 @@ impl VectorSelectorExecutor {
     }
 }
 
-impl std::iter::Iterator for VectorSelectorExecutor {
-    type Item = ExprValue;
+impl std::iter::Iterator for VectorSelectorEvaluator {
+    type Item = QueryValue;
 
     fn next(&mut self) -> Option<Self::Item> {
         while self
@@ -89,11 +84,15 @@ impl std::iter::Iterator for VectorSelectorExecutor {
 
             if self.next_instant.is_none() {
                 // Maybe fixup next_instant. Can happen only on the very first next() call.
-                // FIXME: round_up_to_secs doesn't play well with sub-secondly lookbacks.
-                //        To support sub-secondly lookbacks, the round up should be till
-                //        the next even lookback.
-                self.next_instant = Some(sample.timestamp().round_up_to_secs());
-                assert!(self.next_instant.unwrap() <= self.last_instant.unwrap_or(Timestamp::MAX));
+                // Trying to set a reasonable first instant timestamp if the
+                // query time range is provided. We cannot start from start_at
+                // as is because the very first vector would have to few samples.
+                self.next_instant = Some(
+                    sample
+                        .timestamp()
+                        .add(std::cmp::min(self.lookback, self.interval))
+                        - 1,
+                );
             }
 
             // This sample timestamp check is more an optimization than a necessity.
@@ -109,11 +108,11 @@ impl std::iter::Iterator for VectorSelectorExecutor {
         // Here we have a sample after the current next_instant.
         // Hence, we can create (a potentially empty) vector from the current buffer.
         let vector = match self.selector.duration() {
-            None => ExprValue::InstantVector(
+            None => QueryValue::InstantVector(
                 self.buffer
                     .instant_vector(self.next_instant.unwrap(), self.lookback),
             ),
-            Some(duration) => ExprValue::RangeVector(
+            Some(duration) => QueryValue::RangeVector(
                 self.buffer
                     .range_vector(self.next_instant.unwrap(), duration),
             ),
@@ -122,25 +121,23 @@ impl std::iter::Iterator for VectorSelectorExecutor {
         // Advance next_instant for the next iteration.
         self.next_instant = Some(self.next_instant.unwrap().add(self.interval));
 
-        let keep_since = self.next_instant.unwrap().sub(std::cmp::max(
-            self.selector.duration().unwrap_or(self.lookback),
-            self.lookback,
-        ));
+        let keep_since = self.next_instant.unwrap().sub(self.lookback);
         self.buffer.purge_before(keep_since);
 
         return Some(vector);
     }
 }
 
-impl ExprValueIter for VectorSelectorExecutor {
-    fn value_kind(&self) -> ExprValueKind {
+impl QueryValueIter for VectorSelectorEvaluator {
+    fn value_kind(&self) -> QueryValueKind {
         match self.selector.duration() {
-            None => ExprValueKind::InstantVector,
-            Some(_) => ExprValueKind::RangeVector,
+            None => QueryValueKind::InstantVector,
+            Some(_) => QueryValueKind::RangeVector,
         }
     }
 }
 
+#[derive(Debug)]
 struct SampleMatrix {
     matrix: BTreeMap<Vec<u8>, (Labels, VecDeque<(SampleValue, Timestamp)>)>,
     latest_sample_timestamp: Option<Timestamp>,

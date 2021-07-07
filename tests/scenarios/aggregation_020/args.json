@@ -1,12 +1,4 @@
 [
   "pq",
-  "-d", "([^\\s]+)\\s(\\w+)\\s(\\d+)\\s(\\w+)\\s(\\w+)",
-  "-t", "0:%Y-%m-%dT%H:%M:%S",
-  "-l", "1:name",
-  "-l", "3:contry",
-  "-l", "4:job",
-  "-m", "2:age",
-  "--",
-  "min(age) without(name,job)"
+  "/([^\\s]+)\\s(\\w+)\\s(\\d+)\\s(\\w+)\\s(\\w+)/ | map {.0:ts \"%Y-%m-%dT%H:%M:%S\", .1 as name, .3 as country, .4 as job, .2 as age} | select min(age) without(name,job) | to_promapi"
 ]
-

@@ -2,42 +2,28 @@ use std::collections::HashSet;
 use std::time::Duration;
 
 use crate::error::{Error, Result};
-use crate::model::{
-    labels::{LabelMatcher, LabelName},
-    types::{MetricName, SampleValue},
-};
-
-#[derive(Debug)]
-pub struct AST {
-    pub root: Expr,
-}
-
-impl AST {
-    pub fn new(root: Expr) -> Self {
-        Self { root }
-    }
-}
+use crate::model::{LabelMatcher, LabelName, MetricName, SampleValue};
 
 #[derive(Debug, PartialEq)]
 pub enum Expr {
-    AggregateExpr(AggregateExpr), // Remove Expr part of the name
-    BinaryExpr(BinaryExpr),       // Remove Expr part of the name
+    AggregateOperation(AggregateOperation),
+    BinaryOperation(BinaryOperation),
     FunctionCall(FunctionCall),
     NumberLiteral(SampleValue),
     Parentheses(Box<Expr>),
-    UnaryExpr(UnaryOp, Box<Expr>),
+    UnaryOperation(UnaryOp, Box<Expr>),
     VectorSelector(VectorSelector),
 }
 
 #[derive(Debug, PartialEq)]
-pub struct AggregateExpr {
+pub struct AggregateOperation {
     op: AggregateOp,
     expr: Box<Expr>,
     modifier: Option<AggregateModifier>,
     argument: Option<AggregateArgument>,
 }
 
-impl AggregateExpr {
+impl AggregateOperation {
     pub(super) fn new(
         op: AggregateOp,
         expr: Expr,
@@ -54,6 +40,11 @@ impl AggregateExpr {
             modifier,
             argument,
         }
+    }
+
+    #[inline]
+    pub fn expr(&self) -> &Expr {
+        self.expr.as_ref()
     }
 
     pub fn into_inner(
@@ -121,7 +112,7 @@ pub enum AggregateArgument {
 }
 
 #[derive(Debug, PartialEq)]
-pub struct BinaryExpr {
+pub struct BinaryOperation {
     lhs: Box<Expr>,
     rhs: Box<Expr>,
     op: BinaryOp,
@@ -130,7 +121,7 @@ pub struct BinaryExpr {
     group_modifier: Option<GroupModifier>,
 }
 
-impl BinaryExpr {
+impl BinaryOperation {
     #[allow(dead_code)] // It's used in tests.
     pub(super) fn new(lhs: Expr, op: BinaryOp, rhs: Expr) -> Self {
         Self::new_ex(lhs, op, rhs, false, None, None)
@@ -159,16 +150,19 @@ impl BinaryExpr {
     }
 
     #[inline]
+    #[allow(dead_code)] // It's used in tests.
     pub fn op(&self) -> BinaryOp {
         self.op
     }
 
     #[inline]
+    #[allow(dead_code)] // It's used in tests.
     pub fn lhs(&self) -> &Expr {
         self.lhs.as_ref()
     }
 
     #[inline]
+    #[allow(dead_code)] // It's used in tests.
     pub fn rhs(&self) -> &Expr {
         self.rhs.as_ref()
     }
@@ -360,12 +354,25 @@ impl FunctionCall {
         Self { name, args }
     }
 
+    #[inline]
     pub fn function_name(&self) -> FunctionName {
         self.name
     }
 
     pub fn args(self) -> Vec<FunctionCallArg> {
         self.args
+    }
+
+    /// An assumption here is that a function has a max one inner expression.
+    #[inline]
+    pub fn expr(&self) -> Option<&Expr> {
+        for arg in self.args.iter() {
+            match arg {
+                FunctionCallArg::Expr(expr) => return Some(expr.as_ref()),
+                _ => (),
+            }
+        }
+        None
     }
 }
 

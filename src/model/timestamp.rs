@@ -1,11 +1,6 @@
 use std::time::Duration;
 
-// FIXME: Ugly hack to avoid changing imports everywhere.
-pub use super::labels::{LabelName, LabelValue, Labels};
-
-pub type MetricName = String;
-
-pub type SampleValue = f64;
+use chrono::prelude::*;
 
 // Unix timestamp in milliseconds.
 pub type Timestamp = i64;
@@ -14,6 +9,7 @@ pub trait TimestampTrait {
     fn add(&self, d: Duration) -> Self;
     fn sub(&self, d: Duration) -> Self;
     fn round_up_to_secs(&self) -> Self;
+    fn to_string_millis(&self) -> String;
 }
 
 impl TimestampTrait for Timestamp {
@@ -32,5 +28,10 @@ impl TimestampTrait for Timestamp {
     #[inline]
     fn round_up_to_secs(&self) -> Self {
         (((*self - 1) as f64 / 1000.0) as i64 + 1) * 1000
+    }
+
+    fn to_string_millis(&self) -> String {
+        let ts = NaiveDateTime::from_timestamp(self / 1000, 0);
+        ts.format("%Y-%m-%dT%H:%M:%S%.3f").to_string()
     }
 }

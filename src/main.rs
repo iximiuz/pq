@@ -3,71 +3,49 @@ use std::io::{self, BufReader};
 use structopt::StructOpt;
 
 use pq::cliopt::CliOpt;
-use pq::common::time::TimeRange;
-use pq::input::{decoder::RegexDecoder, reader::LineReader, Input};
-use pq::output::{
-    encoder::{HumanReadableEncoder, PromApiEncoder},
-    writer::LineWriter,
-    Output,
-};
-use pq::query::{parse_query, Executor};
+use pq::input::LineReader;
+use pq::output::LineWriter;
+use pq::runner::Runner;
+use pq::utils::time::TimeRange;
 
-// -p '...'                             <--- just prints matching lines
-// -p '...' -m '...'                    <--- prints matches (groups) or complaints if pattern doesn't match the regex
-// -p '...' -m '...' -q '...'           <--- runs a PromQL query
-// -p '...' -m '...' -q '...' -f '...'  <--- formats the output (JSON, PromQL, rust formatting, etc)
+//    'json'                                 // as is
+//    'json | map {.foo:f64 as bar}'         // take only records with 'foo' attr, result consists of a single-field object
+//    'json | map {.foo:f64 as bar, *}'      // take only records with 'foo' attr, but also keep all other records in the resulting object
+//    '/.*(\d+)\s(\w+)/ | map {.0:ts "%Y-%m-%d" as time, .1 as method, extra_label: "value"}'
+//    'csv (name, city, age)'
+//    'csv (name, city, age) | map {...}'
+//    'promql'
+//    'promql | map {*, foo:42}'
+//    'influxdb'
+//    'nginx  | to_json'
+//    'apache | to_logfmt'
+//    '...'
 //
-// -p '/\d+\s\w.../'
-// -p '/(\d+)\s(\w).../' -m '[timestamp:%S, method:l, *, status_code:l, content_len:m]'
-// -p '/(\d+)\s(\w).../' -m '[timestamp:%S, method:l, _, _, status_code:l, content_len:m]'
 //
-// -p 'json'
-// -p 'json' -m '[...]'
-// -p 'json' -m '{timestamp:%S, method:l, content_len:m as bytes, *}'
-// -p 'json' -m '{timestamp:%S, method:l, content_len:m as bytes, _, _}'
-//
-// -p 'scanf'
-//
-// # presets - parser and pattern matching, but the pattern matching part can be overriden
-// -p apache
-// -p envoy
-// -p nginx
-// -p nginx:combined
-// -p redis
+//    '/.*(\d+)\s(\w+)/
+//    | map {
+//      .0:ts with format "%Y-%m-%d" as time,
+//      .1 as method,
+//      extra_label: "value"
+//    }
+//    | select duration{method!="GET"}
+//    | to_json'
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     let opt = CliOpt::from_args();
 
-    let input = Input::new(
+    let mut runner = Runner::new(
+        &opt.program,
         Box::new(LineReader::new(BufReader::new(io::stdin()))),
-        Box::new(RegexDecoder::new(
-            &opt.decode,
-            opt.timestamp,
-            opt.labels,
-            opt.metrics,
-        )?),
-        opt.verbose,
-    );
-
-    let output = Output::new(
         Box::new(LineWriter::new(io::stdout())),
-        match opt.encode {
-            None => Box::new(PromApiEncoder::new()),
-            Some(e) if e == "h" => Box::new(HumanReadableEncoder::new()),
-            _ => unimplemented!(),
-        },
-    );
-
-    let exctr = Executor::new(
-        input,
-        output,
+        opt.verbose,
+        opt.interactive,
         Some(TimeRange::new(opt.since, opt.until)?),
         opt.interval,
         opt.lookback,
-    );
+    )?;
 
-    let query_ast = parse_query(&opt.query)?;
-    exctr.execute(query_ast)?;
+    runner.run()?;
 
     Ok(())
 }

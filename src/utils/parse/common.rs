@@ -8,7 +8,7 @@ use nom::{
 };
 
 use super::result::{IResult, ParseError, Span};
-use crate::model::types::{LabelName, MetricName};
+use crate::model::{LabelName, MetricName};
 
 pub fn label_identifier(input: Span) -> IResult<LabelName> {
     // [a-zA-Z_][a-zA-Z0-9_]*
@@ -93,6 +93,7 @@ where
 #[cfg(test)]
 mod tests {
     use super::*;
+
     #[test]
     fn test_separated_list_valid() -> std::result::Result<(), ParseError<'static>> {
         #[rustfmt::skip]
