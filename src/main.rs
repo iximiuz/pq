@@ -39,6 +39,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         Box::new(LineReader::new(BufReader::new(io::stdin()))),
         Box::new(LineWriter::new(io::stdout())),
         opt.verbose,
+        opt.interactive,
         Some(TimeRange::new(opt.since, opt.until)?),
         opt.interval,
         opt.lookback,

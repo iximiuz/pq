@@ -97,6 +97,7 @@ fn query<'a>(
         Box::new(LineReader::new(input_reader)),
         Box::new(MockWriter(Rc::clone(&writer))),
         cli_opt.verbose,
+        cli_opt.interactive,
         Some(TimeRange::new(cli_opt.since, cli_opt.until)?),
         cli_opt.interval,
         cli_opt.lookback,

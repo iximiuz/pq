@@ -23,6 +23,9 @@ pub struct CliOpt {
     #[structopt(long = "lookback", short = "b", parse(try_from_str = parse_duration))]
     pub lookback: Option<Duration>,
 
+    #[structopt(long = "i", short = "interactive")]
+    pub interactive: bool,
+
     #[structopt(long = "v", short = "verbose")]
     pub verbose: bool,
 }

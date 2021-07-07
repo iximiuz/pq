@@ -25,6 +25,7 @@ impl Runner {
         reader: LineIter,
         writer: Box<dyn Writer>,
         verbose: bool,
+        interactive: bool,
         range: Option<TimeRange>,
         interval: Option<Duration>,
         lookback: Option<Duration>,
@@ -37,14 +38,23 @@ impl Runner {
         };
         let decoder = Decoder::new(reader, decoding);
 
+        if let Some(program::Formatter::HumanReadable) = ast.formatter {
+            if interactive {
+                return Err(Error::new(
+                    "interactive mode only supported if no formatter was specified",
+                ));
+            }
+        }
+
         let formatter: Box<dyn Formatter> = match ast.formatter {
             Some(program::Formatter::HumanReadable) => {
-                Box::new(HumanReadableFormatter::new(verbose))
+                Box::new(HumanReadableFormatter::new(verbose, interactive))
             }
             Some(program::Formatter::JSON) => Box::new(JSONFormatter::new(verbose)),
             Some(program::Formatter::PromAPI) => Box::new(PromApiFormatter::new()),
-            None => Box::new(HumanReadableFormatter::new(verbose)),
+            None => Box::new(HumanReadableFormatter::new(verbose, interactive)),
         };
+
         let consumer = Consumer::new(writer, formatter);
 
         let range = range.unwrap_or(TimeRange::infinity());
