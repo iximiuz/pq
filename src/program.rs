@@ -166,7 +166,7 @@ fn decoder_regex(input: Span) -> IResult<Decoder> {
         return Ok((
             rest,
             Decoder::Regex {
-                regex: (*regex).to_owned(),
+                regex: (*regex).replace(r#"\/"#, "/").to_owned(),
             },
         ));
     }
@@ -454,6 +454,26 @@ mod tests {
 
         for input in &tests {
             parse_program(input).map_err(|e| format!("Got {:?} while parsing {}", e, input))?;
+        }
+        Ok(())
+    }
+
+    #[test]
+    fn test_regex_decoder() -> std::result::Result<(), String> {
+        #[rustfmt::skip]
+        let tests = [
+            (r#"//"#, ""),
+            (r#"/foo/"#, "foo"),
+             (r#"/foo\/bar/"#, "foo/bar"),
+        ];
+
+        for (input, expected) in &tests {
+            let ast =
+                parse_program(input).map_err(|e| format!("Got {:?} while parsing {}", e, input))?;
+            match ast.decoder {
+                Decoder::Regex { regex: actual } => assert_eq!(*expected, actual),
+                v => panic!("unexpected decoder {:?} while parsing {}", v, input),
+            }
         }
         Ok(())
     }
