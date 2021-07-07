@@ -256,6 +256,8 @@ Under construction...
 
 ## Development
 
+Contribution is always welcome!
+
 ```bash
 # Build it with
 make
