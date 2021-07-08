@@ -54,7 +54,7 @@ You can also visualize JSON results using the [simplistic plotting utility](grap
 
 ![RPS](images/monthly_pageviews_by_lang-result-2000-opt.png)
 
-A better usage example is under construction... See this article for more.
+A better usage example is under construction... See <a href="https://iximiuz.com/en/posts/pq/">this article</a> for more.
 
 [![Decoding](https://img.youtube.com/vi/Yh6hJFgM_YM/0.jpg)](https://www.youtube.com/watch?v=Yh6hJFgM_YM)
 
