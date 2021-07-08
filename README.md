@@ -37,7 +37,7 @@ Interactive:
 docker logs -f nginx | pq -i '
 /[^\[]+\[([^]]+)].+?\s+"([^\s]+)[^"]*?"\s+(\d+)\s+(\d+).*/
 | map { .0:ts, .1 as method, .2:str as status_code, .3 as content_len }
-| select count_over_time(__line__[1s])'
+| select sum(count_over_time(__line__[1s])) by (method)'
 ```
 
 For further analysis (JSON):
@@ -56,11 +56,11 @@ You can also visualize JSON results using the [simplistic plotting utility](grap
 
 A better usage example is under construction... See this article for more.
 
-[![Decoding](https://img.youtube.com/vi/YOUTUBE_VIDEO_ID_HERE/0.jpg)](https://www.youtube.com/watch?v=YOUTUBE_VIDEO_ID_HERE)
+[![Decoding](https://img.youtube.com/vi/Yh6hJFgM_YM/0.jpg)](https://www.youtube.com/watch?v=Yh6hJFgM_YM)
 
-[![Mapping](https://img.youtube.com/vi/YOUTUBE_VIDEO_ID_HERE/0.jpg)](https://www.youtube.com/watch?v=YOUTUBE_VIDEO_ID_HERE)
+[![Mapping](https://img.youtube.com/vi/g0W9wrEv2Ow/0.jpg)](https://www.youtube.com/watch?v=g0W9wrEv2Ow)
 
-[![Querying](https://img.youtube.com/vi/YOUTUBE_VIDEO_ID_HERE/0.jpg)](https://www.youtube.com/watch?v=YOUTUBE_VIDEO_ID_HERE)
+[![Querying](https://img.youtube.com/vi/VSuiBB4xepg/0.jpg)](https://www.youtube.com/watch?v=VSuiBB4xepg)
 
 
 ## Documentation
