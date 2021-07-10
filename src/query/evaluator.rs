@@ -32,7 +32,7 @@ impl QueryEvaluator {
         verbose: bool, // TODO: remove it
     ) -> Result<Self> {
         let interval = interval
-            .or(find_smallest_range(&query))
+            .or_else(|| find_smallest_range(&query))
             .unwrap_or(DEFAULT_INTERVAL);
         assert!(interval.as_secs() + (interval.subsec_nanos() as u64) > 0);
 
@@ -65,10 +65,7 @@ impl std::iter::Iterator for QueryEvaluator {
             self.drained = true;
         }
 
-        match self.inner.next() {
-            Some(v) => Some(Ok(v)),
-            None => None,
-        }
+        self.inner.next().map(Ok)
     }
 }
 

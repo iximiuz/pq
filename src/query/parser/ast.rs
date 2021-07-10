@@ -346,10 +346,11 @@ impl FunctionCall {
     pub(super) fn new(name: FunctionName, args: Vec<FunctionCallArg>) -> Self {
         use FunctionName::*;
 
-        match name {
-            Vector => assert!(args.len() == 1), // TODO: assert args[0] is number
-            _ => (),                            // TODO: check all functions
-        };
+        if name == Vector {
+            // TODO: assert args[0] is number
+            assert_eq!(args.len(), 1)
+        }
+        // TODO: check all functions if name != Vector
 
         Self { name, args }
     }
@@ -367,9 +368,8 @@ impl FunctionCall {
     #[inline]
     pub fn expr(&self) -> Option<&Expr> {
         for arg in self.args.iter() {
-            match arg {
-                FunctionCallArg::Expr(expr) => return Some(expr.as_ref()),
-                _ => (),
+            if let FunctionCallArg::Expr(expr) = arg {
+                return Some(expr.as_ref());
             }
         }
         None

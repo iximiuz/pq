@@ -41,7 +41,7 @@ impl InstantVector {
 
     #[inline]
     pub fn samples(&self) -> &[(Labels, SampleValue)] {
-        return &self.samples;
+        &self.samples
     }
 
     pub fn apply_scalar_op(
@@ -83,15 +83,12 @@ impl InstantVector {
                 None => labels.without(&HashSet::new()),
             };
 
-            match rhs.insert(matched_labels.to_vec(), value) {
-                Some(duplicate) => {
-                    // TODO: replace with error
-                    panic!(
+            if let Some(duplicate) = rhs.insert(matched_labels.to_vec(), value) {
+                // TODO: replace with error
+                panic!(
                         "Found series collision for matchinng labels ({:?}).\nFirst: {:#?}\nSecond: {:#?}",
                         label_matching, duplicate, matched_labels
                     );
-                }
-                None => (),
             }
         }
 
@@ -136,9 +133,9 @@ impl InstantVector {
         _op: impl Fn(SampleValue, SampleValue) -> Option<SampleValue>,
         other: &InstantVector,
         _label_matching: Option<&LabelMatching>,
-        _include_labels: &Vec<LabelName>,
+        _include_labels: &[LabelName],
     ) -> Self {
-        assert!(self.instant == other.instant);
+        assert_eq!(self.instant, other.instant);
         unimplemented!();
     }
 
@@ -147,7 +144,7 @@ impl InstantVector {
         op: impl Fn(SampleValue, SampleValue) -> Option<SampleValue>,
         other: &InstantVector,
         label_matching: Option<&LabelMatching>,
-        include_labels: &Vec<LabelName>,
+        include_labels: &[LabelName],
     ) -> Self {
         other.apply_vector_op_one_to_many(|l, r| op(r, l), self, label_matching, include_labels)
     }
@@ -171,6 +168,6 @@ impl RangeVector {
 
     #[inline]
     pub fn samples(&self) -> &[(Labels, Vec<(SampleValue, Timestamp)>)] {
-        return &self.samples;
+        &self.samples
     }
 }

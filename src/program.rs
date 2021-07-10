@@ -166,7 +166,7 @@ fn decoder_regex(input: Span) -> IResult<Decoder> {
         return Ok((
             rest,
             Decoder::Regex {
-                regex: (*regex).replace(r#"\/"#, "/").to_owned(),
+                regex: (*regex).replace(r#"\/"#, "/"),
             },
         ));
     }
@@ -229,7 +229,7 @@ fn mapper(input: Span) -> IResult<Mapper> {
         }
     }
 
-    if fields.len() == 0 {
+    if fields.is_empty() {
         return Err(nom::Err::Failure(ParseError::new(
             "map expression must have at least one field definition (example: .1:str as some_name)"
                 .to_owned(),
@@ -267,7 +267,7 @@ fn mapper_field_dynamic(input: Span) -> IResult<MapperField> {
         map(digit1, |d: Span| {
             FieldLoc::Position((*d).parse::<usize>().unwrap())
         }),
-        map(label_identifier, |n| FieldLoc::Name(n)),
+        map(label_identifier, FieldLoc::Name),
     ))(rest)
     {
         Ok((rest, loc)) => (rest, loc),
@@ -378,7 +378,7 @@ fn mapper_field_const(input: Span) -> IResult<MapperField> {
         rest,
         MapperField {
             loc: FieldLoc::Name(name),
-            typ: FieldType::Const(value.to_owned()),
+            typ: FieldType::Const(value),
             alias: None,
         },
     ))
@@ -424,7 +424,7 @@ fn find_unescaped(stack: &str, needle: char) -> Option<usize> {
             armed = false;
         }
     }
-    return None;
+    None
 }
 
 #[cfg(test)]

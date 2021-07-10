@@ -16,7 +16,7 @@ impl RegexDecodingStrategy {
 }
 
 impl DecodingStrategy for RegexDecodingStrategy {
-    fn decode(&self, line: &Vec<u8>) -> Result<DecodingResult> {
+    fn decode(&self, line: &[u8]) -> Result<DecodingResult> {
         // TODO: handle named captures and return Decoded::Dict.
 
         let caps = self.re.captures(line).ok_or("no match found")?;

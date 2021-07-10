@@ -5,7 +5,7 @@ use structopt::StructOpt;
 use pq::cliopt::CliOpt;
 use pq::input::LineReader;
 use pq::output::LineWriter;
-use pq::runner::Runner;
+use pq::runner::{Runner, RunnerOptions};
 use pq::utils::time::TimeRange;
 
 //    'json'                                 // as is
@@ -38,11 +38,13 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         &opt.program,
         Box::new(LineReader::new(BufReader::new(io::stdin()))),
         Box::new(LineWriter::new(io::stdout())),
-        opt.verbose,
-        opt.interactive,
-        Some(TimeRange::new(opt.since, opt.until)?),
-        opt.interval,
-        opt.lookback,
+        RunnerOptions::new(
+            opt.verbose,
+            opt.interactive,
+            Some(TimeRange::new(opt.since, opt.until)?),
+            opt.interval,
+            opt.lookback,
+        ),
     )?;
 
     runner.run()?;

@@ -159,7 +159,7 @@ impl AggregateEvaluator {
         InstantVector::new(
             v.timestamp(),
             agg.values()
-                .flat_map(|top| top.into_iter().map(|v| (v.1.clone(), v.2)))
+                .flat_map(|top| top.iter().map(|v| (v.1.clone(), v.2)))
                 .collect(),
         )
     }

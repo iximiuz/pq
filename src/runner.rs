@@ -13,6 +13,32 @@ use crate::utils::time::TimeRange;
 
 type LineIter = Box<dyn std::iter::Iterator<Item = Result<(usize, Vec<u8>)>>>;
 
+pub struct RunnerOptions {
+    verbose: bool,
+    interactive: bool,
+    range: Option<TimeRange>,
+    interval: Option<Duration>,
+    lookback: Option<Duration>,
+}
+
+impl RunnerOptions {
+    pub fn new(
+        verbose: bool,
+        interactive: bool,
+        range: Option<TimeRange>,
+        interval: Option<Duration>,
+        lookback: Option<Duration>,
+    ) -> RunnerOptions {
+        RunnerOptions {
+            verbose,
+            interactive,
+            range,
+            interval,
+            lookback,
+        }
+    }
+}
+
 pub struct Runner {
     producer: Producer,
     consumer: Consumer,
@@ -24,16 +50,20 @@ impl Runner {
         program: &str,
         reader: LineIter,
         writer: Box<dyn Writer>,
-        verbose: bool,
-        interactive: bool,
-        range: Option<TimeRange>,
-        interval: Option<Duration>,
-        lookback: Option<Duration>,
+        options: RunnerOptions,
     ) -> Result<Self> {
+        let RunnerOptions {
+            verbose,
+            interactive,
+            range,
+            interval,
+            lookback,
+        } = options;
+
         let ast = parse_program(program)?;
 
         let decoding: Box<dyn DecodingStrategy> = match ast.decoder {
-            program::Decoder::JSON => Box::new(JSONDecodingStrategy::new()),
+            program::Decoder::JSON => Box::new(JSONDecodingStrategy::default()),
             program::Decoder::Regex { regex } => Box::new(RegexDecodingStrategy::new(&regex)?),
         };
         let decoder = Decoder::new(reader, decoding);
@@ -51,13 +81,13 @@ impl Runner {
                 Box::new(HumanReadableFormatter::new(verbose, interactive))
             }
             Some(program::Formatter::JSON) => Box::new(JSONFormatter::new(verbose)),
-            Some(program::Formatter::PromAPI) => Box::new(PromApiFormatter::new()),
+            Some(program::Formatter::PromAPI) => Box::new(PromApiFormatter::default()),
             None => Box::new(HumanReadableFormatter::new(verbose, interactive)),
         };
 
         let consumer = Consumer::new(writer, formatter);
 
-        let range = range.unwrap_or(TimeRange::infinity());
+        let range = range.unwrap_or_else(TimeRange::infinity);
 
         let mapper = match ast.mapper {
             Some(mapper) => Mapper::new(Box::new(decoder), mapper, Some(range)),
@@ -159,7 +189,7 @@ impl Consumer {
 
     pub fn write(&mut self, value: &Value) -> Result<()> {
         let buf = self.formatter.format(value)?;
-        if buf.len() > 0 {
+        if !buf.is_empty() {
             self.writer
                 .write(&buf)
                 .map_err(|e| ("writer failed with error {}", e))?;

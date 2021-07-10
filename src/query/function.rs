@@ -43,7 +43,7 @@ impl AggOverTimeFuncEvaluator {
 
         let samples = v
             .samples()
-            .into_iter()
+            .iter()
             .map(|(labels, values)| {
                 (
                     labels.without(&HashSet::new()), // trick to remove __name__
@@ -57,11 +57,11 @@ impl AggOverTimeFuncEvaluator {
                         MinOverTime => values
                             .iter()
                             .map(|(v, _)| *v)
-                            .fold(SampleValue::INFINITY, |m, c| SampleValue::min(m, c)),
+                            .fold(SampleValue::INFINITY, SampleValue::min),
                         MaxOverTime => values
                             .iter()
                             .map(|(v, _)| *v)
-                            .fold(SampleValue::NEG_INFINITY, |m, c| SampleValue::max(m, c)),
+                            .fold(SampleValue::NEG_INFINITY, SampleValue::max),
                         SumOverTime => values.iter().map(|(v, _)| *v).sum(),
                         _ => unreachable!("bug"),
                     },

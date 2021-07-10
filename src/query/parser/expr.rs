@@ -37,7 +37,7 @@ pub fn expr<'a>(min_prec: Option<Precedence>) -> impl FnMut(Span<'a>) -> IResult
         // E.g.  expr = unary_expr | vector_selector | binary_expr ...
         // where binary_expr = expr <OP> expr
 
-        while !EXPR_SEP.contains(&(*rest).trim_start().chars().nth(0)) {
+        while !EXPR_SEP.contains(&(*rest).trim_start().chars().next()) {
             let (tmp_rest, op) = match maybe_lpadded(binary_op)(rest) {
                 Ok((r, o)) => (r, o),
                 Err(_) => {
@@ -499,19 +499,6 @@ fn call_arg_number(input: Span) -> IResult<FunctionCallArg> {
         _ => Err(nom::Err::Failure(ParseError::partial(
             "function call",
             "number literal",
-            input,
-        ))),
-    }
-}
-
-/// It should never return nom::Err::Error. Only success or total failure.
-fn call_arg_string(input: Span) -> IResult<FunctionCallArg> {
-    match string_literal(input) {
-        Ok((rest, s)) => Ok((rest, FunctionCallArg::String(s))),
-        Err(nom::Err::Failure(e)) => Err(nom::Err::Failure(e)),
-        _ => Err(nom::Err::Failure(ParseError::partial(
-            "function call",
-            "string literal",
             input,
         ))),
     }

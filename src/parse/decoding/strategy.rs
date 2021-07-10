@@ -9,5 +9,5 @@ pub enum DecodingResult {
 }
 
 pub trait DecodingStrategy {
-    fn decode(&self, line: &Vec<u8>) -> Result<DecodingResult>;
+    fn decode(&self, line: &[u8]) -> Result<DecodingResult>;
 }

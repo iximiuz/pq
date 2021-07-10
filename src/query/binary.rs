@@ -343,12 +343,12 @@ fn scalar_op_scalar(op: BinaryOp, lv: SampleValue, rv: SampleValue) -> SampleVal
         Sub => lv - rv,
 
         // Comparison
-        Eql => (lv == rv) as i64 as SampleValue,
+        Eql => ((lv - rv).abs() < f64::EPSILON) as i64 as SampleValue,
         Gte => (lv >= rv) as i64 as SampleValue,
         Gtr => (lv > rv) as i64 as SampleValue,
         Lss => (lv < rv) as i64 as SampleValue,
         Lte => (lv <= rv) as i64 as SampleValue,
-        Neq => (lv != rv) as i64 as SampleValue,
+        Neq => ((lv - rv).abs() > f64::EPSILON) as i64 as SampleValue,
         _ => unimplemented!(),
     }
 }
@@ -362,7 +362,9 @@ fn scalar_op_scalar_ex(
 ) -> Option<SampleValue> {
     match (op.kind(), bool_modifier, scalar_op_scalar(op, lv, rv)) {
         (BinaryOpKind::Comparison, false, val) if val == 0.0 => None,
-        (BinaryOpKind::Comparison, false, val) if val == 1.0 => Some(comp_value),
+        (BinaryOpKind::Comparison, false, val) if (val - 1.0).abs() < f64::EPSILON => {
+            Some(comp_value)
+        }
         (_, _, val) => Some(val),
     }
 }

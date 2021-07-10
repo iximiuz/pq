@@ -63,7 +63,7 @@ impl From<&str> for Error {
 impl<E: error::Error + 'static> From<(String, E)> for Error {
     fn from((message, err): (String, E)) -> Self {
         Self {
-            message: message,
+            message,
             source: Some(Box::new(err)),
         }
     }
