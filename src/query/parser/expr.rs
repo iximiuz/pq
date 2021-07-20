@@ -445,6 +445,13 @@ fn function_call(func_name: FunctionName, input: Span) -> IResult<FunctionCall> 
         }
         Clamp => vec![call_arg_instant_vector, call_arg_number, call_arg_number],
         ClampMax | ClampMin => vec![call_arg_instant_vector, call_arg_number],
+        LabelReplace => vec![
+            call_arg_instant_vector,
+            call_arg_string,
+            call_arg_string,
+            call_arg_string,
+            call_arg_string,
+        ],
         Vector => vec![call_arg_number],
     };
 
