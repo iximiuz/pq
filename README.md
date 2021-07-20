@@ -56,6 +56,20 @@ You can also visualize JSON results using the [simplistic plotting utility](grap
 
 A better usage example is under construction... See <a href="https://iximiuz.com/en/posts/pq/">this article for some screencasts</a>.
 
+
+## Installation
+
+For now only the following method is supported:
+
+```bash
+cargo install --git https://github.com/iximiuz/pq
+```
+
+It requires Cargo and Rust and should probably work on all platforms supported by Rust ecosystem.
+
+Eventually, more installation methods will be added (brew, apt, dnf, etc).
+
+
 ## Documentation
 
 `pq` accepts _a program_ as its only required argument. A program must
