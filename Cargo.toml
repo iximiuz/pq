@@ -11,6 +11,10 @@ repository = "https://github.com/iximiuz/pq"
 readme = "README.md"
 keywords = ["log", "parse", "query", "time-series"]
 categories = ["command-line-utilities"]
+include = [
+    "**/*.rs",
+    "Cargo.toml",
+]
 
 [dependencies]
 chrono = "0.4.19"
