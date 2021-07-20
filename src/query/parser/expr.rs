@@ -445,6 +445,13 @@ fn function_call(func_name: FunctionName, input: Span) -> IResult<FunctionCall> 
         }
         Clamp => vec![call_arg_instant_vector, call_arg_number, call_arg_number],
         ClampMax | ClampMin => vec![call_arg_instant_vector, call_arg_number],
+        LabelReplace => vec![
+            call_arg_instant_vector,
+            call_arg_string,
+            call_arg_string,
+            call_arg_string,
+            call_arg_string,
+        ],
         Vector => vec![call_arg_number],
     };
 
@@ -499,6 +506,19 @@ fn call_arg_number(input: Span) -> IResult<FunctionCallArg> {
         _ => Err(nom::Err::Failure(ParseError::partial(
             "function call",
             "number literal",
+            input,
+        ))),
+    }
+}
+
+/// It should never return nom::Err::Error. Only success or total failure.
+fn call_arg_string(input: Span) -> IResult<FunctionCallArg> {
+    match string_literal(input) {
+        Ok((rest, s)) => Ok((rest, FunctionCallArg::String(s))),
+        Err(nom::Err::Failure(e)) => Err(nom::Err::Failure(e)),
+        _ => Err(nom::Err::Failure(ParseError::partial(
+            "function call",
+            "string literal",
             input,
         ))),
     }

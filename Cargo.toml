@@ -1,8 +1,20 @@
 [package]
 name = "pq"
-version = "0.0.5"
-authors = ["Ivan Velichko <iximiuz@gmail.com>"]
+description = "Parse and Query log files as time series"
+version = "0.0.6"
 edition = "2018"
+authors = ["Ivan Velichko <iximiuz@gmail.com>"]
+license-file = "LICENSE"
+homepage = "https://github.com/iximiuz/pq"
+documentation = "https://github.com/iximiuz/pq"
+repository = "https://github.com/iximiuz/pq"
+readme = "README.md"
+keywords = ["log", "parse", "query", "time-series"]
+categories = ["command-line-utilities"]
+include = [
+    "**/*.rs",
+    "Cargo.toml",
+]
 
 [dependencies]
 chrono = "0.4.19"

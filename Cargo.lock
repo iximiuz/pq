@@ -207,7 +207,7 @@ dependencies = [
 
 [[package]]
 name = "pq"
-version = "0.0.5"
+version = "0.0.6"
 dependencies = [
  "chrono",
  "lazy_static",

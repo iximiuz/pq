@@ -295,6 +295,7 @@ pub enum FunctionName {
     Clamp,
     ClampMax,
     ClampMin,
+    LabelReplace,
     Vector,
 
     // agg over time
@@ -316,6 +317,7 @@ impl std::convert::TryFrom<&str> for FunctionName {
             "clamp" => Ok(Clamp),
             "clamp_max" => Ok(ClampMax),
             "clamp_min" => Ok(ClampMin),
+            "label_replace" => Ok(LabelReplace),
             "vector" => Ok(Vector),
             // agg over time
             "avg_over_time" => Ok(AvgOverTime),

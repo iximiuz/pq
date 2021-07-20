@@ -277,52 +277,48 @@ impl std::iter::Iterator for BinaryEvaluatorVectorVector {
         };
 
         let (ltimestamp, rtimestamp) = (lv.timestamp(), rv.timestamp());
-
-        if ltimestamp == rtimestamp {
-            let (lv, rv) = if let (Some(InstantVector(lv)), Some(InstantVector(rv))) =
-                (self.left.next(), self.right.next())
-            {
-                (lv, rv)
+        if ltimestamp != rtimestamp {
+            if ltimestamp < rtimestamp {
+                // left vector is behind right vector in time.
+                // consume left one, but produce no result yet
+                self.left.next().unwrap();
             } else {
-                unreachable!()
-            };
+                // right vector is behind left vector in time.
+                // consume rigth one, but produce no result yet
+                self.right.next().unwrap();
+            }
 
-            return Some(InstantVector(match self.group_modifier {
-                None => lv.apply_vector_op_one_to_one(
-                    |ls, rs| scalar_op_scalar_ex(self.op, ls, rs, self.bool_modifier, ls),
-                    &rv,
-                    self.label_matching.as_ref(),
-                    self.op.kind() == BinaryOpKind::Comparison && !self.bool_modifier,
-                ),
-                Some(GroupModifier::Left(ref include)) => lv.apply_vector_op_many_to_one(
-                    |ls, rs| scalar_op_scalar_ex(self.op, ls, rs, self.bool_modifier, ls),
-                    &rv,
-                    self.label_matching.as_ref(),
-                    include,
-                ),
-                Some(GroupModifier::Right(ref include)) => lv.apply_vector_op_one_to_many(
-                    |ls, rs| scalar_op_scalar_ex(self.op, ls, rs, self.bool_modifier, ls),
-                    &rv,
-                    self.label_matching.as_ref(),
-                    include,
-                ),
-            }));
-        };
-
-        if ltimestamp < rtimestamp {
-            // left vector is behind right vector in time.
-            // consume left one, but produce no result yet
-            self.left.next().unwrap();
-        } else {
-            // right vector is behind left vector in time.
-            // consume rigth one, but produce no result yet
-            self.right.next().unwrap();
+            return Some(InstantVector(Vector::new(
+                std::cmp::min(ltimestamp, rtimestamp),
+                vec![],
+            )));
         }
 
-        Some(InstantVector(Vector::new(
-            std::cmp::min(ltimestamp, rtimestamp),
-            vec![],
-        )))
+        let (lv, rv) = match (self.left.next(), self.right.next()) {
+            (Some(InstantVector(lv)), Some(InstantVector(rv))) => (lv, rv),
+            _ => unreachable!(),
+        };
+
+        Some(InstantVector(match self.group_modifier {
+            None => lv.apply_vector_op_one_to_one(
+                |ls, rs| scalar_op_scalar_ex(self.op, ls, rs, self.bool_modifier, ls),
+                &rv,
+                self.label_matching.as_ref(),
+                self.op.kind() == BinaryOpKind::Comparison && !self.bool_modifier,
+            ),
+            Some(GroupModifier::Left(ref include)) => lv.apply_vector_op_many_to_one(
+                |ls, rs| scalar_op_scalar_ex(self.op, ls, rs, self.bool_modifier, ls),
+                &rv,
+                self.label_matching.as_ref(),
+                include,
+            ),
+            Some(GroupModifier::Right(ref include)) => lv.apply_vector_op_one_to_many(
+                |ls, rs| scalar_op_scalar_ex(self.op, ls, rs, self.bool_modifier, ls),
+                &rv,
+                self.label_matching.as_ref(),
+                include,
+            ),
+        }))
     }
 }
 
