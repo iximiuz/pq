@@ -10,7 +10,7 @@ use structopt::StructOpt;
 use pq::cliopt::CliOpt;
 use pq::input::LineReader;
 use pq::output::{LineWriter, Writer};
-use pq::runner::Runner;
+use pq::runner::{Runner, RunnerOptions};
 use pq::utils::time::TimeRange;
 
 #[test]
@@ -85,7 +85,7 @@ fn query<'a>(
     struct MockWriter<W>(Rc<RefCell<W>>);
 
     impl<W: Writer> Writer for MockWriter<W> {
-        fn write(&mut self, buf: &Vec<u8>) -> io::Result<()> {
+        fn write(&mut self, buf: &[u8]) -> io::Result<()> {
             self.0.borrow_mut().write(buf)
         }
     }
@@ -96,11 +96,13 @@ fn query<'a>(
         &cli_opt.program,
         Box::new(LineReader::new(input_reader)),
         Box::new(MockWriter(Rc::clone(&writer))),
-        cli_opt.verbose,
-        cli_opt.interactive,
-        Some(TimeRange::new(cli_opt.since, cli_opt.until)?),
-        cli_opt.interval,
-        cli_opt.lookback,
+        RunnerOptions::new(
+            cli_opt.verbose,
+            cli_opt.interactive,
+            Some(TimeRange::new(cli_opt.since, cli_opt.until)?),
+            cli_opt.interval,
+            cli_opt.lookback,
+        ),
     )?;
     runner.run()?;
 

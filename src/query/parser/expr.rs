@@ -37,7 +37,7 @@ pub fn expr<'a>(min_prec: Option<Precedence>) -> impl FnMut(Span<'a>) -> IResult
         // E.g.  expr = unary_expr | vector_selector | binary_expr ...
         // where binary_expr = expr <OP> expr
 
-        while !EXPR_SEP.contains(&(*rest).trim_start().chars().nth(0)) {
+        while !EXPR_SEP.contains(&(*rest).trim_start().chars().next()) {
             let (tmp_rest, op) = match maybe_lpadded(binary_op)(rest) {
                 Ok((r, o)) => (r, o),
                 Err(_) => {

@@ -122,11 +122,13 @@ impl Scalar {
 
 pub struct PromApiFormatter {}
 
-impl PromApiFormatter {
-    pub fn new() -> Self {
+impl Default for PromApiFormatter {
+    fn default() -> Self {
         Self {}
     }
+}
 
+impl PromApiFormatter {
     // Instant query - instant vector
     // {
     //   "resultType": "vector",

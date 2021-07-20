@@ -87,7 +87,7 @@ fn parse_timestamp_field(timestamp: &str, format: Option<&str>) -> Result<Timest
         Some(format) => parse_time(timestamp, format),
         None => match try_parse_time(timestamp) {
             Some(timestamp) => Ok(timestamp),
-            None => return Err(Error::new("couldn't guess time format")),
+            None => Err(Error::new("couldn't guess time format")),
         },
     }
 }

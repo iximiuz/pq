@@ -7,11 +7,13 @@ use crate::error::{Error, Result};
 
 pub struct JSONDecodingStrategy {}
 
-impl JSONDecodingStrategy {
-    pub fn new() -> Self {
+impl Default for JSONDecodingStrategy {
+    fn default() -> Self {
         Self {}
     }
+}
 
+impl JSONDecodingStrategy {
     fn decode_tuple(&self, tuple: Vec<Value>) -> Result<DecodingResult> {
         let items: Vec<String> = tuple
             .iter()
@@ -44,16 +46,14 @@ impl JSONDecodingStrategy {
 }
 
 impl DecodingStrategy for JSONDecodingStrategy {
-    fn decode(&self, line: &Vec<u8>) -> Result<DecodingResult> {
+    fn decode(&self, line: &[u8]) -> Result<DecodingResult> {
         match serde_json::from_slice(line) {
             Ok(Value::Array(t)) => self.decode_tuple(t),
             Ok(Value::Object(o)) => self.decode_dict(o),
-            Err(e) => return Err(("JSON decoding failed", e).into()),
-            _ => {
-                return Err(Error::new(
-                    "JSON decoder supports only flat arrays and objects",
-                ))
-            }
+            Err(e) => Err(("JSON decoding failed", e).into()),
+            _ => Err(Error::new(
+                "JSON decoder supports only flat arrays and objects",
+            )),
         }
     }
 }

@@ -44,7 +44,7 @@ impl std::iter::Iterator for Decoder {
         match self.strategy.decode(&line) {
             Ok(DecodingResult::Tuple(v)) => Some(Ok(Entry::Tuple(line_no, v))),
             Ok(DecodingResult::Dict(v)) => Some(Ok(Entry::Dict(line_no, v))),
-            Err(e) => return Some(Err(("line decoding failed", e).into())),
+            Err(e) => Some(Err(("line decoding failed", e).into())),
         }
     }
 }

@@ -74,7 +74,7 @@ impl LabelMatcher {
         let label = label.into();
         let value = value.into();
 
-        assert!(label.len() > 0);
+        assert!(!label.is_empty());
 
         let re = match match_op {
             MatchOp::EqlRe | MatchOp::NeqRe => {
@@ -96,7 +96,7 @@ impl LabelMatcher {
         V: Into<LabelValue>,
     {
         let name = name.into();
-        assert!(name.len() > 0);
+        assert!(!name.is_empty());
 
         Self {
             label: NAME_LABEL.to_string(),

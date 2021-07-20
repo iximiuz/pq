@@ -42,10 +42,10 @@ impl HumanReadableFormatter {
         if let Some(ts) = record.timestamp() {
             parts.push(ts.to_string_millis());
         }
-        if record.labels().len() > 0 {
+        if !record.labels().is_empty() {
             parts.push(self.format_dict(record.labels(), "\t"));
         }
-        if record.values().len() > 0 {
+        if !record.values().is_empty() {
             parts.push(
                 self.format_dict(
                     &record
@@ -72,11 +72,11 @@ impl HumanReadableFormatter {
             let mut parts = vec![format!("{}\t", vector.timestamp().to_string_millis())];
 
             if let Some(metric) = labels.name() {
-                parts.push(format!("{}", metric));
+                parts.push(metric.to_string());
             }
 
             let labels = labels.without(&HashSet::new()); // to drop __name__
-            if labels.len() > 0 || labels.name().is_some() {
+            if !labels.is_empty() || labels.name().is_some() {
                 parts.push(format!("{{{}}}\t\t\t", self.format_dict(&labels, ", ")));
             }
 
@@ -85,7 +85,7 @@ impl HumanReadableFormatter {
             lines.push(parts.join(""));
         }
 
-        if lines.len() == 0 {
+        if lines.is_empty() {
             if !self.verbose {
                 return Ok(Vec::new());
             }
@@ -136,11 +136,11 @@ impl HumanReadableFormatter {
             let mut parts = vec![format!("{}\t", vector.timestamp().to_string_millis())];
 
             if let Some(metric) = labels.name() {
-                parts.push(format!("{}", metric));
+                parts.push(metric.to_string());
             }
 
             let labels = labels.without(&HashSet::new()); // to drop __name__
-            if labels.len() > 0 || labels.name().is_some() {
+            if !labels.is_empty() || labels.name().is_some() {
                 parts.push(format!("{{{}}}\t\t\t", self.format_dict(&labels, ", ")));
             }
 
@@ -150,7 +150,7 @@ impl HumanReadableFormatter {
             }
         }
 
-        if lines.len() == 0 {
+        if lines.is_empty() {
             if !self.verbose {
                 return Ok(Vec::new());
             }

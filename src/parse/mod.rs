@@ -1,5 +1,5 @@
-mod decoder;
-mod mapper;
+mod decoding;
+mod mapping;
 
-pub use decoder::*;
-pub use mapper::*;
+pub use decoding::*;
+pub use mapping::*;

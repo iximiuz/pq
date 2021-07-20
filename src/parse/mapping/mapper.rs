@@ -21,7 +21,7 @@ impl Mapper {
         Self {
             entries,
             strategy: MappingStrategy::new(mapping),
-            range: range.unwrap_or(TimeRange::infinity()),
+            range: range.unwrap_or_else(TimeRange::infinity),
         }
     }
 }

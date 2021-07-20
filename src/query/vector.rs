@@ -7,6 +7,8 @@ use super::sample::{Cursor, Sample};
 use super::value::{InstantVector, QueryValue, QueryValueIter, QueryValueKind, RangeVector};
 use crate::model::{Labels, LabelsTrait, SampleValue, Timestamp, TimestampTrait};
 
+type BTreeMatrix = BTreeMap<Vec<u8>, (Labels, VecDeque<(SampleValue, Timestamp)>)>;
+
 pub(super) struct VectorSelectorEvaluator {
     cursor: Rc<Cursor>,
     selector: VectorSelector,
@@ -32,8 +34,7 @@ impl VectorSelectorEvaluator {
         // Trying to set a reasonable first instant timestamp if the
         // query time range is provided. We cannot start from start_at
         // as is because the very first vector would have to few samples.
-        let next_instant =
-            start_at.and_then(|t| Some(t.add(std::cmp::min(lookback, interval)) - 1));
+        let next_instant = start_at.map(|t| t.add(std::cmp::min(lookback, interval)) - 1);
 
         Self {
             cursor,
@@ -124,7 +125,7 @@ impl std::iter::Iterator for VectorSelectorEvaluator {
         let keep_since = self.next_instant.unwrap().sub(self.lookback);
         self.buffer.purge_before(keep_since);
 
-        return Some(vector);
+        Some(vector)
     }
 }
 
@@ -139,7 +140,7 @@ impl QueryValueIter for VectorSelectorEvaluator {
 
 #[derive(Debug)]
 struct SampleMatrix {
-    matrix: BTreeMap<Vec<u8>, (Labels, VecDeque<(SampleValue, Timestamp)>)>,
+    matrix: BTreeMatrix,
     latest_sample_timestamp: Option<Timestamp>,
 }
 
@@ -154,12 +155,12 @@ impl SampleMatrix {
     }
 
     fn is_empty(&self) -> bool {
-        assert!((self.matrix.len() == 0) == self.latest_sample_timestamp.is_none());
+        assert!((self.matrix.is_empty()) == self.latest_sample_timestamp.is_none());
         self.matrix.len() == 0
     }
 
     fn latest_sample_timestamp(&self) -> Option<Timestamp> {
-        assert!((self.matrix.len() == 0) == self.latest_sample_timestamp.is_none());
+        assert!((self.matrix.is_empty()) == self.latest_sample_timestamp.is_none());
         self.latest_sample_timestamp
     }
 
@@ -195,7 +196,7 @@ impl SampleMatrix {
             !series.is_empty()
         });
 
-        if self.matrix.len() == 0 {
+        if self.matrix.is_empty() {
             self.latest_sample_timestamp = None;
         }
     }

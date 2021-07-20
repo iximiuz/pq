@@ -41,7 +41,7 @@ impl JSONFormatter {
     pub fn new(verbose: bool) -> Self {
         Self {
             verbose,
-            promfmt: PromApiFormatter::new(),
+            promfmt: PromApiFormatter::default(),
         }
     }
 

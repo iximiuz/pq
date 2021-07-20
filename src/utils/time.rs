@@ -48,36 +48,30 @@ pub fn parse_time(s: &str, format: &str) -> Result<Timestamp> {
 }
 
 pub fn try_parse_time(s: &str) -> Option<Timestamp> {
-    match DateTime::parse_from_rfc3339(s) {
-        Ok(dt) => return Some(dt.timestamp_millis()),
-        Err(_) => (),
+    if let Ok(dt) = DateTime::parse_from_rfc3339(s) {
+        return Some(dt.timestamp_millis());
     }
 
-    match DateTime::parse_from_rfc2822(s) {
-        Ok(dt) => return Some(dt.timestamp_millis()),
-        Err(_) => (),
+    if let Ok(dt) = DateTime::parse_from_rfc2822(s) {
+        return Some(dt.timestamp_millis());
     }
 
     // Nginx
-    match DateTime::parse_from_str(s, "%d/%b/%Y:%H:%M:%S %z") {
-        Ok(dt) => return Some(dt.timestamp_millis()),
-        Err(_) => (),
+    if let Ok(dt) = DateTime::parse_from_str(s, "%d/%b/%Y:%H:%M:%S %z") {
+        return Some(dt.timestamp_millis());
     }
 
     // ISO-like
-    match NaiveDateTime::parse_from_str(s, "%Y-%m-%d %H:%M:%S%.f") {
-        Ok(dt) => return Some(dt.timestamp_millis()),
-        Err(_) => (),
+    if let Ok(dt) = NaiveDateTime::parse_from_str(s, "%Y-%m-%d %H:%M:%S%.f") {
+        return Some(dt.timestamp_millis());
     }
 
-    match NaiveDateTime::parse_from_str(s, "%Y-%m-%dT%H:%M:%S%.f") {
-        Ok(dt) => return Some(dt.timestamp_millis()),
-        Err(_) => (),
+    if let Ok(dt) = NaiveDateTime::parse_from_str(s, "%Y-%m-%dT%H:%M:%S%.f") {
+        return Some(dt.timestamp_millis());
     }
 
-    match DateTime::parse_from_str(s, "%Y-%m-%d %H:%M:%S%.f %z") {
-        Ok(dt) => return Some(dt.timestamp_millis()),
-        Err(_) => (),
+    if let Ok(dt) = DateTime::parse_from_str(s, "%Y-%m-%d %H:%M:%S%.f %z") {
+        return Some(dt.timestamp_millis());
     }
 
     // UNIX timestamp
