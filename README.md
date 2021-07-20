@@ -1,5 +1,7 @@
 # pq - Parse and Query log files as time series
 
+[![.github/workflows/rust.yml](https://github.com/iximiuz/pq/actions/workflows/rust.yml/badge.svg?branch=main)](https://github.com/iximiuz/pq/actions/workflows/rust.yml)
+
 **Project is actively being developed!**
 
 
