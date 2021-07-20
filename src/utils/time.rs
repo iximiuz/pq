@@ -109,7 +109,8 @@ mod tests {
         ];
 
         for (input, expected) in &tests {
-            let actual = try_parse_time(input).expect(&format!("failed to parse {}", input));
+            let actual =
+                try_parse_time(input).unwrap_or_else(|| panic!("failed to parse {}", input));
             assert_eq!(*expected, actual);
         }
 

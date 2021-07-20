@@ -4,7 +4,6 @@ use std::io;
 use std::path::Path;
 use std::rc::Rc;
 
-use serde_json;
 use structopt::StructOpt;
 
 use pq::cliopt::CliOpt;
@@ -54,7 +53,7 @@ fn e2e() -> Result<(), Box<dyn std::error::Error>> {
             eprintln!(
                 "{}: unexpected query result.\nCommand: {}\nExpected:\n{}\nActual:\n{}",
                 test_dir.display(),
-                pprint_cli_args(&test_dir.join("input").as_path(), &cli_args),
+                pprint_cli_args(test_dir.join("input").as_path(), &cli_args),
                 String::from_utf8_lossy(&expected_output),
                 String::from_utf8_lossy(&actual_output),
             );
@@ -63,7 +62,7 @@ fn e2e() -> Result<(), Box<dyn std::error::Error>> {
     }
 
     assert!(
-        failed.len() == 0,
+        failed.is_empty(),
         "Failed e2e tests:\n{}",
         failed
             .iter()
@@ -74,7 +73,7 @@ fn e2e() -> Result<(), Box<dyn std::error::Error>> {
     Ok(())
 }
 
-fn query<'a>(
+fn query(
     input_reader: Box<dyn io::BufRead>,
     cli_args: &[String],
 ) -> Result<Vec<u8>, Box<dyn std::error::Error>> {
@@ -131,7 +130,7 @@ fn pprint_cli_args(input_filename: &Path, command: &[String]) -> String {
             .iter()
             .cloned()
             .map(|s| {
-                if s == "pq" || s.starts_with("-") {
+                if s == "pq" || s.starts_with('-') {
                     s
                 } else {
                     format!("'{}'", s)

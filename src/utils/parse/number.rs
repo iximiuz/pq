@@ -26,7 +26,12 @@ mod tests {
 
         for (input, expected) in &tests {
             let (_, actual) = number_literal(Span::new(input))?;
-            assert_eq!(expected, &actual, "while parsing {}", input);
+            let equal = if actual.is_finite() {
+                (expected - actual).abs() < f64::EPSILON
+            } else {
+                expected.to_string() == actual.to_string()
+            };
+            assert!(equal, "while parsing {}", input);
         }
         Ok(())
     }

@@ -5,13 +5,14 @@ jobs:
     runs-on: ubuntu-latest
     steps:
     - uses: actions/checkout@v2
-    - name: Run Rustfmt
-      run: cargo fmt -- --check
-    - name: Run tests
+    - name: Format
+      run: cargo fmt -- --all --check
+    - name: Test
       run: cargo test --verbose
-    - name: Run clippy check
+    - name: Lint
       uses: actions-rs/clippy-check@v1.0.7
       with:
+        args: --all-targets
         token: ${{ secrets.GITHUB_TOKEN }}
     - name: Build
       run: cargo build --verbose

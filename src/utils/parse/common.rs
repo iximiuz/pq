@@ -115,7 +115,7 @@ mod tests {
         for (input, expected_elements) in &tests {
             let (_, actual_elements) =
                 separated_list('(', ')', ',', label_identifier, "label list", "label")(Span::new(
-                    &input,
+                    input,
                 ))?;
 
             assert_eq!(&actual_elements, expected_elements);
@@ -136,7 +136,7 @@ mod tests {
 
         for (input, _expected_elements) in &tests {
             if let Ok(res) = separated_list('(', ')', ',', label_identifier, "label list", "label")(
-                Span::new(&input),
+                Span::new(input),
             ) {
                 panic!(
                     "expected error but found {:?} while testing '{}'",
