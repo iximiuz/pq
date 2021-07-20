@@ -1,0 +1,4 @@
+[
+  "pq",
+  "/(.*?)\\s(\\w+)\\s(\\d+)/ | map {.0:ts, .1 as l, .2 as m } | select m{l=\"foo\"} + on() m{l=\"bar\"} | to_promapi"
+]

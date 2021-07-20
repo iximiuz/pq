@@ -270,21 +270,14 @@ impl std::iter::Iterator for BinaryEvaluatorVectorVector {
 
         // Only aligned in time vectors can be matched.
 
-        let (lv, rv) = loop {
-            let (lv, rv) = match (self.left.peek(), self.right.peek()) {
-                (Some(InstantVector(lv)), Some(InstantVector(rv))) => (lv, rv),
-                (None, _) | (_, None) => return None,
-                _ => unreachable!(),
-            };
+        let (lv, rv) = match (self.left.peek(), self.right.peek()) {
+            (Some(InstantVector(lv)), Some(InstantVector(rv))) => (lv, rv),
+            (None, _) | (_, None) => return None,
+            _ => unreachable!(),
+        };
 
-            if lv.timestamp() == rv.timestamp() {
-                break match (self.left.next(), self.right.next()) {
-                    (Some(InstantVector(lv)), Some(InstantVector(rv))) => (lv, rv),
-                    _ => unreachable!(),
-                };
-            }
-
-            let (ltimestamp, rtimestamp) = (lv.timestamp(), rv.timestamp());
+        let (ltimestamp, rtimestamp) = (lv.timestamp(), rv.timestamp());
+        if ltimestamp != rtimestamp {
             if ltimestamp < rtimestamp {
                 // left vector is behind right vector in time.
                 // consume left one, but produce no result yet
@@ -299,6 +292,11 @@ impl std::iter::Iterator for BinaryEvaluatorVectorVector {
                 std::cmp::min(ltimestamp, rtimestamp),
                 vec![],
             )));
+        }
+
+        let (lv, rv) = match (self.left.next(), self.right.next()) {
+            (Some(InstantVector(lv)), Some(InstantVector(rv))) => (lv, rv),
+            _ => unreachable!(),
         };
 
         Some(InstantVector(match self.group_modifier {
