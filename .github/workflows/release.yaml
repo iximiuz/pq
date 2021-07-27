@@ -1,20 +1,43 @@
+name: Release
+
 on:
   release:
     types: [created]
 
 jobs:
-  release:
-    name: release ${{ matrix.target }}
-    runs-on: ubuntu-latest
+  publish:
+    name: Publish for ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
     strategy:
-      fail-fast: false
       matrix:
-        target: [x86_64-unknown-linux-musl, x86_64-apple-darwin, x86_64-pc-windows-gnu]
+        name: [linux, macos, windows]
+        include:
+          - name: linux
+            os: ubuntu-latest
+            artifact_name: target/release/<name>
+            asset_name: <name>-linux
+          - name: windows
+            os: windows-latest
+            artifact_name: target/release/<name>.exe
+            asset_name: <name>-windows
+          - name: macos
+            os: macos-latest
+            artifact_name: target/release/<name>
+            asset_name: <name>-macos
+
     steps:
-      - uses: actions/checkout@master
-      - name: Compile and release
-        uses: rust-build/rust-build.action@latest
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          RUSTTARGET: ${{ matrix.target }}
-          EXTRA_FILES: "README.md LICENSE graph.html"
+    - uses: actions/checkout@v1
+
+    - uses: actions-rs/toolchain@v1
+      with:
+        profile: minimal
+        toolchain: stable
+
+    - name: Build
+      run: cargo build --release --locked
+
+    - name: Upload binaries to release
+      uses: actions/upload-artifact@v2
+      with:
+        name: ${{ matrix.asset_name }}
+        path: ${{ matrix.artifact_name }}
