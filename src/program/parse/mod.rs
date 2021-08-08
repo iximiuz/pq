@@ -1,9 +1,9 @@
-mod decoder;
 mod json;
+mod parser;
 mod regex;
 mod strategy;
 
 pub use self::regex::*;
-pub use decoder::*;
 pub use json::*;
+pub use parser::*;
 pub use strategy::*;
