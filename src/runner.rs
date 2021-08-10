@@ -2,13 +2,14 @@ use std::cell::RefCell;
 use std::time::Duration;
 
 use crate::error::{Error, Result};
-use crate::format::{Formatter, HumanReadableFormatter, JSONFormatter, PromApiFormatter, Value};
-use crate::output::Writer;
-use crate::parse::{
-    Decoder, DecodingStrategy, JSONDecodingStrategy, Mapper, RegexDecodingStrategy,
+use crate::formatting::{
+    Formatter, HumanReadableFormatter, JSONFormatter, PromApiFormatter, Value,
 };
+use crate::mapping::Mapper;
+use crate::output::Writer;
+use crate::parsing::Parser;
 use crate::program::{self, parse_program};
-use crate::query::QueryEvaluator;
+use crate::querying::QueryEvaluator;
 use crate::utils::time::TimeRange;
 
 type LineIter = Box<dyn std::iter::Iterator<Item = Result<(usize, Vec<u8>)>>>;

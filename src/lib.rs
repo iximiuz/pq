@@ -1,8 +1,12 @@
 pub mod cliopt;
 pub mod error;
+pub mod formatting;
 pub mod input;
+pub mod mapping;
 pub mod model;
 pub mod output;
+pub mod parsing;
 pub mod program;
+pub mod querying;
 pub mod runner;
 pub mod utils;
