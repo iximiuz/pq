@@ -1,3 +1,20 @@
+- [pq - Parse and Query log files as time series](#pq---parse-and-query-log-files-as-time-series)
+  * [Why](#why)
+  * [How](#how)
+  * [Usage](#usage)
+  * [Installation](#installation)
+  * [Documentation](#documentation)
+    + [Decoders](#decoders)
+    + [Mappers](#mappers)
+    + [Query language](#query-language)
+    + [Formatters](#formatters)
+    + [Command-line flags and options](#command-line-flags-and-options)
+  * [Interactive Mode Demo](#interactive-mode-demo)
+    + [Secondly HTTP request rate with by (method, status_code) breakdowns](#secondly-http-request-rate-with-by--method--status-code--breakdowns)
+  * [Secondly traffic (in KB/s) aggregated by method](#secondly-traffic--in-kb-s--aggregated-by-method)
+  * [Development](#development)
+  * [Glossary](#glossary)
+
 # pq - Parse and Query log files as time series
 
 [![.github/workflows/rust.yml](https://github.com/iximiuz/pq/actions/workflows/rust.yml/badge.svg?branch=main)](https://github.com/iximiuz/pq/actions/workflows/rust.yml)
